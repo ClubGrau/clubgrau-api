@@ -12,7 +12,9 @@ export class CreateEmployeeUsecase {
     private readonly createEmployeeRepository: CreateEmployeeRepositoryPort,
   ) {}
 
-  async execute(params: EmployeeModel.CreateEmployeeDto): Promise<void> {
+  async execute(
+    params: EmployeeModel.CreateEmployeeDto,
+  ): Promise<EmployeeModel.CreateEmployeeResultDto> {
     const { password, passwordConfirmation } = params;
 
     if (password !== passwordConfirmation) {
@@ -36,6 +38,8 @@ export class CreateEmployeeUsecase {
       ...candidateEmployee,
       password: encryptedPassword,
     };
-    await this.createEmployeeRepository.create(employeeToCreate);
+
+    const { id } = await this.createEmployeeRepository.create(employeeToCreate);
+    return { id };
   }
 }
