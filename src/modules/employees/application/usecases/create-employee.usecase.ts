@@ -2,7 +2,7 @@ import { Employee } from '@modules/employees/domain/entities/Employee';
 import { PasswordNotMatchError } from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
-import { EncrypterPort } from '../ports/outbound/encrypter.port';
+import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { CreateEmployeeRepositoryPort } from '../ports/outbound/create-employee-repository.port';
 
 export class CreateEmployeeUsecase {

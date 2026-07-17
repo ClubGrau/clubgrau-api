@@ -13,7 +13,7 @@ import {
   InvalidPasswordError,
 } from '@shared/domain/value-object';
 import { FindEmployeeByEmailPort } from '../ports/outbound/find-employee-by-email.port';
-import { EncrypterPort } from '../ports/outbound/encrypter.port';
+import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { CreateEmployeeRepositoryPort } from '../ports/outbound/create-employee-repository.port';
 
 const makeStubs = () => ({
