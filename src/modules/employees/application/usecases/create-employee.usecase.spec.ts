@@ -183,6 +183,15 @@ describe('HireEmployeeUsecase', () => {
     );
   });
 
+  it('should throw if createEmployeeRepository throws', async () => {
+    const { sut, createEmployeeRepositoryStub } = makeSut();
+    const params = makeValidParams();
+    jest
+      .spyOn(createEmployeeRepositoryStub, 'create')
+      .mockRejectedValueOnce(new Error('Repository error'));
+    await expect(sut.execute(params)).rejects.toThrow('Repository error');
+  });
+
   describe('Employee entity creation', () => {
     it('should create an Employee from the mapped dto fields', async () => {
       const { sut } = makeSut();
