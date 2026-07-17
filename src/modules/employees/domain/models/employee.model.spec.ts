@@ -1,3 +1,4 @@
+import { Employee } from '../entities/Employee';
 import { EmployeeModel } from './employee.model';
 
 describe('EmployeeModel.Role', () => {
@@ -30,5 +31,39 @@ describe('EmployeeModel.Role', () => {
     expect(dto.password).toBe('123456');
     expect(dto.role).toBe(EmployeeModel.Role.EMPLOYEE);
     expect(dto.passwordConfirmation).toBe('123456');
+  });
+});
+
+describe('EmployeeModel.CreateEmployeeResultDto', () => {
+  it('should describe a result carrying the created employee id', () => {
+    const result: EmployeeModel.CreateEmployeeResultDto = {
+      id: 'valid_employee_id',
+    };
+
+    expect(result).toBeDefined();
+    expect(result.id).toBe('valid_employee_id');
+  });
+});
+
+describe('EmployeeModel.toCreate', () => {
+  it('should match the serialized shape of an Employee', () => {
+    const employee = Employee.create({
+      name: 'John Doe',
+      email: 'john@example.com',
+      password: 'P@ssword123',
+      role: EmployeeModel.Role.EMPLOYEE,
+    });
+
+    const toCreate: EmployeeModel.toCreate = employee.toJSON();
+
+    expect(toCreate.id).toEqual(expect.any(String));
+    expect(toCreate.name).toBe('John Doe');
+    expect(toCreate.email).toBe('john@example.com');
+    expect(toCreate.role).toBe(EmployeeModel.Role.EMPLOYEE);
+    expect(toCreate.password).toBe('[REDACTED]');
+    expect(toCreate.nif).toBeNull();
+    expect(toCreate.isActive).toBe(true);
+    expect(toCreate.deactivateAt).toBeNull();
+    expect(toCreate.createdAt).toBeInstanceOf(Date);
   });
 });
