@@ -40,7 +40,7 @@ export class CreateEmployeeController extends BaseController<
         return badRequest(new MissingParamError(missingField));
       }
 
-      await this.createEmployeeUsecase.execute({
+      const result = await this.createEmployeeUsecase.execute({
         name: request.name,
         email: request.email,
         role: request.role,
@@ -48,11 +48,10 @@ export class CreateEmployeeController extends BaseController<
         passwordConfirmation: request.passwordConfirmation,
       });
 
-      // TODO: call CreateEmployeeUsecase and return { data: result }
       return {
-        statusCode: 200,
+        statusCode: 201,
         body: {
-          data: { id: '' },
+          data: { id: result.id },
         },
       };
     } catch (error) {
