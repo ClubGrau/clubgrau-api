@@ -3,7 +3,6 @@ import { makeChainableMock } from '../../../../../configs/database/mongoose/test
 import { EmployeeMongooseRepository } from './employee-mongoose.repository';
 import { EmployeeDocument } from './employee.schema';
 import mongoose, { Model } from 'mongoose';
-import { setupMongoMemoryServer } from '../../../../../configs/database/mongoose/test-setup-mongoose-menory';
 
 const mockEmployee = {
   _id: new mongoose.Types.ObjectId(),
@@ -27,61 +26,104 @@ const makeSut = () => {
 };
 
 describe('EmployeeMongooseRepository', () => {
-  setupMongoMemoryServer();
-
   it('should be defined', () => {
     const { sut } = makeSut();
     expect(sut).toBeDefined();
     expect(sut).toBeInstanceOf(EmployeeMongooseRepository);
   });
 
-  it('should findOne employee by email with a valid Mongoose query', async () => {
-    const { sut, employeeModelMock } = makeSut();
+  describe('findByEmail', () => {
+    it('should findOne employee by email with a valid Mongoose query', async () => {
+      const { sut, employeeModelMock } = makeSut();
 
-    const employeeId = new mongoose.Types.ObjectId().toHexString();
-    const email = 'john.doe@example.com';
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const email = 'john.doe@example.com';
 
-    const findOneSpy = jest
-      .spyOn(employeeModelMock, 'findOne')
-      .mockReturnValueOnce({
-        lean: jest.fn().mockResolvedValueOnce({
-          _id: employeeId,
-          name: 'John Doe',
-          email: 'john.doe@example.com',
-          password: 'hashed_password',
-          role: EmployeeModel.Role.ADMIN,
-          nif: 123456789,
-          isActive: true,
-          createdAt: new Date('2024-01-01T00:00:00Z'),
-          deactivateAt: null,
-        }),
+      const findOneSpy = jest
+        .spyOn(employeeModelMock, 'findOne')
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValueOnce({
+            _id: employeeId,
+            name: 'John Doe',
+            email: 'john.doe@example.com',
+            password: 'hashed_password',
+            role: EmployeeModel.Role.ADMIN,
+            nif: 123456789,
+            isActive: true,
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            deactivateAt: null,
+          }),
+        });
+
+      const result = await sut.findByEmail(email);
+      expect(findOneSpy).toHaveBeenCalledWith({ email });
+      expect(result).toEqual({
+        id: employeeId,
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        password: 'hashed_password',
+        role: EmployeeModel.Role.ADMIN,
+        nif: '123456789',
+        isActive: true,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        deactivateAt: null,
+      });
+    });
+
+    it('should return null if no employee is found', async () => {
+      const { sut, employeeModelMock } = makeSut();
+
+      const email = 'nonexistent@example.com';
+
+      jest.spyOn(employeeModelMock, 'findOne').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValueOnce(null),
       });
 
-    const result = await sut.findByEmail(email);
-    expect(findOneSpy).toHaveBeenCalledWith({ email });
-    expect(result).toEqual({
-      id: employeeId,
-      name: 'John Doe',
-      email: 'john.doe@example.com',
-      password: 'hashed_password',
-      role: EmployeeModel.Role.ADMIN,
-      nif: '123456789',
-      isActive: true,
-      createdAt: new Date('2024-01-01T00:00:00Z'),
-      deactivateAt: null,
+      const result = await sut.findByEmail(email);
+      expect(result).toBeNull();
     });
   });
 
-  it('should return null if no employee is found', async () => {
-    const { sut, employeeModelMock } = makeSut();
-
-    const email = 'nonexistent@example.com';
-
-    jest.spyOn(employeeModelMock, 'findOne').mockReturnValueOnce({
-      lean: jest.fn().mockResolvedValueOnce(null),
+  describe('create', () => {
+    it('should create a new employee with a valid Mongoose query', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeData: EmployeeModel.toCreate = {
+        id: new mongoose.Types.ObjectId().toHexString(),
+        name: 'Jane Doe',
+        email: 'jane.doe@example.com',
+        role: EmployeeModel.Role.MANAGER,
+        password: 'hashed_password',
+        nif: '987654321',
+        isActive: true,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        deactivateAt: null,
+      };
+      const createSpy = jest
+        .spyOn(employeeModelMock, 'create')
+        .mockResolvedValueOnce({
+          _id: employeeData.id,
+          name: 'Jane Doe',
+          email: 'jane.doe@example.com',
+          role: EmployeeModel.Role.MANAGER,
+          password: 'hashed_password',
+          nif: 987654321,
+          isActive: true,
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+          deactivateAt: null,
+        });
+      const result = await sut.create(employeeData);
+      expect(createSpy).toHaveBeenCalledWith({
+        _id: new mongoose.Types.ObjectId(employeeData.id),
+        name: 'Jane Doe',
+        email: 'jane.doe@example.com',
+        role: EmployeeModel.Role.MANAGER,
+        password: 'hashed_password',
+        nif: 987654321,
+        isActive: true,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        deactivateAt: null,
+      });
+      expect(result).toEqual({ id: employeeData.id });
     });
-
-    const result = await sut.findByEmail(email);
-    expect(result).toBeNull();
   });
 });
