@@ -1,16 +1,29 @@
-import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { CreateEmployeeUsecase } from './create-employee.usecase';
-import { PasswordNotMatchError } from '@modules/employees/domain/errors/employee.errors';
 import { Employee } from '@modules/employees/domain/entities/Employee';
+import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
+import {
+  EmployeeAlreadyExistsError,
+  EmployeeInactiveError,
+  PasswordNotMatchError,
+} from '@modules/employees/domain/errors/employee.errors';
+import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import {
   InvalidEmailError,
   InvalidNameError,
   InvalidPasswordError,
 } from '@shared/domain/value-object';
+import { FindEmployeeByEmailPort } from '../ports/outbound/find-employee-by-email.port';
+
+const makeStubs = () => ({
+  employeePoliciesServiceStub: new EmployeePoliciesService({
+    findByEmail: jest.fn().mockResolvedValue(null),
+  } satisfies FindEmployeeByEmailPort),
+});
 
 const makeSut = (): SutTypes => {
-  const sut = new CreateEmployeeUsecase();
-  return { sut };
+  const { employeePoliciesServiceStub } = makeStubs();
+  const sut = new CreateEmployeeUsecase(employeePoliciesServiceStub);
+  return { sut, employeePoliciesServiceStub };
 };
 
 const makeValidParams = (
@@ -26,6 +39,7 @@ const makeValidParams = (
 
 type SutTypes = {
   sut: CreateEmployeeUsecase;
+  employeePoliciesServiceStub: EmployeePoliciesService;
 };
 
 describe('HireEmployeeUsecase', () => {
@@ -71,6 +85,42 @@ describe('HireEmployeeUsecase', () => {
       PasswordNotMatchError,
     );
     expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it('should call EmployeePoliciesService.ensureEmailIsAvailable with correct email', async () => {
+    const { sut, employeePoliciesServiceStub } = makeSut();
+    const ensureEmailIsAvailableSpy = jest.spyOn(
+      employeePoliciesServiceStub,
+      'ensureEmailIsAvailable',
+    );
+
+    await sut.execute(makeValidParams());
+
+    expect(ensureEmailIsAvailableSpy).toHaveBeenCalledWith(
+      'john.doe@example.com',
+    );
+  });
+
+  it('should propagate EmployeeAlreadyExistsError from the policy', async () => {
+    const { sut, employeePoliciesServiceStub } = makeSut();
+    jest
+      .spyOn(employeePoliciesServiceStub, 'ensureEmailIsAvailable')
+      .mockRejectedValueOnce(new EmployeeAlreadyExistsError());
+
+    const execute = () => sut.execute(makeValidParams());
+
+    await expect(execute).rejects.toBeInstanceOf(EmployeeAlreadyExistsError);
+  });
+
+  it('should propagate EmployeeInactiveError from the policy', async () => {
+    const { sut, employeePoliciesServiceStub } = makeSut();
+    jest
+      .spyOn(employeePoliciesServiceStub, 'ensureEmailIsAvailable')
+      .mockRejectedValueOnce(new EmployeeInactiveError());
+
+    const execute = () => sut.execute(makeValidParams());
+
+    await expect(execute).rejects.toBeInstanceOf(EmployeeInactiveError);
   });
 
   describe('Employee entity creation', () => {
