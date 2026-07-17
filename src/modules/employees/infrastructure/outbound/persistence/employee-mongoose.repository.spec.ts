@@ -3,6 +3,7 @@ import { makeChainableMock } from '../../../../../configs/database/mongoose/test
 import { EmployeeMongooseRepository } from './employee-mongoose.repository';
 import { EmployeeDocument } from './employee.schema';
 import mongoose, { Model } from 'mongoose';
+import { setupMongoMemoryServer } from '../../../../../configs/database/mongoose/test-setup-mongoose-menory';
 
 const mockEmployee = {
   _id: new mongoose.Types.ObjectId(),
@@ -26,6 +27,8 @@ const makeSut = () => {
 };
 
 describe('EmployeeMongooseRepository', () => {
+  setupMongoMemoryServer();
+
   it('should be defined', () => {
     const { sut } = makeSut();
     expect(sut).toBeDefined();
@@ -67,5 +70,18 @@ describe('EmployeeMongooseRepository', () => {
       createdAt: new Date('2024-01-01T00:00:00Z'),
       deactivateAt: null,
     });
+  });
+
+  it('should return null if no employee is found', async () => {
+    const { sut, employeeModelMock } = makeSut();
+
+    const email = 'nonexistent@example.com';
+
+    jest.spyOn(employeeModelMock, 'findOne').mockReturnValueOnce({
+      lean: jest.fn().mockResolvedValueOnce(null),
+    });
+
+    const result = await sut.findByEmail(email);
+    expect(result).toBeNull();
   });
 });
