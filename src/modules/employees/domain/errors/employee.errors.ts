@@ -13,3 +13,9 @@ export class EmployeeAlreadyInactiveError extends DomainError {
     super('Employee is already inactive');
   }
 }
+
+export class PasswordNotMatchError extends DomainError {
+  constructor() {
+    super('Password and passwordConfirmation do not match');
+  }
+}
