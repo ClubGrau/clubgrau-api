@@ -19,3 +19,21 @@ export class PasswordNotMatchError extends DomainError {
     super('Password and passwordConfirmation do not match');
   }
 }
+
+export class EmployeeNotFoundError extends DomainError {
+  constructor() {
+    super('Employee not found');
+  }
+}
+
+export class EmployeeAlreadyExistsError extends DomainError {
+  constructor() {
+    super('Employee already exists');
+  }
+}
+
+export class EmployeeInactiveError extends DomainError {
+  constructor() {
+    super('Employee already exists but is inactive');
+  }
+}
