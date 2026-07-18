@@ -1,11 +1,27 @@
 import { MissingParamError } from '@shared/presentation/errors/missing-param.error';
 import { AuthController } from './auth.controller';
+import { LoginPort } from '@modules/auth/application/ports/inbound/login.port';
 
-const makeSut = () => {
-  const sut = new AuthController();
+const makeStubs = () => ({
+  loginPortStub: {
+    execute: jest.fn().mockResolvedValue({
+      token: 'valid_token',
+    }),
+  } satisfies LoginPort,
+});
+
+const makeSut = (): SutTypes => {
+  const { loginPortStub } = makeStubs();
+  const sut = new AuthController(loginPortStub);
   return {
     sut,
+    loginPortStub,
   };
+};
+
+type SutTypes = {
+  sut: AuthController;
+  loginPortStub: LoginPort;
 };
 
 describe('AuthController', () => {
@@ -38,6 +54,20 @@ describe('AuthController', () => {
     expect(httpResponse.statusCode).toBe(400);
     expect(httpResponse.body).toEqual({
       error: new MissingParamError('password').message,
+    });
+  });
+
+  it('should call LoginPort with correct values', async () => {
+    const { sut, loginPortStub } = makeSut();
+    const request = {
+      email: 'any_email@example.com',
+      password: 'any_password',
+    };
+    const loginSpy = jest.spyOn(loginPortStub, 'execute');
+    await sut.handle(request);
+    expect(loginSpy).toHaveBeenCalledWith({
+      email: 'any_email@example.com',
+      password: 'any_password',
     });
   });
 });
