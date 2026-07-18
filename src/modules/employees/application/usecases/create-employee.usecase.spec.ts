@@ -12,7 +12,7 @@ import {
   InvalidNameError,
   InvalidPasswordError,
 } from '@shared/domain/value-object';
-import { FindEmployeeByEmailPort } from '../ports/outbound/find-employee-by-email.port';
+import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { CreateEmployeeRepositoryPort } from '../ports/outbound/create-employee-repository.port';
 

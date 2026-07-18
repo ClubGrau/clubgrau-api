@@ -1,5 +1,5 @@
 import { CreateEmployeeRepositoryPort } from '@modules/employees/application/ports/outbound/create-employee-repository.port';
-import { FindEmployeeByEmailPort } from '@modules/employees/application/ports/outbound/find-employee-by-email.port';
+import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { EmployeeDocument, EmployeeMongooseModel } from './employee.schema';
 import { mapEmployeeDocument, mapToCreateDocument } from './employee.mapper';

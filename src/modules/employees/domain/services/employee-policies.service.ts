@@ -1,4 +1,4 @@
-import { FindEmployeeByEmailPort } from '@modules/employees/application/ports/outbound/find-employee-by-email.port';
+import { FindEmployeeByEmailPort } from '../ports/find-employee-by-email.port';
 import {
   EmployeeAlreadyExistsError,
   EmployeeInactiveError,
