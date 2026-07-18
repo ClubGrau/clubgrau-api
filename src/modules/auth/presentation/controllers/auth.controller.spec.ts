@@ -86,4 +86,22 @@ describe('AuthController', () => {
       error: 'LoginPort error',
     });
   });
+
+  it('should return 200 if LoginPort returns a valid token', async () => {
+    const { sut, loginPortStub } = makeSut();
+    const request = {
+      email: 'any_email@example.com',
+      password: 'any_password',
+    };
+    jest.spyOn(loginPortStub, 'execute').mockResolvedValue({
+      token: 'valid_token',
+    });
+    const httpResponse = await sut.handle(request);
+    expect(httpResponse.statusCode).toBe(200);
+    expect(httpResponse.body).toEqual({
+      data: {
+        token: 'valid_token',
+      },
+    });
+  });
 });
