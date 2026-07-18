@@ -24,6 +24,13 @@ export const ok = <T>(data: T): HttpResponse<HttpSuccessBody<T>> => ({
   },
 });
 
+export const unauthorized = (error: Error): HttpResponse<HttpErrorBody> => ({
+  statusCode: 401,
+  body: {
+    error: error.message,
+  },
+});
+
 export const serverError = (error: Error): HttpResponse<HttpErrorBody> => ({
   statusCode: 500,
   body: {
