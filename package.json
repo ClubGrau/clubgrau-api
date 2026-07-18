@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/main.js",
+    "start": "node --env-file=.env dist/main.js",
+    "start:dev": "node --env-file=.env --watch -r ts-node/register -r tsconfig-paths/register src/main.ts",
     "dev": "ts-node src/main.ts",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -24,21 +25,24 @@
     "@commitlint/config-conventional": "^21.2.0",
     "@eslint/js": "^9.39.5",
     "@types/bcrypt": "^6.0.0",
+    "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.1",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "jest": "^30.4.2",
     "lefthook": "^2.1.10",
+    "mongodb-memory-server": "^11.0.1",
     "prettier": "^3.9.5",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.64.0",
-    "mongodb-memory-server": "^11.0.1"
+    "typescript-eslint": "^8.64.0"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "express": "^5.2.1",
     "mongoose": "^9.7.4"
   }
 }

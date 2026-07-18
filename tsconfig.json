@@ -19,7 +19,8 @@
     "paths": {
       "@modules/*": ["./src/modules/*"],
       "@shared/*": ["./src/shared/*"],
-      "@config/*": ["./src/config/*"]
+      "@configs/*": ["./src/configs/*"],
+      "@config/*": ["./src/configs/*"]
     },
 
     // Other Outputs
