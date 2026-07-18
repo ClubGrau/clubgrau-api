@@ -70,4 +70,20 @@ describe('AuthController', () => {
       password: 'any_password',
     });
   });
+
+  it('should return 500 if LoginPort throws', async () => {
+    const { sut, loginPortStub } = makeSut();
+    jest
+      .spyOn(loginPortStub, 'execute')
+      .mockRejectedValue(new Error('LoginPort error'));
+    const request = {
+      email: 'any_email@example.com',
+      password: 'any_password',
+    };
+    const httpResponse = await sut.handle(request);
+    expect(httpResponse.statusCode).toBe(500);
+    expect(httpResponse.body).toEqual({
+      error: 'LoginPort error',
+    });
+  });
 });
