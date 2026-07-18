@@ -15,25 +15,29 @@ describe('AuthController', () => {
     expect(sut).toBeInstanceOf(AuthController);
   });
 
-  it('should return 400 if no email is provided', () => {
+  it('should return 400 if no email is provided', async () => {
     const { sut } = makeSut();
     const request = {
       email: '',
       password: 'any_password',
     };
-    const httpResponse = sut.handle(request);
+    const httpResponse = await sut.handle(request);
     expect(httpResponse.statusCode).toBe(400);
-    expect(httpResponse.body).toEqual(new MissingParamError('email'));
+    expect(httpResponse.body).toEqual({
+      error: new MissingParamError('email').message,
+    });
   });
 
-  it('should return 400 if no password is provided', () => {
+  it('should return 400 if no password is provided', async () => {
     const { sut } = makeSut();
     const request = {
       email: 'any_email@example.com',
       password: '',
     };
-    const httpResponse = sut.handle(request);
+    const httpResponse = await sut.handle(request);
     expect(httpResponse.statusCode).toBe(400);
-    expect(httpResponse.body).toEqual(new MissingParamError('password'));
+    expect(httpResponse.body).toEqual({
+      error: new MissingParamError('password').message,
+    });
   });
 });
