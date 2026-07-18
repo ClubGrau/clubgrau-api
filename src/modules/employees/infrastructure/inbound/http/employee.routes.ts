@@ -1,6 +1,6 @@
-import { CreateEmployeeController } from '@modules/employees/presentation/controllers/create-employee.controller';
 import { Router } from 'express';
-import { adaptRoute } from './express-route.adapter';
+import { CreateEmployeeController } from '@modules/employees/presentation/controllers/create-employee.controller';
+import { adaptRoute } from '@shared/infrastructure/adapters/http/express-route.adapter';
 
 export type EmployeeRoutesDependencies = {
   createEmployeeController: CreateEmployeeController;

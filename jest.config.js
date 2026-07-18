@@ -17,7 +17,7 @@ module.exports = {
     '!src/configs/**/*.ts',
     '!src/app.ts',
     '!src/shared/infrastructure/adapters/http/*.adapter.ts',
-    '!src/shared/infrastructure/adapters/http/*.routes.ts',
+    '!src/**/*.routes.ts',
     '!src/**/*.schema.ts',
   ],
   coverageDirectory: 'coverage',

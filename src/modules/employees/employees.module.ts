@@ -6,7 +6,7 @@ import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persi
 import { EmployeeMongooseRepository } from '@modules/employees/infrastructure/outbound/persistence/employee-mongoose.repository';
 import { CreateEmployeeController } from '@modules/employees/presentation/controllers/create-employee.controller';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
-import { makeEmployeeRoutes } from '@shared/infrastructure/adapters/http/employee.routes';
+import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 
 export type EmployeesModule = {
   createEmployeeController: CreateEmployeeController;
