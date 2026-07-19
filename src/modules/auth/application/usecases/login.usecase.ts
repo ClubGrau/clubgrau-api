@@ -32,7 +32,7 @@ export class LoginUseCase {
       throw new AuthenticationError();
     }
 
-    await this.tokenProviderPort.generateToken({
+    const { token } = await this.tokenProviderPort.generateToken({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -40,6 +40,6 @@ export class LoginUseCase {
       isActive: user.isActive,
     });
 
-    return { token: 'valid_token' };
+    return { token };
   }
 }
