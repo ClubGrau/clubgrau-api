@@ -19,7 +19,14 @@ export class LoginUseCase {
       throw new AuthenticationError();
     }
 
-    await this.compareHashPort.compare(params.password, user.passwordHash);
+    const isPasswordValid = await this.compareHashPort.compare(
+      params.password,
+      user.passwordHash,
+    );
+
+    if (!isPasswordValid) {
+      throw new AuthenticationError();
+    }
 
     return { token: 'valid_token' };
   }

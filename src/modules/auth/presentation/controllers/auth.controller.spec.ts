@@ -110,7 +110,7 @@ describe('AuthController', () => {
     const { sut, loginPortStub } = makeSut();
     jest
       .spyOn(loginPortStub, 'execute')
-      .mockRejectedValue(new AuthenticationError('Authentication error'));
+      .mockRejectedValue(new AuthenticationError());
     const request = {
       email: 'any_email@example.com',
       password: 'any_password',
@@ -118,7 +118,7 @@ describe('AuthController', () => {
     const httpResponse = await sut.handle(request);
     expect(httpResponse.statusCode).toBe(401);
     expect(httpResponse.body).toEqual({
-      error: 'Authentication error',
+      error: 'Authentication failed',
     });
   });
 });

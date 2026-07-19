@@ -6,7 +6,7 @@ import { DomainError } from '@shared/domain/errors/domain.error';
  * so the API does not reveal which case occurred.
  */
 export class AuthenticationError extends DomainError {
-  constructor(message = 'Authentication error') {
+  constructor(message = 'Authentication failed') {
     super(message);
   }
 }
