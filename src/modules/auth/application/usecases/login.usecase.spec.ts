@@ -1,6 +1,7 @@
 import { AuthenticationError } from '@modules/auth/domain/errors/auth.errors';
 import { FindAuthenticatableByEmailPort } from '../ports/outbound/find-authenticable-by-email.port';
 import { LoginUseCase } from './login.usecase';
+import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 
 const makeStubs = () => ({
   findAuthenticatableByEmailPortStub: {
@@ -13,20 +14,29 @@ const makeStubs = () => ({
       role: 'EMPLOYEE',
     }),
   } satisfies FindAuthenticatableByEmailPort,
+  comparePasswordPortStub: {
+    compare: jest.fn().mockResolvedValue(true),
+  } satisfies CompareHashPort,
 });
 
 const makeSut = (): SutTypes => {
-  const { findAuthenticatableByEmailPortStub } = makeStubs();
-  const sut = new LoginUseCase(findAuthenticatableByEmailPortStub);
+  const { findAuthenticatableByEmailPortStub, comparePasswordPortStub } =
+    makeStubs();
+  const sut = new LoginUseCase(
+    findAuthenticatableByEmailPortStub,
+    comparePasswordPortStub,
+  );
   return {
     sut,
     findAuthenticatableByEmailPortStub,
+    comparePasswordPortStub,
   };
 };
 
 type SutTypes = {
   sut: LoginUseCase;
   findAuthenticatableByEmailPortStub: FindAuthenticatableByEmailPort;
+  comparePasswordPortStub: CompareHashPort;
 };
 
 describe('LoginUsecase', () => {
@@ -82,5 +92,19 @@ describe('LoginUsecase', () => {
       });
     const promise = sut.execute(params);
     await expect(promise).rejects.toThrow(AuthenticationError);
+  });
+
+  it('should call ComparePasswordPort with correct values', async () => {
+    const { sut, comparePasswordPortStub } = makeSut();
+    const params = {
+      email: 'any_email@example.com',
+      password: 'any_password',
+    };
+    const comparePasswordSpy = jest.spyOn(comparePasswordPortStub, 'compare');
+    await sut.execute(params);
+    expect(comparePasswordSpy).toHaveBeenCalledWith(
+      params.password,
+      'hashed_password',
+    );
   });
 });
