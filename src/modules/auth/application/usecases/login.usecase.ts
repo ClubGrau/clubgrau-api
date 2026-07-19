@@ -32,7 +32,7 @@ export class LoginUseCase {
       throw new AuthenticationError();
     }
 
-    const { token } = await this.tokenProviderPort.generateToken({
+    const { token } = this.tokenProviderPort.generateToken({
       id: user.id,
       name: user.name,
       email: user.email,
