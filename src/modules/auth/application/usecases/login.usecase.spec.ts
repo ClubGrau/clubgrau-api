@@ -1,3 +1,4 @@
+import { AuthenticationError } from '@modules/auth/domain/errors/auth.errors';
 import { FindAuthenticatableByEmailPort } from '../ports/outbound/find-authenticable-by-email.port';
 import { LoginUseCase } from './login.usecase';
 
@@ -48,5 +49,18 @@ describe('LoginUsecase', () => {
     );
     await sut.execute(params);
     expect(findAuthenticatableByEmailSpy).toHaveBeenCalledWith(params.email);
+  });
+
+  it('should throw AuthenticationError when user is not found', async () => {
+    const { sut, findAuthenticatableByEmailPortStub } = makeSut();
+    const params = {
+      email: 'any_email@example.com',
+      password: 'any_password',
+    };
+    jest
+      .spyOn(findAuthenticatableByEmailPortStub, 'findAuthenticatableByEmail')
+      .mockResolvedValueOnce(null);
+    const promise = sut.execute(params);
+    await expect(promise).rejects.toThrow(AuthenticationError);
   });
 });
