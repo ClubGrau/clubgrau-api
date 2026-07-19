@@ -20,7 +20,7 @@ const makeStubs = () => ({
     compare: jest.fn().mockResolvedValue(true),
   } satisfies CompareHashPort,
   tokenProviderPortStub: {
-    generateToken: jest.fn().mockResolvedValue({
+    generateToken: jest.fn().mockReturnValue({
       token: 'any_token',
     }),
   } satisfies TokenProviderPort<AuthenticatableUser>,
@@ -155,7 +155,7 @@ describe('LoginUsecase', () => {
       email: 'any_email@example.com',
       password: 'any_password',
     };
-    jest.spyOn(tokenProviderPortStub, 'generateToken').mockResolvedValueOnce({
+    jest.spyOn(tokenProviderPortStub, 'generateToken').mockReturnValueOnce({
       token: 'any_token',
     });
     const token = await sut.execute(params);
