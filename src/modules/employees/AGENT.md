@@ -1,33 +1,35 @@
 # Employees Module — Agent Guide
 
-> Living guidance for AI agents and developers working on `src/modules/employees`.
-> Companion architecture overview (Portuguese): [`docs/project-structure.md`](../../../docs/project-structure.md).
+> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees).
+>
+> Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).  
+> Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
 
 ## Purpose of this document
 
-This file captures the **current contract** of the employees hexagon after **Part 1** (Create Employee) and **Part 2** (Get Employees query). Use it to:
+Use this file to extend **this** module without breaking its current contracts:
 
-- Extend the module without breaking hexagonal boundaries
-- Place new types, ports, and files in the correct layer
-- Preserve existing naming, dependency, and testing conventions
+- Public HTTP surface, ports, DTOs, domain invariants
+- Persistence mapping and wiring specific to employees
 
 ### When to update this document
 
 **Do not** treat this as a changelog. Trivial refactors, typo fixes, and test-only tweaks do **not** need an entry here.
 
-**Do update** this document when any of the following change:
+**Do update** when any of the following change for employees:
 
 | Change type | Examples |
 |-------------|----------|
-| Architecture / layering | New folder, dependency direction change, wiring pattern |
 | Public HTTP surface | New route, method, path, or response shape |
 | Domain invariants | Role rules, activation policy, email uniqueness rules |
 | Ports / DTOs | New inbound/outbound port, DTO fields, return contracts |
 | Persistence mapping | Schema fields, mapper rules, repository responsibilities |
 | Open decisions | Resolved TODOs, new known limitations |
-| Conventions | Naming, test placement, shared-vs-module ownership |
+| Module layout | New folder under this hexagon, wiring pattern change local to employees |
 
-After a meaningful change, update the relevant section(s) in place. Keep history out of this file unless a decision needs an explicit “why we chose X” note.
+Global convention changes belong in [`AGENTS.md`](../../../AGENTS.md), not here.
+
+After a meaningful change, update the relevant section(s) in place.
 
 ---
 
@@ -47,16 +49,14 @@ After a meaningful change, update the relevant section(s) in place. Keep history
 | Module HTTP ownership | Done | `infrastructure/inbound/http/employee.routes.ts` |
 | Composition root wiring | Done | `employees.module.ts` + `app.ts` |
 
-### CQRS (partial)
-
-Commands and queries share the same hexagon. Separation today is **organizational** on the application side:
+### CQRS in this module
 
 | Side | Location | Example |
 |------|----------|---------|
 | Command (write) | `application/usecases/` | `CreateEmployeeUsecase` |
 | Query (read) | `application/queries/` | `GetEmployeesQuery` |
 
-Queries do **not** call `Employee.create`, policies, or encrypter. They use a dedicated read model DTO (no `password`) and a dedicated outbound read port.
+Queries do **not** call `Employee.create`, policies, or encrypter. They use a dedicated read model DTO (no `password`) and `FindEmployeesPort`.
 
 ### Future work
 
@@ -69,36 +69,14 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 
 ---
 
-## Architecture principles
-
-Hexagonal (Ports & Adapters). Dependency rule:
-
-```text
-presentation / infrastructure  →  application  →  domain
-domain ↛ application, presentation, infrastructure
-```
-
-Hard rules:
-
-1. **Domain is pure** — no Express, Mongoose, bcrypt, env, or Nest-style DI.
-2. **Domain does not import `application`.**
-3. Controllers in `presentation` are **framework-agnostic** (no Express imports).
-4. Express lives only in `infrastructure/inbound/http` (+ shared `adaptRoute`).
-5. Wiring belongs in `employees.module.ts`; `app.ts` / `main.ts` only compose the app.
-6. Other modules must **not** import this module’s internal `domain`. Cross-module communication goes through ports/events (when introduced).
-7. Shared VOs (`Name`, `Email`, `Password`, `Nif`, `UniqueEntityId`) live in `@shared/domain`.
-8. **Read models ≠ write snapshots** — list/get responses use application DTOs without `password`; do not reuse `EmployeeModel.toCreate` as HTTP output.
-
----
-
 ## Directory map
 
 ```text
 src/modules/employees/
-├── AGENT.md                          # this file
+├── AGENT.md                          # this file (module contract)
 ├── employees.module.ts               # composition / DI for the hexagon
 │
-├── domain/                           # business rules (pure)
+├── domain/
 │   ├── entities/
 │   │   ├── Employee.ts
 │   │   └── employee.spec.ts
@@ -113,7 +91,7 @@ src/modules/employees/
 │       ├── employee-policies.service.ts
 │       └── employee-policies.service.spec.ts
 │
-├── application/                      # use cases / queries + ports + DTOs
+├── application/
 │   ├── dtos/
 │   │   ├── create-employee.dto.ts
 │   │   ├── create-employee.dto.spec.ts
@@ -126,14 +104,14 @@ src/modules/employees/
 │   │   └── outbound/
 │   │       ├── create-employee-repository.port.ts
 │   │       └── find-employees.port.ts
-│   ├── usecases/                     # commands (write)
+│   ├── usecases/
 │   │   ├── create-employee.usecase.ts
 │   │   └── create-employee.usecase.spec.ts
-│   └── queries/                      # queries (read)
+│   └── queries/
 │       ├── get-employees.query.ts
 │       └── get-employees.query.spec.ts
 │
-├── presentation/                     # HTTP controllers (no Express)
+├── presentation/
 │   └── controllers/
 │       ├── create-employee.controller.ts
 │       ├── create-employee.controller.spec.ts
@@ -142,7 +120,7 @@ src/modules/employees/
 │
 └── infrastructure/
     ├── inbound/http/
-    │   └── employee.routes.ts        # Express Router for this module
+    │   └── employee.routes.ts
     └── outbound/persistence/
         ├── employee.schema.ts
         ├── employee.mapper.ts        # mapEmployeeDocument + mapEmployeeReadModel
@@ -155,58 +133,10 @@ Related outside the module:
 | Path | Role |
 |------|------|
 | `src/app.ts` | Injects `connection` + `BcryptAdapter` + `authTokenMiddleware`, mounts `/api` |
-| `src/shared/**` | Entity base, VOs, EncrypterPort, BaseController, adaptRoute, **offset pagination** |
+| `src/shared/**` | Entity base, VOs, EncrypterPort, BaseController, adaptRoute, offset pagination |
 | `src/client/employee.http` | Manual REST Client requests |
-| `docs/project-structure.md` | Repo-wide hexagonal structure (PT) |
-
----
-
-## Layer responsibilities
-
-| Layer | Owns | May depend on |
-|-------|------|----------------|
-| `domain` | Entity, model concepts, domain errors, domain services, domain ports | `@shared/domain` only |
-| `application` | Use cases, queries, inbound/outbound ports, use-case DTOs | `domain` + `@shared` |
-| `presentation` | Controllers (validate required fields, map to HTTP) | `application` + `@shared/presentation` |
-| `infrastructure/inbound` | Express routes | `presentation` + shared HTTP adapters |
-| `infrastructure/outbound` | Mongoose schema, mapper, repository | `application` + `domain` + frameworks |
-| `employees.module.ts` | Instantiates adapters and binds ports | all module layers + shared adapters |
-
-### Where to put types
-
-| Kind | Location | Example |
-|------|----------|---------|
-| Use-case / query I/O DTO | `application/dtos/` | `CreateEmployeeDto`, `GetEmployeesItemDto` |
-| Domain concept / persistence snapshot | `domain/models/` | `EmployeeModel.Role`, `EmployeeModel.toCreate` |
-| Port used by a domain service | `domain/ports/` | `FindEmployeeByEmailPort` |
-| Driving (inbound) port | `application/ports/inbound/` | `CreateEmployeePort`, `GetEmployeesPort` |
-| Driven (outbound) port | `application/ports/outbound/` | `CreateEmployeeRepositoryPort`, `FindEmployeesPort` |
-
----
-
-## Naming conventions
-
-| Artifact | Pattern | Example |
-|----------|---------|---------|
-| Entity | `PascalCase.ts` | `Employee.ts` |
-| Port | `kebab-case.port.ts` | `get-employees.port.ts` |
-| DTO | `kebab-case.dto.ts` | `get-employees.dto.ts` |
-| Use case (command) | `kebab-case.usecase.ts` | `create-employee.usecase.ts` |
-| Query | `kebab-case.query.ts` | `get-employees.query.ts` |
-| Controller | `kebab-case.controller.ts` | `get-employees.controller.ts` |
-| Routes | `kebab-case.routes.ts` | `employee.routes.ts` |
-| Repository | `kebab-case.repository.ts` | `employee-mongoose.repository.ts` |
-| Schema / mapper | `kebab-case.schema.ts` / `.mapper.ts` | `employee.schema.ts` |
-| Spec | co-located `*.spec.ts` | `get-employees.query.spec.ts` |
-| Module factory | `*.module.ts` + `makeXModule` | `makeEmployeesModule` |
-
-Path aliases (must be used instead of deep relative imports across packages):
-
-| Alias | Resolves to |
-|-------|-------------|
-| `@modules/*` | `./src/modules/*` |
-| `@shared/*` | `./src/shared/*` |
-| `@configs/*` / `@config/*` | `./src/configs/*` |
+| [`AGENTS.md`](../../../AGENTS.md) | Global constitution |
+| [`docs/project-structure.md`](../../../docs/project-structure.md) | Repo-wide structure diagrams |
 
 ---
 
@@ -498,64 +428,22 @@ Composition order today:
 
 Returns `{ createEmployeeController, getEmployeesController, createEmployee, getEmployees, router }`.
 
-**Rule for agents:** when adding a use case or query, wire it in this file; do not construct repositories inside controllers or use cases.
+**Rule:** when adding a use case or query, wire it in this file; do not construct repositories inside controllers or use cases.
 
 ---
 
-## Testing conventions
+## Module checklist (extend employees)
 
-- Unit specs are **co-located** (`*.spec.ts` next to production file).
-- Prefer mocking ports at use-case / query / controller boundaries.
-- Repository specs may use Mongo memory helpers from `@configs/database/mongoose`.
-- Coverage config excludes bootstrap, module wiring, HTTP routes/adapters, schemas, and configs — do not “fix coverage” by moving logic into those excluded files.
+Follow the global playbook in [`AGENTS.md`](../../../AGENTS.md). For this module specifically:
 
-Suggested checklist for a new command/query:
+1. Domain / DTO / ports / use case or query / controller / route / repo as needed + specs
+2. Wire in `employees.module.ts`
+3. Update `src/client/employee.http` if HTTP surface changed
+4. Update **this** `AGENT.md` (status, ports, HTTP, open decisions)
 
-1. Domain changes (entity/model/errors/policies) + specs — skip for pure queries when not needed
-2. DTO + inbound/outbound ports
-3. Use case **or** query + spec
-4. Controller + spec
-5. Route registration
-6. Repository method(s) + mapper/schema if needed + spec
-7. Wire in `employees.module.ts`
-8. Update `src/client/employee.http` if HTTP surface changed
-9. Update **this** `AGENT.md` if architecture/contracts changed
-
----
-
-## How to add a new use case / query (playbook)
-
-Example command: `DeactivateEmployee`.
-
-1. **Domain** — ensure entity behavior exists (`deactivate()` already does); add policy/errors if needed.
-2. **Application DTO** — `application/dtos/deactivate-employee.dto.ts`.
-3. **Ports** — inbound `DeactivateEmployeePort`; outbound port(s) as needed (e.g. find by id + save).
-4. **Use case** — `application/usecases/deactivate-employee.usecase.ts` implementing the inbound port.
-5. **Presentation** — controller under `presentation/controllers/`.
-6. **Infrastructure inbound** — register route in `employee.routes.ts` (extend `EmployeeRoutesDependencies`).
-7. **Infrastructure outbound** — extend repository/mapper/schema only if persistence API is insufficient.
-8. **Module** — construct and inject in `makeEmployeesModule`.
-9. **Docs** — update this AGENT.md sections: status table, ports, HTTP surface.
-
-Example query: place under `application/queries/`, return a read model DTO (never `EmployeeModel.toCreate` for HTTP), and prefer a dedicated outbound read port.
+Example next command: `DeactivateEmployee` — entity already has `deactivate()`; add DTO, ports, use case, controller, route, wire, then update this file.
 
 Never shortcut by calling the repository from the controller.
-
----
-
-## Do / Don’t
-
-| Do | Don’t |
-|----|-------|
-| Depend inward toward `domain` | Import Express/Mongoose inside domain or use cases |
-| Inject ports via constructor | Instantiate bcrypt/mongoose inside use cases |
-| Put use-case I/O in `application/dtos` | Put HTTP DTOs inside `domain/models` |
-| Put `Role` / write snapshots in `domain/models` | Reuse `toCreate` as list/get HTTP output |
-| Put queries under `application/queries/` | Put read-only flows through create/entity policies unnecessarily |
-| Co-locate `*.spec.ts` | Create a parallel `__tests__` tree for this module |
-| Use `@modules` / `@shared` aliases | Deep `../../../` imports across packages |
-| Keep controllers framework-free | Import `express` in `presentation/` |
-| Update AGENT.md on contract changes | Log every commit or cosmetic rename here |
 
 ---
 

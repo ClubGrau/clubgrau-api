@@ -1,22 +1,31 @@
-# Estrutura do projeto — Ports & Adapters (Hexagonal)
+# Project structure — Ports & Adapters (Hexagonal)
 
-Documento oficial da arquitetura do `grau-api`, baseado no módulo `employees`.  
-Atualize este arquivo sempre que a organização do módulo ou do bootstrap mudar.
+Visual deep-dive of the `grau-api` architecture (diagrams + folder tree), based on the `employees` module.
 
-## Princípios
+## Documentation hierarchy
 
-- Cada **módulo** é um hexágono independente (`employees` é o módulo de referência).
-- Regra de dependência: `presentation / infrastructure → application → domain`.
-- O **domínio** não conhece frameworks, HTTP, banco ou DI — e **não importa** `application`.
-- Comunicação entre módulos: via **ports** / eventos — nunca importar o `domain` interno de outro módulo.
-- Value objects compartilhados (`Name`, `Email`, `Password`, `Nif`, `UniqueEntityId`) vivem em `shared/domain`.
-- DTOs de entrada/saída de casos de uso vivem em `application/dtos`.
-- Conceitos de domínio (`Role`, snapshot da entidade) vivem em `domain/models`.
-- O wiring (ports → adapters) fica no `*.module.ts`; o bootstrap (`main.ts` / `app.ts`) só compõe a aplicação.
-- Cada módulo é dono do seu roteamento HTTP (`infrastructure/inbound/http`).
-- `adaptRoute` permanece em `shared` (transversal ao Express).
+| Document | Role |
+|----------|------|
+| [`AGENTS.md`](../AGENTS.md) | Constitution for agents/devs: rules, patterns, conventions, playbooks |
+| This file | Mermaid diagrams and detailed folder tree |
+| `src/modules/<module>/AGENT.md` | Living contract for that hexagon |
 
-## Diagrama de arquitetura
+Update this file when the **organization** of a module or the bootstrap changes (folders, diagrams).  
+Global rules and naming → [`AGENTS.md`](../AGENTS.md). Employees contract → [`src/modules/employees/AGENT.md`](../src/modules/employees/AGENT.md).
+
+## Principles
+
+Summary (normative detail in [`AGENTS.md`](../AGENTS.md)):
+
+- Each **module** is an independent hexagon (`employees` is the reference module).
+- Dependency rule: `presentation / infrastructure → application → domain`.
+- The **domain** does not know frameworks, HTTP, database, or DI — and does **not** import `application`.
+- Cross-module communication: via **ports** / events — never import another module’s internal `domain`.
+- Shared value objects live in `shared/domain`; use-case DTOs in `application/dtos`; domain concepts in `domain/models`.
+- Wiring (ports → adapters) lives in `*.module.ts`; bootstrap (`main.ts` / `app.ts`) only composes the application.
+- Each module owns its HTTP routing (`infrastructure/inbound/http`); `adaptRoute` stays in `shared`.
+
+## Architecture diagram
 
 ```mermaid
 flowchart TB
@@ -97,7 +106,7 @@ flowchart TB
   REPO --> MAPPER
 ```
 
-### Fluxo de uma requisição (Create Employee)
+### Request flow (Create Employee)
 
 ```mermaid
 sequenceDiagram
@@ -133,25 +142,26 @@ sequenceDiagram
   Routes-->>Client: JSON response
 ```
 
-## Estrutura oficial
+## Official structure
 
 ```text
 grau-api/
 ├── src/
 │   ├── main.ts                                         # entrypoint (env, DB, listen)
-│   ├── app.ts                                          # composição Express + módulos
+│   ├── app.ts                                          # Express + modules composition
 │   │
 │   ├── configs/
 │   │   ├── envs/
 │   │   │   └── index.ts                                # DATABASE_HOST, PORT
 │   │   └── database/mongoose/
 │   │       ├── database-connection.ts                  # connectDatabase / disconnectDatabase
-│   │       ├── test-setup-mongoose-menory.ts           # MongoMemoryServer (testes)
-│   │       └── testables.ts                            # mocks encadeáveis do Mongoose
+│   │       ├── test-setup-mongoose-menory.ts           # MongoMemoryServer (tests)
+│   │       └── testables.ts                            # chainable Mongoose mocks
 │   │
 │   ├── modules/
-│   │   └── employees/                                  # hexágono do módulo
-│   │       ├── domain/                                 # 🔒 regras de negócio puras
+│   │   └── employees/                                  # module hexagon
+│   │       ├── AGENT.md                                # living module contract
+│   │       ├── domain/                                 # 🔒 pure business rules
 │   │       │   ├── entities/
 │   │       │   │   ├── Employee.ts
 │   │       │   │   └── employee.spec.ts
@@ -159,14 +169,14 @@ grau-api/
 │   │       │   │   ├── employee.model.ts               # Role, toCreate, isRole
 │   │       │   │   └── employee.model.spec.ts
 │   │       │   ├── ports/
-│   │       │   │   └── find-employee-by-email.port.ts  # port usada pelo domain service
+│   │       │   │   └── find-employee-by-email.port.ts  # port used by domain service
 │   │       │   ├── errors/
 │   │       │   │   └── employee.errors.ts
 │   │       │   └── services/
 │   │       │       ├── employee-policies.service.ts
 │   │       │       └── employee-policies.service.spec.ts
 │   │       │
-│   │       ├── application/                            # casos de uso + ports + DTOs
+│   │       ├── application/                            # use cases + ports + DTOs
 │   │       │   ├── dtos/
 │   │       │   │   ├── create-employee.dto.ts          # CreateEmployeeDto / ResultDto
 │   │       │   │   └── create-employee.dto.spec.ts
@@ -179,9 +189,9 @@ grau-api/
 │   │       │       ├── create-employee.usecase.ts      # implements CreateEmployeePort
 │   │       │       └── create-employee.usecase.spec.ts
 │   │       │
-│   │       ├── presentation/                           # controllers (HTTP, sem Express)
+│   │       ├── presentation/                           # controllers (HTTP, no Express)
 │   │       │   └── controllers/
-│   │       │       ├── create-employee.controller.ts   # depende de CreateEmployeePort
+│   │       │       ├── create-employee.controller.ts   # depends on CreateEmployeePort
 │   │       │       └── create-employee.controller.spec.ts
 │   │       │
 │   │       ├── infrastructure/
@@ -195,7 +205,7 @@ grau-api/
 │   │       │
 │   │       └── employees.module.ts                     # wiring / DI
 │   │
-│   ├── shared/                                         # transversal (sem regra de employees)
+│   ├── shared/                                         # cross-cutting (no employee rules)
 │   │   ├── domain/
 │   │   │   ├── entity/
 │   │   │   │   ├── entity.ts
@@ -228,16 +238,17 @@ grau-api/
 │   │           ├── http/
 │   │           │   └── express-route.adapter.ts        # Express req/res ↔ controller
 │   │           └── bcrypt/
-│   │               ├── bcrypt.adapter.ts               # implementa EncrypterPort
+│   │               ├── bcrypt.adapter.ts               # implements EncrypterPort
 │   │               └── bcrypt.adapter.spec.ts
 │   │
 │   └── client/
-│       └── employee.http                               # requests REST Client
+│       └── employee.http                               # REST Client requests
 │
 ├── docs/
-│   └── project-structure.md                            # este arquivo
+│   └── project-structure.md                            # diagrams + tree (this file)
 │
-├── docker-compose.yml                                  # MongoDB local
+├── AGENTS.md                                           # global constitution (agents/devs)
+├── docker-compose.yml                                  # local MongoDB
 ├── .env
 ├── jest.config.js
 ├── lefthook.yml
@@ -246,58 +257,13 @@ grau-api/
 └── package.json
 ```
 
-## Camadas do módulo
+## Layers, types, aliases, and naming
 
-| Camada | Responsabilidade | Pode depender de |
-|--------|------------------|------------------|
-| `domain` | Entidade, model (`Role`/`toCreate`), errors, domain services, ports do domínio | apenas `shared/domain` |
-| `application` | Use cases, inbound/outbound ports, DTOs | `domain` + `shared` |
-| `presentation` | Controllers HTTP (framework-agnostic) | `application` + `shared/presentation` |
-| `infrastructure/inbound` | Rotas Express do módulo | `presentation` + `shared` adapters HTTP |
-| `infrastructure/outbound` | Repositório Mongoose, schema, mapper | `application` + `domain` + frameworks |
-| `employees.module.ts` | Wiring: instancia adapters e injeta nas ports | camadas do módulo + `shared` |
+Normative tables (layers, where to put types, path aliases, naming, testing, Do/Don’t) → [`AGENTS.md`](../AGENTS.md).
 
-## Onde colocar tipos
+## Structure notes
 
-| Tipo | Pasta | Exemplo |
-|------|-------|---------|
-| DTO de caso de uso (entrada/saída) | `application/dtos/` | `CreateEmployeeDto` |
-| Conceito de domínio / snapshot | `domain/models/` | `EmployeeModel.Role`, `toCreate` |
-| Port usada pelo domain service | `domain/ports/` | `FindEmployeeByEmailPort` |
-| Port de entrada (driving) | `application/ports/inbound/` | `CreateEmployeePort` |
-| Port de saída (driven) | `application/ports/outbound/` | `CreateEmployeeRepositoryPort` |
-
-## Path aliases
-
-Definidos em `tsconfig.json` / `jest.config.js`:
-
-| Alias | Resolve para |
-|-------|--------------|
-| `@modules/*` | `./src/modules/*` |
-| `@shared/*` | `./src/shared/*` |
-| `@configs/*` | `./src/configs/*` |
-| `@config/*` | `./src/configs/*` |
-
-## Convenções de nomenclatura
-
-| Tipo | Padrão | Exemplo |
-|------|--------|---------|
-| Entidade | `PascalCase.ts` | `Employee.ts` |
-| Value object | `kebab-case.vo.ts` | `email.vo.ts` |
-| Port | `kebab-case.port.ts` | `create-employee.port.ts` |
-| DTO | `kebab-case.dto.ts` | `create-employee.dto.ts` |
-| Use case | `kebab-case.usecase.ts` | `create-employee.usecase.ts` |
-| Controller | `kebab-case.controller.ts` | `create-employee.controller.ts` |
-| Routes | `kebab-case.routes.ts` | `employee.routes.ts` |
-| Repository | `kebab-case.repository.ts` | `employee-mongoose.repository.ts` |
-| Schema | `kebab-case.schema.ts` | `employee.schema.ts` |
-| Spec | co-locado (`*.spec.ts`) | `create-employee.usecase.spec.ts` |
-| Module wiring | `*.module.ts` | `employees.module.ts` |
-
-## Notas
-
-- Specs unitários ficam **co-locados** com o código de produção (`*.spec.ts`).
-- Controllers em `presentation` não importam Express; o `adaptRoute` faz a ponte.
-- Rotas HTTP do módulo ficam em `infrastructure/inbound/http` e são montadas pelo `employees.module.ts`.
-- `EncrypterPort` é shared; a implementação concreta (`BcryptAdapter`) é injetada no composition root (`app.ts`).
-- Coverage (`jest.config.js`) exclui bootstrap, modules de wiring, routes/adapters HTTP, schemas e configs.
+- Controllers in `presentation` do not import Express; `adaptRoute` bridges the gap.
+- Module HTTP routes live in `infrastructure/inbound/http` and are mounted by `employees.module.ts`.
+- `EncrypterPort` is shared; the concrete implementation (`BcryptAdapter`) is injected at the composition root (`app.ts`).
+- Current employees hexagon contract (ports, DTOs, HTTP) → [`src/modules/employees/AGENT.md`](../src/modules/employees/AGENT.md).
