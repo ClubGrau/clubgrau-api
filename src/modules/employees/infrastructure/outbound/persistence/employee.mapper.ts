@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { GetEmployeesItemDto } from '@modules/employees/application/dtos/get-employees.dto';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { EmployeeDocument } from './employee.schema';
 
@@ -11,6 +12,22 @@ export function mapEmployeeDocument(
     name: document.name,
     email: document.email,
     password: document.password,
+    role: document.role as EmployeeModel.Role,
+    nif: document.nif != null ? String(document.nif) : null,
+    isActive: document.isActive ?? true,
+    createdAt: document.createdAt ?? new Date(0),
+    deactivateAt: document.deactivateAt ?? null,
+  };
+}
+
+/** Maps a lean Mongoose document to the GetEmployees read model (no password). */
+export function mapEmployeeReadModel(
+  document: EmployeeDocument,
+): GetEmployeesItemDto {
+  return {
+    id: String(document._id),
+    name: document.name,
+    email: document.email,
     role: document.role as EmployeeModel.Role,
     nif: document.nif != null ? String(document.nif) : null,
     isActive: document.isActive ?? true,
