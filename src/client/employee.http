@@ -1,5 +1,9 @@
-POST http://localhost:3003/employee
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg0NTE0NTM2LCJleHAiOjI5OTQxMTQ1MzZ9.Qy5lhio_PzW2PQRPL5W_00CnTMwuNrj8Ox1eQkVoy6A
+
+### Create employee
+POST http://localhost:3003/api/employee
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
 {
   "name": " Marquin do Grau ",
@@ -8,3 +12,11 @@ Content-Type: application/json
   "password": "P@ssword123",
   "passwordConfirmation": "P@ssword123"
 }
+
+### List employees
+GET http://localhost:3003/api/employees
+Authorization: Bearer {{token}}
+
+### List employees (optional filters)
+GET http://localhost:3003/api/employees?isActive=true&role=EMPLOYEE
+Authorization: Bearer {{token}}

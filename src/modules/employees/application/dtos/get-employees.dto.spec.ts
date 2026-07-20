@@ -71,7 +71,8 @@ describe('GetEmployeesResultDto', () => {
     };
 
     expect(result.employees).toHaveLength(1);
-    expect(result.employees[0].id).toBe('valid_employee_id');
-    expect(result.employees[0]).not.toHaveProperty('password');
+    const [employee] = result.employees;
+    expect(employee?.id).toBe('valid_employee_id');
+    expect(employee).not.toHaveProperty('password');
   });
 });

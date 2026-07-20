@@ -26,8 +26,8 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     authTokenMiddleware: auth.authTokenMiddleware,
   });
 
-  app.use('/employee', employees.router);
-  app.use('/auth', auth.router);
+  app.use('/api', employees.router);
+  app.use('/api', auth.router);
 
   return app;
 }
