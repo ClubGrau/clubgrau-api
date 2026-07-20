@@ -126,4 +126,74 @@ describe('EmployeeMongooseRepository', () => {
       expect(result).toEqual({ id: employeeData.id });
     });
   });
+
+  describe('findAll', () => {
+    it('should find employees with an empty filter query', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const lean = jest.fn().mockResolvedValueOnce([
+        {
+          _id: employeeId,
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+          password: 'hashed_password',
+          role: EmployeeModel.Role.ADMIN,
+          nif: 123456789,
+          isActive: true,
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+          deactivateAt: null,
+        },
+      ]);
+      const findSpy = jest
+        .spyOn(employeeModelMock, 'find')
+        .mockReturnValueOnce({ lean });
+
+      const result = await sut.findAll({});
+
+      expect(findSpy).toHaveBeenCalledWith({});
+      expect(lean).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([
+        {
+          id: employeeId,
+          name: 'John Doe',
+          email: 'john.doe@example.com',
+          role: EmployeeModel.Role.ADMIN,
+          nif: '123456789',
+          isActive: true,
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+          deactivateAt: null,
+        },
+      ]);
+      expect(result[0]).not.toHaveProperty('password');
+    });
+
+    it('should apply isActive and role filters when provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const lean = jest.fn().mockResolvedValueOnce([]);
+      const findSpy = jest
+        .spyOn(employeeModelMock, 'find')
+        .mockReturnValueOnce({ lean });
+
+      await sut.findAll({
+        isActive: true,
+        role: EmployeeModel.Role.MANAGER,
+      });
+
+      expect(findSpy).toHaveBeenCalledWith({
+        isActive: true,
+        role: EmployeeModel.Role.MANAGER,
+      });
+    });
+
+    it('should return an empty list when no employees are found', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      jest.spyOn(employeeModelMock, 'find').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValueOnce([]),
+      });
+
+      const result = await sut.findAll({});
+
+      expect(result).toEqual([]);
+    });
+  });
 });
