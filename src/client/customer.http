@@ -1,0 +1,41 @@
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg0NTE0NTM2LCJleHAiOjI5OTQxMTQ1MzZ9.Qy5lhio_PzW2PQRPL5W_00CnTMwuNrj8Ox1eQkVoy6A
+
+### Create customer (required fields only)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": " Maria Silva ",
+  "email": "maria.silva@example.com"
+}
+
+### Create customer (with optional phone and nif)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Jean Dupont",
+  "email": "jean.dupont@example.com",
+  "phone": "+33 6 12 34 56 78",
+  "nif": 123456789
+}
+
+### Create customer — missing email (expect 400)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Missing Email"
+}
+
+### Create customer — unauthenticated (expect 401/403)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+
+{
+  "name": "No Auth",
+  "email": "no.auth@example.com"
+}
