@@ -16,6 +16,7 @@ export interface GetEmployeesItemDto {
   name: string;
   email: string;
   role: EmployeeModel.Role;
+  phone: string | null;
   nif: string | null;
   isActive: boolean;
   createdAt: Date;

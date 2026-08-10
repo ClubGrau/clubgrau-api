@@ -34,7 +34,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
 
   app.use('/api', employees.router);
   app.use('/api', customers.router);
-  app.use('/api', auth.router);
+  app.use('/auth', auth.router);
 
   return app;
 }
