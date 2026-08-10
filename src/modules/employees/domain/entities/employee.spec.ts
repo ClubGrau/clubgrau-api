@@ -1,8 +1,9 @@
-import { Email, Name, Nif, Password } from '@shared/domain/value-object';
+import { Email, Name, Nif, Password, Phone } from '@shared/domain/value-object';
 import {
   InvalidEmailError,
   InvalidNameError,
   InvalidPasswordError,
+  InvalidPhoneFormatError,
 } from '@shared/domain/value-object';
 import { EmployeeModel } from '../models/employee.model';
 import {
@@ -29,6 +30,7 @@ const makeSnapshot = (
   name: Name.create('Jane Doe'),
   email: Email.create('jane@example.com'),
   password: Password.fromHash('$2b$10$hashedvalue'),
+  phone: null,
   nif: null,
   role: EmployeeModel.Role.MANAGER,
   isActive: true,
@@ -49,6 +51,7 @@ describe('Employee (entity)', () => {
       expect(json.email).toBe('john@example.com');
       expect(json.password).toBe('[REDACTED]');
       expect(json.role).toBe(EmployeeModel.Role.EMPLOYEE);
+      expect(json.phone).toBeNull();
       expect(json.nif).toBeNull();
       expect(json.isActive).toBe(true);
       expect(json.deactivateAt).toBeNull();
@@ -68,6 +71,14 @@ describe('Employee (entity)', () => {
       const a = Employee.create(makeValidProps());
       const b = Employee.create(makeValidProps());
       expect(a.id).not.toBe(b.id);
+    });
+
+    it('should accept an optional phone', () => {
+      const employee = Employee.create({
+        ...makeValidProps(),
+        phone: '+351 912 345 678',
+      });
+      expect(employee.toJSON().phone).toBe('351912345678');
     });
 
     it('should accept an optional NIF', () => {
@@ -99,6 +110,12 @@ describe('Employee (entity)', () => {
       ).toThrow(InvalidEmailError);
     });
 
+    it('should throw for an invalid phone', () => {
+      expect(() =>
+        Employee.create({ ...makeValidProps(), phone: '123' }),
+      ).toThrow(InvalidPhoneFormatError);
+    });
+
     it('should throw for a weak password', () => {
       expect(() =>
         Employee.create({ ...makeValidProps(), password: 'weak' }),
@@ -113,6 +130,7 @@ describe('Employee (entity)', () => {
 
       const employee = Employee.reconstitute(
         makeSnapshot({
+          phone: Phone.create('+351 912 345 678'),
           nif: Nif.create('123456789'),
           isActive: false,
           createdAt,
@@ -124,6 +142,7 @@ describe('Employee (entity)', () => {
       expect(employee.id).toBe('507f1f77bcf86cd799439011');
       expect(json.role).toBe(EmployeeModel.Role.MANAGER);
       expect(json.isActive).toBe(false);
+      expect(json.phone).toBe('351912345678');
       expect(json.nif).toBe('123456789');
       expect(json.password).toBe('[REDACTED]');
       expect(employee.props.password.isHashed).toBe(true);
@@ -202,6 +221,16 @@ describe('Employee (entity)', () => {
 
       expect(employee.toJSON().name).toBe('New Name');
       expect(employee.toJSON().email).toBe('new@example.com');
+    });
+
+    it('should change and clear the phone', () => {
+      const employee = Employee.create(makeValidProps());
+
+      employee.changePhone(Phone.create('+351 912 345 678'));
+      expect(employee.toJSON().phone).toBe('351912345678');
+
+      employee.changePhone(null);
+      expect(employee.toJSON().phone).toBeNull();
     });
 
     it('should assign and clear the NIF', () => {
