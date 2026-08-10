@@ -11,6 +11,7 @@ import {
   InvalidEmailError,
   InvalidNameError,
   InvalidPasswordError,
+  InvalidPhoneFormatError,
 } from '@shared/domain/value-object';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
@@ -175,6 +176,7 @@ describe('HireEmployeeUsecase', () => {
         name: 'John Doe',
         email: 'john.doe@example.com',
         role: EmployeeModel.Role.MANAGER,
+        phone: null,
         nif: null,
         password: 'encrypted-password',
         isActive: true,
@@ -217,18 +219,36 @@ describe('HireEmployeeUsecase', () => {
         name: 'John Doe',
         email: 'john.doe@example.com',
         role: EmployeeModel.Role.MANAGER,
+        phone: undefined,
+        nif: undefined,
         password: 'P@ssword123',
       });
     });
 
-    it('should forward the optional nif to Employee.create', async () => {
+    it('should forward the optional phone and nif to Employee.create', async () => {
       const { sut } = makeSut();
       const createSpy = jest.spyOn(Employee, 'create');
 
-      await sut.execute(makeValidParams({ nif: 123456789 }));
+      await sut.execute(
+        makeValidParams({ phone: '+351 912 345 678', nif: 123456789 }),
+      );
 
       expect(createSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ nif: 123456789 }),
+        expect.objectContaining({
+          phone: '+351 912 345 678',
+          nif: 123456789,
+        }),
+      );
+    });
+
+    it('should persist normalized phone when provided', async () => {
+      const { sut, createEmployeeRepositoryStub } = makeSut();
+      const createSpy = jest.spyOn(createEmployeeRepositoryStub, 'create');
+
+      await sut.execute(makeValidParams({ phone: '+351 912 345 678' }));
+
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '351912345678' }),
       );
     });
 
@@ -253,6 +273,13 @@ describe('HireEmployeeUsecase', () => {
         sut.execute(makeValidParams({ email: 'not-an-email' }));
 
       await expect(execute).rejects.toBeInstanceOf(InvalidEmailError);
+    });
+
+    it('should propagate an error for an invalid phone', async () => {
+      const { sut } = makeSut();
+      const execute = () => sut.execute(makeValidParams({ phone: '123' }));
+
+      await expect(execute).rejects.toBeInstanceOf(InvalidPhoneFormatError);
     });
 
     it('should propagate an error for a weak password', async () => {

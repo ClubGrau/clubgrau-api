@@ -34,6 +34,7 @@ describe('EmployeeModel.toCreate', () => {
     expect(toCreate.email).toBe('john@example.com');
     expect(toCreate.role).toBe(EmployeeModel.Role.EMPLOYEE);
     expect(toCreate.password).toBe('[REDACTED]');
+    expect(toCreate.phone).toBeNull();
     expect(toCreate.nif).toBeNull();
     expect(toCreate.isActive).toBe(true);
     expect(toCreate.deactivateAt).toBeNull();

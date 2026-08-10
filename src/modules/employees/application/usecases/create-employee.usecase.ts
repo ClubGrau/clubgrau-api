@@ -28,6 +28,7 @@ export class CreateEmployeeUsecase implements CreateEmployeePort {
       name: params.name,
       email: params.email,
       role: params.role,
+      phone: params.phone,
       nif: params.nif,
       password: params.password,
     }).toJSON();
@@ -35,8 +36,6 @@ export class CreateEmployeeUsecase implements CreateEmployeePort {
     await this.employeePoliciesService.ensureEmailIsAvailable(
       candidateEmployee.email,
     );
-
-    // TODO - check phone validation before creating employee (this resource should be injected as a dependency)
 
     const encryptedPassword = await this.encrypter.encrypt(password);
     const employeeToCreate: EmployeeModel.toCreate = {
