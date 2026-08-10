@@ -9,6 +9,7 @@ export const EmployeeSchema = new mongoose.Schema({
     required: true,
   },
   password: { type: String, required: true },
+  phone: { type: String, default: null },
   nif: { type: Number },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
