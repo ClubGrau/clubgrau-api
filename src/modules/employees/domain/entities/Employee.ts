@@ -1,6 +1,6 @@
 import { Entity } from '@shared/domain/entity/entity';
 import { UniqueEntityId } from '@shared/domain/value-object/id/unique-entity-id.vo';
-import { Email, Name, Nif, Password } from '@shared/domain/value-object';
+import { Email, Name, Nif, Password, Phone } from '@shared/domain/value-object';
 import { EmployeeModel } from '../models/employee.model';
 import {
   EmployeeAlreadyActiveError,
@@ -12,6 +12,7 @@ interface EmployeeProps {
   name: Name;
   email: Email;
   password: Password;
+  phone: Phone | null;
   nif: Nif | null;
   role: EmployeeModel.Role;
   isActive: boolean;
@@ -24,6 +25,7 @@ export interface CreateEmployeeProps {
   name: string;
   email: string;
   password: string;
+  phone?: string | null;
   nif?: number | null;
   role: EmployeeModel.Role;
   isActive?: boolean;
@@ -37,6 +39,7 @@ export interface ReconstituteEmployeeProps {
   name: Name;
   email: Email;
   password: Password;
+  phone: Phone | null;
   nif: Nif | null;
   role: EmployeeModel.Role;
   isActive: boolean;
@@ -58,6 +61,7 @@ export class Employee extends Entity<EmployeeProps> {
       name: Name.create(input.name),
       email: Email.create(input.email),
       password: Password.create(input.password),
+      phone: input.phone ? Phone.create(input.phone) : null,
       nif: input.nif ? Nif.create(input.nif.toString()) : null,
       role: input.role,
       isActive: true,
@@ -76,6 +80,7 @@ export class Employee extends Entity<EmployeeProps> {
         name: input.name,
         email: input.email,
         password: input.password,
+        phone: input.phone,
         nif: input.nif,
         role: input.role,
         isActive: input.isActive,
@@ -123,6 +128,10 @@ export class Employee extends Entity<EmployeeProps> {
 
   changeEmail(email: Email): void {
     this.props.email = email;
+  }
+
+  changePhone(phone: Phone | null): void {
+    this.props.phone = phone;
   }
 
   assignNif(nif: Nif | null): void {
