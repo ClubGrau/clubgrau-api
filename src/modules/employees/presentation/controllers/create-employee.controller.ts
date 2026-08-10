@@ -47,6 +47,8 @@ export class CreateEmployeeController extends BaseController<
         name: request.name,
         email: request.email,
         role: request.role,
+        phone: request.phone,
+        nif: request.nif,
         password: request.password,
         passwordConfirmation: request.passwordConfirmation,
       });

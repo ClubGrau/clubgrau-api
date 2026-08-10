@@ -62,7 +62,6 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 
 - Get employee by id / update / deactivate / reactivate
 - Authorization (who may create/list employees) beyond token presence
-- Phone validation (see TODO in `CreateEmployeeUsecase`)
 - Explicit reactivation flow for inactive employees with the same email
 - Cross-module events / integration beyond this hexagon
 - Coerce remaining query-string filters (`isActive=true` arrives as string via `adaptRoute`; `page`/`limit` already handled by shared pagination)
@@ -152,7 +151,7 @@ Factory methods:
 Behavior already on the entity (for future use cases):
 
 - `activate()` / `deactivate()`
-- `changePassword`, `changeRole`, `changeName`, `changeEmail`, `assignNif`
+- `changePassword`, `changeRole`, `changeName`, `changeEmail`, `changePhone`, `assignNif`
 
 Snapshot for persistence / outbound **write** ports comes from `employee.toJSON()` and is typed as `EmployeeModel.toCreate`.
 
@@ -217,6 +216,7 @@ interface CreateEmployeeDto {
   name: string;
   email: string;
   role: EmployeeModel.Role;
+  phone?: string | null;
   nif?: number | null;
   password: string;
   passwordConfirmation: string;
@@ -236,7 +236,7 @@ interface CreateEmployeeResultDto {
 5. Persist via `CreateEmployeeRepositoryPort.create`
 6. Return `{ id }`
 
-**Known TODO in code:** phone validation before create (should be injected as a dependency when introduced).
+Optional `phone` is validated by `Phone.create` inside `Employee.create` (omit/`null` → `null`).
 
 ---
 
@@ -272,6 +272,7 @@ interface GetEmployeesItemDto {
   name: string;
   email: string;
   role: EmployeeModel.Role;
+  phone: string | null;
   nif: string | null;
   isActive: boolean;
   createdAt: Date;
@@ -322,7 +323,7 @@ No domain entity creation, no policies, no encrypter.
 - Success → `201` + `{ id }` via `created(...)`
 - Unexpected errors → `serverError(...)`
 
-`role` / `nif` are passed through when present; domain validates role.
+`role` / `phone` / `nif` are passed through when present; domain validates role and VOs.
 
 `GetEmployeesController` extends `BaseController`:
 
@@ -387,7 +388,7 @@ Client
 
 - Unique index on `email`
 - `role` enum: `ADMIN | MANAGER | EMPLOYEE`
-- Fields: `name`, `email`, `role`, `password`, `nif`, `isActive`, `createdAt`, `deactivateAt`
+- Fields: `name`, `email`, `role`, `password`, `phone`, `nif`, `isActive`, `createdAt`, `deactivateAt`
 
 ### Repository
 
@@ -402,6 +403,7 @@ Client
 ### Mapper rules
 
 - Document `_id` ↔ string `id`
+- `phone`: string (or null) in Mongo ↔ string (or null) in snapshots / read models
 - `nif`: number in Mongo ↔ string (or null) in snapshots / read models
 - Defaults for missing `isActive` / dates when reading lean documents
 - `mapEmployeeDocument` → `EmployeeModel.toCreate` (includes `password`) — write/lookup path
@@ -450,11 +452,9 @@ Never shortcut by calling the repository from the controller.
 ## Open decisions / known limitations
 
 1. **Inactive email collision** — creating a new employee with the same email as an inactive one is blocked (`EmployeeInactiveError`). Reactivation vs. new account needs product/domain confirmation.
-2. **Phone validation** — TODO in `CreateEmployeeUsecase`; plan to inject as a dependency.
-3. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
-4. **NIF in HTTP create** — supported on DTO/entity; controller currently does not forward `nif` from the request (gap to close if NIF is required at API boundary).
-5. **Error HTTP mapping** — controller maps most failures through `serverError`; finer-grained domain → HTTP status mapping may be introduced later without moving that logic into domain.
-6. **Query-string filter coercion** — `page` / `limit` are coerced in `normalizePagination` (accepts string). `isActive=true` from query string is still a string until coerced in the controller if needed.
+2. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
+3. **Error HTTP mapping** — controller maps most failures through `serverError`; finer-grained domain → HTTP status mapping may be introduced later without moving that logic into domain.
+4. **Query-string filter coercion** — `page` / `limit` are coerced in `normalizePagination` (accepts string). `isActive=true` from query string is still a string until coerced in the controller if needed.
 
 ---
 

@@ -37,7 +37,7 @@ Manual samples (after impl): `src/client/customer.http`.
 | `id` | `UniqueEntityId` | generated | Same pattern as Employee |
 | `name` | `Name` VO | yes | Shared `@shared/domain` |
 | `email` | `Email` VO | yes | Shared; **unique** among customers |
-| `phone` | `Phone` VO \| `null` | no | **New** shared VO (`@shared/domain`); omit/`null` allowed. See [Phone VO rules](#phone-vo-rules) |
+| `phone` | `Phone` VO \| `null` | no | Shared VO (`@shared/domain`); omit/`null` allowed. Create via [`create-value-object.md`](./create-value-object.md) + [Phone fill-in](#phone-vo-fill-in); wire via [`apply-existing-value-object-to-entity.md`](./apply-existing-value-object-to-entity.md) |
 | `nif` | `Nif` VO \| `null` | no | Shared; omit/`null` allowed |
 | `createdAt` | `Date` | default `now` | Set on create; no deactivate / `isActive` in this module |
 
@@ -136,30 +136,36 @@ No encrypter. No role checks.
 
 ## Shared work required
 
-| Item | Action |
-|------|--------|
-| `Phone` VO | Create under `@shared/domain/value-object/phone/` (+ spec). Rules below. |
-| Export | Register in shared VO barrel/`index` (same pattern as `Email`, `Name`, `Nif`). |
+Follow the VO track — do **not** restate the VO implementation shape here:
 
-### Phone VO rules
+| Step | Spec | Action |
+|------|------|--------|
+| 1 | [`create-value-object.md`](./create-value-object.md) | Create `Phone` under `@shared/domain` using the [Phone fill-in](#phone-vo-fill-in) below |
+| 2 | [`apply-existing-value-object-to-entity.md`](./apply-existing-value-object-to-entity.md) | Wire `Phone` into `Customer` (optional field → `Phone \| null`) |
+
+### Phone VO fill-in
+
+> Product rules for step 1. Implementation shape, file layout, barrel export, and `*.vo.spec.ts` expectations → [`create-value-object.md`](./create-value-object.md).
+
+| Field | Value |
+|-------|-------|
+| Class name | `Phone` |
+| Folder / file | `src/shared/domain/value-object/phone/phone.vo.ts` |
+| Scope | `@shared/domain` |
+| Primitive input type | `string` |
+| Error class | `InvalidPhoneFormatError` |
+| Normalization | digits-only after strip (`/\D/g`); store normalized digits |
+| Extra methods? | none |
 
 **Product intent:** the frontend lets the employee pick the customer’s country (various European countries, not Portugal-only). The API receives a phone **string** (typically including country calling code). The VO must accept multi-country European numbers without hard-coding a single national format.
 
-**Validation (canonical rule):**
+**Invariants:**
 
 1. Reject `null` / `undefined` when `Phone.create` is called (optional field is handled by the entity: omit → `null`, do not call `create`).
 2. After trim, reject empty / whitespace-only → `InvalidPhoneFormatError`.
-3. Strip all non-digit characters (`/\D/g`) for length checks only — spaces, dashes, parentheses, and a leading `+` are allowed in the input.
-4. Digit count must be **between 7 and 15 inclusive** (aligned with practical E.164 length bounds for international numbers). Outside that range → `InvalidPhoneFormatError`.
+3. Strip all non-digit characters (`/\D/g`) for length checks — spaces, dashes, parentheses, and a leading `+` are allowed in the input.
+4. Digit count must be **between 7 and 15 inclusive** (practical E.164 bounds). Outside that range → `InvalidPhoneFormatError`.
 5. No country-specific regex in Part 1 (no PT-only / BR-only masks). Country selection stays on the frontend; the backend validates international digit length.
-
-**Implementation shape (align with existing shared VOs, not a Result union):**
-
-- Extend `ValueObject<{ value: string }>` like `Email` / `Name`.
-- `InvalidPhoneFormatError extends DomainError` (co-locate with the VO or under shared domain errors — follow `InvalidEmailError` style).
-- `Phone.create(value: string): Phone` — **throw** on invalid input (do not return `Error | Phone`).
-- Prefer storing a **normalized** value of digits-only (after strip) so formatting differences from the UI do not create inconsistent persistence; `toJSON()` / `toString()` return that normalized string.
-- Export from `@shared/domain/value-object`.
 
 **Examples (illustrative):**
 
@@ -217,14 +223,14 @@ No encrypter. No role checks.
 
 ## Open decisions
 
-1. ~~**`Phone` validation rules**~~ — **Closed.** See [Phone VO rules](#phone-vo-rules) (7–15 digits after stripping non-digits; multi-country Europe via frontend country picker; no national mask on API).  
+1. ~~**`Phone` validation rules**~~ — **Closed.** See [Phone VO fill-in](#phone-vo-fill-in) + [`create-value-object.md`](./create-value-object.md) (7–15 digits after stripping non-digits; multi-country Europe via frontend country picker; no national mask on API).  
 2. **HTTP mapping of domain errors** — Keep coarse `serverError` like create employee, or map `CustomerAlreadyExistsError` / `InvalidPhoneFormatError` to `409`/`400` later. Not blocking Part 1.  
 3. **NIF on HTTP** — Forward `nif` from body in the controller (unlike the known gap on create employee). Prefer forwarding for Customer from day one.
 
 ## Implementation order (when coding)
 
-1. Shared `Phone` VO + spec  
-2. Customer domain (entity, model, errors, email policy) + specs  
+1. Shared `Phone` VO + `*.vo.spec.ts` via [`create-value-object.md`](./create-value-object.md) + [Phone fill-in](#phone-vo-fill-in)  
+2. Customer domain: apply `Phone` (and other VOs) via [`apply-existing-value-object-to-entity.md`](./apply-existing-value-object-to-entity.md); model, errors, email policy + specs  
 3. DTOs + ports  
 4. Use case + spec  
 5. Controller + spec  
