@@ -5,6 +5,7 @@ export interface CreateEmployeeDto {
   name: string;
   email: string;
   role: EmployeeModel.Role;
+  phone?: string | null;
   nif?: number | null;
   password: string;
   passwordConfirmation: string;

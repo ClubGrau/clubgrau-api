@@ -39,6 +39,7 @@ describe('GetEmployeesItemDto', () => {
       name: 'John Doe',
       email: 'john@example.com',
       role: EmployeeModel.Role.EMPLOYEE,
+      phone: '351912345678',
       nif: '123456789',
       isActive: true,
       createdAt,
@@ -50,6 +51,7 @@ describe('GetEmployeesItemDto', () => {
     expect(item.name).toBe('John Doe');
     expect(item.email).toBe('john@example.com');
     expect(item.role).toBe(EmployeeModel.Role.EMPLOYEE);
+    expect(item.phone).toBe('351912345678');
     expect(item.nif).toBe('123456789');
     expect(item.isActive).toBe(true);
     expect(item.createdAt).toBe(createdAt);
@@ -68,6 +70,7 @@ describe('GetEmployeesResultDto', () => {
           name: 'John Doe',
           email: 'john@example.com',
           role: EmployeeModel.Role.EMPLOYEE,
+          phone: null,
           nif: null,
           isActive: true,
           createdAt,
