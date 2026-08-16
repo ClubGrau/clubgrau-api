@@ -3,6 +3,7 @@ import {
   GetEmployeesDto,
   GetEmployeesItemDto,
   GetEmployeesResultDto,
+  isEmployeeListStatus,
 } from './get-employees.dto';
 
 describe('GetEmployeesDto', () => {
@@ -10,24 +11,40 @@ describe('GetEmployeesDto', () => {
     const dto: GetEmployeesDto = {};
 
     expect(dto).toBeDefined();
-    expect(dto.isActive).toBeUndefined();
+    expect(dto.status).toBeUndefined();
     expect(dto.role).toBeUndefined();
+    expect(dto.search).toBeUndefined();
     expect(dto.page).toBeUndefined();
     expect(dto.limit).toBeUndefined();
   });
 
   it('should describe optional list filters and pagination', () => {
     const dto: GetEmployeesDto = {
-      isActive: true,
+      status: 'active',
       role: EmployeeModel.Role.MANAGER,
+      search: 'grau',
       page: 2,
       limit: 10,
     };
 
-    expect(dto.isActive).toBe(true);
+    expect(dto.status).toBe('active');
     expect(dto.role).toBe(EmployeeModel.Role.MANAGER);
+    expect(dto.search).toBe('grau');
     expect(dto.page).toBe(2);
     expect(dto.limit).toBe(10);
+  });
+});
+
+describe('isEmployeeListStatus', () => {
+  it('should accept active and inactive', () => {
+    expect(isEmployeeListStatus('active')).toBe(true);
+    expect(isEmployeeListStatus('inactive')).toBe(true);
+  });
+
+  it('should reject unknown values', () => {
+    expect(isEmployeeListStatus('vacation')).toBe(false);
+    expect(isEmployeeListStatus(true)).toBe(false);
+    expect(isEmployeeListStatus(undefined)).toBe(false);
   });
 });
 
