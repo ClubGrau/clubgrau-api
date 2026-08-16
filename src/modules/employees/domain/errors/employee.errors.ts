@@ -2,6 +2,8 @@ import { DomainError } from '@shared/domain/errors/domain.error';
 
 export class InvalidEmployeeRoleError extends DomainError {}
 
+export class InvalidEmployeeStatusError extends DomainError {}
+
 export class EmployeeAlreadyActiveError extends DomainError {
   constructor() {
     super('Employee is already active');
@@ -11,6 +13,12 @@ export class EmployeeAlreadyActiveError extends DomainError {
 export class EmployeeAlreadyInactiveError extends DomainError {
   constructor() {
     super('Employee is already inactive');
+  }
+}
+
+export class EmployeeAlreadyOnVacationError extends DomainError {
+  constructor() {
+    super('Employee is already on vacation');
   }
 }
 
@@ -34,6 +42,6 @@ export class EmployeeAlreadyExistsError extends DomainError {
 
 export class EmployeeInactiveError extends DomainError {
   constructor() {
-    super('Employee already exists but is inactive');
+    super('Employee already exists but is not active');
   }
 }

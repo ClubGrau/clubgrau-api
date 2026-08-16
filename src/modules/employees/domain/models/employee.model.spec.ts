@@ -18,6 +18,23 @@ describe('EmployeeModel.Role', () => {
   });
 });
 
+describe('EmployeeModel.Status', () => {
+  it('should expose all statuses', () => {
+    expect(EmployeeModel.STATUSES).toEqual(['ACTIVE', 'INACTIVE', 'VACATION']);
+  });
+
+  it('should identify valid statuses', () => {
+    expect(EmployeeModel.isStatus('ACTIVE')).toBe(true);
+    expect(EmployeeModel.isStatus(EmployeeModel.Status.VACATION)).toBe(true);
+  });
+
+  it('should reject invalid statuses', () => {
+    expect(EmployeeModel.isStatus('active')).toBe(false);
+    expect(EmployeeModel.isStatus(true)).toBe(false);
+    expect(EmployeeModel.isStatus(null)).toBe(false);
+  });
+});
+
 describe('EmployeeModel.toCreate', () => {
   it('should match the serialized shape of an Employee', () => {
     const employee = Employee.create({
@@ -36,7 +53,7 @@ describe('EmployeeModel.toCreate', () => {
     expect(toCreate.password).toBe('[REDACTED]');
     expect(toCreate.phone).toBeNull();
     expect(toCreate.nif).toBeNull();
-    expect(toCreate.isActive).toBe(true);
+    expect(toCreate.status).toBe(EmployeeModel.Status.ACTIVE);
     expect(toCreate.deactivateAt).toBeNull();
     expect(toCreate.createdAt).toBeInstanceOf(Date);
   });
