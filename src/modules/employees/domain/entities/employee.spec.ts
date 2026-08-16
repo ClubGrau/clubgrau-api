@@ -9,7 +9,9 @@ import { EmployeeModel } from '../models/employee.model';
 import {
   EmployeeAlreadyActiveError,
   EmployeeAlreadyInactiveError,
+  EmployeeAlreadyOnVacationError,
   InvalidEmployeeRoleError,
+  InvalidEmployeeStatusError,
 } from '../errors/employee.errors';
 import { Employee } from './Employee';
 import type { ReconstituteEmployeeProps } from './Employee';
@@ -33,7 +35,7 @@ const makeSnapshot = (
   phone: null,
   nif: null,
   role: EmployeeModel.Role.MANAGER,
-  isActive: true,
+  status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date(),
   deactivateAt: null,
   ...overrides,
@@ -41,7 +43,7 @@ const makeSnapshot = (
 
 describe('Employee (entity)', () => {
   describe('create', () => {
-    it('should create a valid employee with sensible defaults', () => {
+    it('should create a valid employee with ACTIVE status by default', () => {
       const employee = Employee.create(makeValidProps());
       const json = employee.toJSON();
 
@@ -53,7 +55,8 @@ describe('Employee (entity)', () => {
       expect(json.role).toBe(EmployeeModel.Role.EMPLOYEE);
       expect(json.phone).toBeNull();
       expect(json.nif).toBeNull();
-      expect(json.isActive).toBe(true);
+      expect(json.status).toBe(EmployeeModel.Status.ACTIVE);
+      expect(employee.isActive).toBe(true);
       expect(json.deactivateAt).toBeNull();
       expect(json.createdAt).toBeInstanceOf(Date);
     });
@@ -132,7 +135,7 @@ describe('Employee (entity)', () => {
         makeSnapshot({
           phone: Phone.create('+351 912 345 678'),
           nif: Nif.create('123456789'),
-          isActive: false,
+          status: EmployeeModel.Status.INACTIVE,
           createdAt,
           deactivateAt,
         }),
@@ -141,13 +144,24 @@ describe('Employee (entity)', () => {
       const json = employee.toJSON();
       expect(employee.id).toBe('507f1f77bcf86cd799439011');
       expect(json.role).toBe(EmployeeModel.Role.MANAGER);
-      expect(json.isActive).toBe(false);
+      expect(json.status).toBe(EmployeeModel.Status.INACTIVE);
+      expect(employee.isActive).toBe(false);
       expect(json.phone).toBe('351912345678');
       expect(json.nif).toBe('123456789');
       expect(json.password).toBe('[REDACTED]');
       expect(employee.props.password.isHashed).toBe(true);
       expect(json.createdAt).toBe(createdAt);
       expect(json.deactivateAt).toBe(deactivateAt);
+    });
+
+    it('should throw for an invalid status', () => {
+      expect(() =>
+        Employee.reconstitute(
+          makeSnapshot({
+            status: 'UNKNOWN' as unknown as EmployeeModel.Status,
+          }),
+        ),
+      ).toThrow(InvalidEmployeeStatusError);
     });
   });
 
@@ -157,7 +171,7 @@ describe('Employee (entity)', () => {
 
       employee.deactivate();
 
-      expect(employee.toJSON().isActive).toBe(false);
+      expect(employee.toJSON().status).toBe(EmployeeModel.Status.INACTIVE);
       expect(employee.toJSON().deactivateAt).toBeInstanceOf(Date);
     });
 
@@ -176,7 +190,7 @@ describe('Employee (entity)', () => {
 
       employee.activate();
 
-      expect(employee.toJSON().isActive).toBe(true);
+      expect(employee.toJSON().status).toBe(EmployeeModel.Status.ACTIVE);
       expect(employee.toJSON().deactivateAt).toBeNull();
     });
 
@@ -184,6 +198,26 @@ describe('Employee (entity)', () => {
       const employee = Employee.create(makeValidProps());
 
       expect(() => employee.activate()).toThrow(EmployeeAlreadyActiveError);
+    });
+  });
+
+  describe('putOnVacation', () => {
+    it('should put an active employee on vacation', () => {
+      const employee = Employee.create(makeValidProps());
+
+      employee.putOnVacation();
+
+      expect(employee.toJSON().status).toBe(EmployeeModel.Status.VACATION);
+      expect(employee.toJSON().deactivateAt).toBeNull();
+    });
+
+    it('should throw when employee is already on vacation', () => {
+      const employee = Employee.create(makeValidProps());
+      employee.putOnVacation();
+
+      expect(() => employee.putOnVacation()).toThrow(
+        EmployeeAlreadyOnVacationError,
+      );
     });
   });
 

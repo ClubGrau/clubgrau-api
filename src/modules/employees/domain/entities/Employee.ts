@@ -5,7 +5,9 @@ import { EmployeeModel } from '../models/employee.model';
 import {
   EmployeeAlreadyActiveError,
   EmployeeAlreadyInactiveError,
+  EmployeeAlreadyOnVacationError,
   InvalidEmployeeRoleError,
+  InvalidEmployeeStatusError,
 } from '../errors/employee.errors';
 
 interface EmployeeProps {
@@ -15,7 +17,7 @@ interface EmployeeProps {
   phone: Phone | null;
   nif: Nif | null;
   role: EmployeeModel.Role;
-  isActive: boolean;
+  status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
 }
@@ -28,7 +30,6 @@ export interface CreateEmployeeProps {
   phone?: string | null;
   nif?: number | null;
   role: EmployeeModel.Role;
-  isActive?: boolean;
   createdAt?: Date;
   deactivateAt?: Date | null;
 }
@@ -42,7 +43,7 @@ export interface ReconstituteEmployeeProps {
   phone: Phone | null;
   nif: Nif | null;
   role: EmployeeModel.Role;
-  isActive: boolean;
+  status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
 }
@@ -64,7 +65,7 @@ export class Employee extends Entity<EmployeeProps> {
       phone: input.phone ? Phone.create(input.phone) : null,
       nif: input.nif ? Nif.create(input.nif.toString()) : null,
       role: input.role,
-      isActive: true,
+      status: EmployeeModel.Status.ACTIVE,
       createdAt: new Date(),
       deactivateAt: null,
     });
@@ -73,6 +74,9 @@ export class Employee extends Entity<EmployeeProps> {
   static reconstitute(input: ReconstituteEmployeeProps): Employee {
     if (!EmployeeModel.isRole(input.role)) {
       throw new InvalidEmployeeRoleError(`Invalid role: "${input.role}"`);
+    }
+    if (!EmployeeModel.isStatus(input.status)) {
+      throw new InvalidEmployeeStatusError(`Invalid status: "${input.status}"`);
     }
 
     return new Employee(
@@ -83,7 +87,7 @@ export class Employee extends Entity<EmployeeProps> {
         phone: input.phone,
         nif: input.nif,
         role: input.role,
-        isActive: input.isActive,
+        status: input.status,
         createdAt: input.createdAt,
         deactivateAt: input.deactivateAt,
       },
@@ -92,23 +96,35 @@ export class Employee extends Entity<EmployeeProps> {
   }
 
   deactivate(): void {
-    if (!this.props.isActive) {
+    if (this.props.status === EmployeeModel.Status.INACTIVE) {
       throw new EmployeeAlreadyInactiveError();
     }
-    this.props.isActive = false;
+    this.props.status = EmployeeModel.Status.INACTIVE;
     this.props.deactivateAt = new Date();
   }
 
   activate(): void {
-    if (this.props.isActive) {
+    if (this.props.status === EmployeeModel.Status.ACTIVE) {
       throw new EmployeeAlreadyActiveError();
     }
-    this.props.isActive = true;
+    this.props.status = EmployeeModel.Status.ACTIVE;
     this.props.deactivateAt = null;
   }
 
+  putOnVacation(): void {
+    if (this.props.status === EmployeeModel.Status.VACATION) {
+      throw new EmployeeAlreadyOnVacationError();
+    }
+    this.props.status = EmployeeModel.Status.VACATION;
+    this.props.deactivateAt = null;
+  }
+
+  get status(): EmployeeModel.Status {
+    return this.props.status;
+  }
+
   get isActive(): boolean {
-    return this.props.isActive;
+    return this.props.status === EmployeeModel.Status.ACTIVE;
   }
 
   changePassword(password: Password): void {
