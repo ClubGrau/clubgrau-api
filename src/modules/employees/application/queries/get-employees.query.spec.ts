@@ -80,16 +80,18 @@ describe('GetEmployeesQuery', () => {
     expect(findAllSpy).toHaveBeenCalledWith({
       isActive: undefined,
       role: undefined,
+      search: undefined,
       skip: 0,
       limit: DEFAULT_LIMIT,
     });
   });
 
-  it('should call FindEmployeesPort.findAll with filters and normalized page/limit', async () => {
+  it('should map status and search into FindEmployeesPort params', async () => {
     const { sut, findEmployeesStub } = makeSut();
     const filters: GetEmployeesDto = {
-      isActive: true,
+      status: 'active',
       role: EmployeeModel.Role.MANAGER,
+      search: '  grau  ',
       page: 3,
       limit: 10,
     };
@@ -101,9 +103,32 @@ describe('GetEmployeesQuery', () => {
     expect(findAllSpy).toHaveBeenCalledWith({
       isActive: true,
       role: EmployeeModel.Role.MANAGER,
+      search: 'grau',
       skip: 20,
       limit: 10,
     });
+  });
+
+  it('should map status=inactive to isActive false', async () => {
+    const { sut, findEmployeesStub } = makeSut();
+    const findAllSpy = jest.spyOn(findEmployeesStub, 'findAll');
+
+    await sut.execute({ status: 'inactive' });
+
+    expect(findAllSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ isActive: false }),
+    );
+  });
+
+  it('should treat blank search as undefined', async () => {
+    const { sut, findEmployeesStub } = makeSut();
+    const findAllSpy = jest.spyOn(findEmployeesStub, 'findAll');
+
+    await sut.execute({ search: '   ' });
+
+    expect(findAllSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ search: undefined }),
+    );
   });
 
   it('should coerce string pagination from query params', async () => {
@@ -115,6 +140,7 @@ describe('GetEmployeesQuery', () => {
     expect(findAllSpy).toHaveBeenCalledWith({
       isActive: undefined,
       role: undefined,
+      search: undefined,
       skip: 15,
       limit: 15,
     });
