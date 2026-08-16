@@ -64,7 +64,6 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 - Authorization (who may create/list employees) beyond token presence
 - Explicit reactivation flow for inactive employees with the same email
 - Cross-module events / integration beyond this hexagon
-- Coerce remaining query-string filters (`isActive=true` arrives as string via `adaptRoute`; `page`/`limit` already handled by shared pagination)
 
 ---
 
@@ -261,9 +260,12 @@ interface FindEmployeesPort {
 ### DTOs
 
 ```ts
+type EmployeeListStatus = 'active' | 'inactive'
+
 interface GetEmployeesDto extends PaginationInputDto {
-  isActive?: boolean;
+  status?: EmployeeListStatus;
   role?: EmployeeModel.Role;
+  search?: string;
   // page?: number | string; limit?: number | string; (from shared)
 }
 
@@ -274,14 +276,15 @@ interface GetEmployeesItemDto {
   role: EmployeeModel.Role;
   phone: string | null;
   nif: string | null;
-  isActive: boolean;
+  isActive: boolean; // read-model field (not the list filter param)
   createdAt: Date;
   deactivateAt: Date | null;
 }
 
 interface FindEmployeesParams {
-  isActive?: boolean;
+  isActive?: boolean; // mapped from status in the query
   role?: EmployeeModel.Role;
+  search?: string;
   skip: number;
   limit: number;
 }
@@ -305,8 +308,11 @@ Defaults: `page=1`, `limit=20`, `max limit=100` (shared).
 ### Query flow (`GetEmployeesQuery`)
 
 1. `normalizePagination(filters)` → `{ page, limit, skip }`
-2. `FindEmployeesPort.findAll({ filters, skip, limit })` → `{ items, total }`
-3. Map via `toPaginatedResult` into `{ employees, page, limit, total, totalPages }`
+2. Map `status` → `isActive` (`active`→`true`, `inactive`→`false`, omit→no filter); trim `search` (blank→omit)
+3. `FindEmployeesPort.findAll({ isActive, role, search, skip, limit })` → `{ items, total }`
+4. Map via `toPaginatedResult` into `{ employees, page, limit, total, totalPages }`
+
+`total` / `totalPages` always reflect the **filtered** set (`countDocuments` uses the same filter).
 
 No domain entity creation, no policies, no encrypter.
 
@@ -328,9 +334,16 @@ No domain entity creation, no policies, no encrypter.
 `GetEmployeesController` extends `BaseController`:
 
 - No required fields
-- Forwards optional filters + pagination: `isActive`, `role`, `page`, `limit`
+- Normalizes query-string filters: `status` (`active`|`inactive`), `role`, `search` (trim), `page`, `limit`
+- Invalid `status` or `role` → `400` + `InvalidParamError`
 - Success → `200` + `{ data: { employees, page, limit, total, totalPages } }` via `ok(...)`
 - Unexpected errors → `serverError(...)`
+
+HTTP list contract example:
+
+```http
+GET /api/employees?page=1&limit=20&status=active&role=MANAGER&search=grau
+```
 
 ### Routes
 
@@ -400,6 +413,8 @@ Client
 
 `findAll` sorts by `{ createdAt: -1, _id: -1 }` for stable pages.
 
+Optional `search` builds a case-insensitive `$or` over `name`, `email`, `phone`, and `nif` (`$expr` + `$toString` because `nif` is stored as Number). Regex metacharacters in `search` are escaped.
+
 ### Mapper rules
 
 - Document `_id` ↔ string `id`
@@ -453,8 +468,8 @@ Never shortcut by calling the repository from the controller.
 
 1. **Inactive email collision** — creating a new employee with the same email as an inactive one is blocked (`EmployeeInactiveError`). Reactivation vs. new account needs product/domain confirmation.
 2. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
-3. **Error HTTP mapping** — controller maps most failures through `serverError`; finer-grained domain → HTTP status mapping may be introduced later without moving that logic into domain.
-4. **Query-string filter coercion** — `page` / `limit` are coerced in `normalizePagination` (accepts string). `isActive=true` from query string is still a string until coerced in the controller if needed.
+3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters already map invalid `status`/`role` to `400`. Broader domain → HTTP status mapping may come later without moving that logic into domain.
+4. **Employee “vacation” / leave status** — not modeled; list filter is only `status=active|inactive` (maps to `isActive`).
 
 ---
 

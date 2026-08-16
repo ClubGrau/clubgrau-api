@@ -23,5 +23,5 @@ GET http://localhost:3003/api/employees?page=1&limit=20
 Authorization: Bearer {{token}}
 
 ### List employees (filters + pagination)
-GET http://localhost:3003/api/employees?isActive=true&role=EMPLOYEE&page=2&limit=10
+GET http://localhost:3003/api/employees?status=active&role=EMPLOYEE&search=grau&page=2&limit=10
 Authorization: Bearer {{token}}
