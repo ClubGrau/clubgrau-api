@@ -7,12 +7,21 @@ import { CreateEmployeeRepositoryPort } from '@modules/employees/application/por
 import { FindEmployeesPort } from '@modules/employees/application/ports/outbound/find-employees.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
-import { EmployeeDocument, EmployeeMongooseModel } from './employee.schema';
+import { QueryFilter } from 'mongoose';
+import {
+  EmployeeDocument,
+  EmployeeMongooseModel,
+  EmployeeSchemaType,
+} from './employee.schema';
 import {
   mapEmployeeDocument,
   mapEmployeeReadModel,
   mapToCreateDocument,
 } from './employee.mapper';
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export class EmployeeMongooseRepository
   implements
@@ -40,17 +49,7 @@ export class EmployeeMongooseRepository
   }
 
   async findAll(params: FindEmployeesParams): Promise<FindEmployeesResult> {
-    const filter: {
-      isActive?: boolean;
-      role?: EmployeeModel.Role;
-    } = {};
-
-    if (params.isActive !== undefined) {
-      filter.isActive = params.isActive;
-    }
-    if (params.role !== undefined) {
-      filter.role = params.role;
-    }
+    const filter = this.buildFindFilter(params);
 
     const [documents, total] = await Promise.all([
       this.employeeModel
@@ -66,5 +65,37 @@ export class EmployeeMongooseRepository
       items: (documents as EmployeeDocument[]).map(mapEmployeeReadModel),
       total,
     };
+  }
+
+  private buildFindFilter(
+    params: FindEmployeesParams,
+  ): QueryFilter<EmployeeSchemaType> {
+    const filter: QueryFilter<EmployeeSchemaType> = {};
+
+    if (params.isActive) {
+      filter.isActive = params.isActive;
+    }
+    if (params.role) {
+      filter.role = params.role;
+    }
+    if (params.search) {
+      const pattern = escapeRegex(params.search);
+      filter.$or = [
+        { name: { $regex: pattern, $options: 'i' } },
+        { email: { $regex: pattern, $options: 'i' } },
+        { phone: { $regex: pattern, $options: 'i' } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: { $ifNull: ['$nif', ''] } },
+              regex: pattern,
+              options: 'i',
+            },
+          },
+        },
+      ];
+    }
+
+    return filter;
   }
 }

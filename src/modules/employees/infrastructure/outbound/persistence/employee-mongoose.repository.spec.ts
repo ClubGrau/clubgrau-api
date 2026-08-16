@@ -215,6 +215,47 @@ describe('EmployeeMongooseRepository', () => {
       expect(countSpy).toHaveBeenCalledWith(expectedFilter);
     });
 
+    it('should apply search across name, email, phone and nif', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const lean = jest.fn().mockResolvedValueOnce([]);
+      const limit = jest.fn().mockReturnValueOnce({ lean });
+      const skip = jest.fn().mockReturnValueOnce({ limit });
+      const sort = jest.fn().mockReturnValueOnce({ skip });
+      const findSpy = jest
+        .spyOn(employeeModelMock, 'find')
+        .mockReturnValueOnce({ sort });
+      const countSpy = jest
+        .spyOn(employeeModelMock, 'countDocuments')
+        .mockResolvedValueOnce(3);
+
+      await sut.findAll({
+        search: 'grau.+(test)',
+        isActive: true,
+        skip: 0,
+        limit: 20,
+      });
+
+      const expectedFilter = {
+        isActive: true,
+        $or: [
+          { name: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
+          { email: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
+          { phone: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
+          {
+            $expr: {
+              $regexMatch: {
+                input: { $toString: { $ifNull: ['$nif', ''] } },
+                regex: 'grau\\.\\+\\(test\\)',
+                options: 'i',
+              },
+            },
+          },
+        ],
+      };
+      expect(findSpy).toHaveBeenCalledWith(expectedFilter);
+      expect(countSpy).toHaveBeenCalledWith(expectedFilter);
+    });
+
     it('should return an empty list when no employees are found', async () => {
       const { sut, employeeModelMock } = makeSut();
       const lean = jest.fn().mockResolvedValueOnce([]);
