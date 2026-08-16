@@ -1,11 +1,13 @@
 import {
-  GetEmployeesDto,
   GetEmployeesItemDto,
   GetEmployeesResultDto,
 } from '@modules/employees/application/dtos/get-employees.dto';
 import { GetEmployeesPort } from '@modules/employees/application/ports/inbound/get-employees.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
-import { GetEmployeesController } from './get-employees.controller';
+import {
+  GetEmployeesController,
+  GetEmployeesRequest,
+} from './get-employees.controller';
 
 const makeEmployeeItem = (
   overrides: Partial<GetEmployeesItemDto> = {},
@@ -57,11 +59,12 @@ describe('GetEmployeesController', () => {
     expect(sut).toBeInstanceOf(GetEmployeesController);
   });
 
-  it('should call GetEmployeesPort with filters and pagination', async () => {
+  it('should call GetEmployeesPort with normalized filters and pagination', async () => {
     const { sut, getEmployeesStub } = makeSut();
-    const request: GetEmployeesDto = {
-      isActive: true,
+    const request: GetEmployeesRequest = {
+      status: 'active',
       role: EmployeeModel.Role.MANAGER,
+      search: '  grau  ',
       page: 2,
       limit: 10,
     };
@@ -69,7 +72,13 @@ describe('GetEmployeesController', () => {
 
     await sut.handle(request);
 
-    expect(getEmployeesSpy).toHaveBeenCalledWith(request);
+    expect(getEmployeesSpy).toHaveBeenCalledWith({
+      status: 'active',
+      role: EmployeeModel.Role.MANAGER,
+      search: 'grau',
+      page: 2,
+      limit: 10,
+    });
   });
 
   it('should call GetEmployeesPort with empty filters when request has none', async () => {
@@ -79,11 +88,34 @@ describe('GetEmployeesController', () => {
     await sut.handle({});
 
     expect(getEmployeesSpy).toHaveBeenCalledWith({
-      isActive: undefined,
+      status: undefined,
       role: undefined,
+      search: undefined,
       page: undefined,
       limit: undefined,
     });
+  });
+
+  it('should return 400 when status is invalid', async () => {
+    const { sut, getEmployeesStub } = makeSut();
+    const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');
+
+    const response = await sut.handle({ status: 'vacation' });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({ error: 'Invalid param status' });
+    expect(getEmployeesSpy).not.toHaveBeenCalled();
+  });
+
+  it('should return 400 when role is invalid', async () => {
+    const { sut, getEmployeesStub } = makeSut();
+    const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');
+
+    const response = await sut.handle({ role: 'ROOT' });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({ error: 'Invalid param role' });
+    expect(getEmployeesSpy).not.toHaveBeenCalled();
   });
 
   it('should return 500 if GetEmployeesPort throws', async () => {
@@ -99,8 +131,9 @@ describe('GetEmployeesController', () => {
       error: 'GetEmployeesPort error',
     });
     expect(getEmployeesSpy).toHaveBeenCalledWith({
-      isActive: undefined,
+      status: undefined,
       role: undefined,
+      search: undefined,
       page: undefined,
       limit: undefined,
     });

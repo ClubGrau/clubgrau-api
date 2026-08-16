@@ -1,9 +1,13 @@
 import {
   GetEmployeesDto,
   GetEmployeesResultDto,
+  isEmployeeListStatus,
 } from '@modules/employees/application/dtos/get-employees.dto';
 import { GetEmployeesPort } from '@modules/employees/application/ports/inbound/get-employees.port';
+import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
+import { InvalidParamError } from '@shared/presentation/errors/invalid-param.error';
 import {
+  badRequest,
   HttpErrorBody,
   HttpSuccessBody,
   ok,
@@ -26,16 +30,48 @@ export class GetEmployeesController extends BaseController<
     HttpResponse<HttpErrorBody | HttpSuccessBody<GetEmployeesResultDto>>
   > {
     try {
-      const result = await this.getEmployees.execute({
-        isActive: request.isActive,
-        role: request.role,
-        page: request.page,
-        limit: request.limit,
-      });
+      const filters = this.normalizeFilters(request);
+      if (filters instanceof Error) {
+        return badRequest(filters);
+      }
 
+      const result = await this.getEmployees.execute(filters);
       return ok(result);
     } catch (error) {
       return serverError(error as Error);
     }
+  }
+
+  private normalizeFilters(
+    request: GetEmployeesDto,
+  ): GetEmployeesDto | InvalidParamError {
+    let status: GetEmployeesDto['status'];
+    if (request.status) {
+      if (!isEmployeeListStatus(request.status)) {
+        return new InvalidParamError('status');
+      }
+      status = request.status;
+    }
+
+    let role: GetEmployeesDto['role'];
+    if (request.role) {
+      if (!EmployeeModel.isRole(request.role)) {
+        return new InvalidParamError('role');
+      }
+      role = request.role;
+    }
+
+    const search =
+      typeof request.search === 'string' && request.search.trim() !== ''
+        ? request.search.trim()
+        : undefined;
+
+    return {
+      status,
+      role,
+      search,
+      page: request.page,
+      limit: request.limit,
+    };
   }
 }
