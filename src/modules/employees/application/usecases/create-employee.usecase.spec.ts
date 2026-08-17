@@ -179,7 +179,7 @@ describe('HireEmployeeUsecase', () => {
         phone: null,
         nif: null,
         password: 'encrypted-password',
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         deactivateAt: null,
         createdAt: expect.any(Date),
       }),

@@ -3,7 +3,6 @@ import {
   GetEmployeesDto,
   GetEmployeesItemDto,
   GetEmployeesResultDto,
-  isEmployeeListStatus,
 } from './get-employees.dto';
 
 describe('GetEmployeesDto', () => {
@@ -20,31 +19,18 @@ describe('GetEmployeesDto', () => {
 
   it('should describe optional list filters and pagination', () => {
     const dto: GetEmployeesDto = {
-      status: 'active',
+      status: EmployeeModel.Status.ACTIVE,
       role: EmployeeModel.Role.MANAGER,
       search: 'grau',
       page: 2,
       limit: 10,
     };
 
-    expect(dto.status).toBe('active');
+    expect(dto.status).toBe(EmployeeModel.Status.ACTIVE);
     expect(dto.role).toBe(EmployeeModel.Role.MANAGER);
     expect(dto.search).toBe('grau');
     expect(dto.page).toBe(2);
     expect(dto.limit).toBe(10);
-  });
-});
-
-describe('isEmployeeListStatus', () => {
-  it('should accept active and inactive', () => {
-    expect(isEmployeeListStatus('active')).toBe(true);
-    expect(isEmployeeListStatus('inactive')).toBe(true);
-  });
-
-  it('should reject unknown values', () => {
-    expect(isEmployeeListStatus('vacation')).toBe(false);
-    expect(isEmployeeListStatus(true)).toBe(false);
-    expect(isEmployeeListStatus(undefined)).toBe(false);
   });
 });
 
@@ -58,7 +44,7 @@ describe('GetEmployeesItemDto', () => {
       role: EmployeeModel.Role.EMPLOYEE,
       phone: '351912345678',
       nif: '123456789',
-      isActive: true,
+      status: EmployeeModel.Status.ACTIVE,
       createdAt,
       deactivateAt: null,
     };
@@ -70,7 +56,7 @@ describe('GetEmployeesItemDto', () => {
     expect(item.role).toBe(EmployeeModel.Role.EMPLOYEE);
     expect(item.phone).toBe('351912345678');
     expect(item.nif).toBe('123456789');
-    expect(item.isActive).toBe(true);
+    expect(item.status).toBe(EmployeeModel.Status.ACTIVE);
     expect(item.createdAt).toBe(createdAt);
     expect(item.deactivateAt).toBeNull();
     expect(item).not.toHaveProperty('password');
@@ -89,7 +75,7 @@ describe('GetEmployeesResultDto', () => {
           role: EmployeeModel.Role.EMPLOYEE,
           phone: null,
           nif: null,
-          isActive: true,
+          status: EmployeeModel.Status.ACTIVE,
           createdAt,
           deactivateAt: null,
         },

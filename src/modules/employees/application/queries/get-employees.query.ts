@@ -17,7 +17,7 @@ export class GetEmployeesQuery implements GetEmployeesPort {
     const search = filters.search?.trim() || undefined;
 
     const { items, total } = await this.findEmployees.findAll({
-      isActive: this.isActiveValidation(filters),
+      status: filters.status,
       role: filters.role,
       search,
       skip: pagination.skip,
@@ -38,14 +38,5 @@ export class GetEmployeesQuery implements GetEmployeesPort {
       total: totalItems,
       totalPages,
     };
-  }
-
-  private isActiveValidation({ status }: GetEmployeesDto): boolean | undefined {
-    const statusMap: Record<string, boolean> = {
-      active: true,
-      inactive: false,
-    };
-
-    return statusMap[status as keyof typeof statusMap] ?? undefined;
   }
 }

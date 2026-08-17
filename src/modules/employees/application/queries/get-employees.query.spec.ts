@@ -20,7 +20,7 @@ const makeEmployeeItem = (
   role: EmployeeModel.Role.EMPLOYEE,
   phone: null,
   nif: null,
-  isActive: true,
+  status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
   deactivateAt: null,
   ...overrides,
@@ -78,7 +78,7 @@ describe('GetEmployeesQuery', () => {
     await sut.execute({});
 
     expect(findAllSpy).toHaveBeenCalledWith({
-      isActive: undefined,
+      status: undefined,
       role: undefined,
       search: undefined,
       skip: 0,
@@ -86,10 +86,10 @@ describe('GetEmployeesQuery', () => {
     });
   });
 
-  it('should map status and search into FindEmployeesPort params', async () => {
+  it('should forward status and search into FindEmployeesPort params', async () => {
     const { sut, findEmployeesStub } = makeSut();
     const filters: GetEmployeesDto = {
-      status: 'active',
+      status: EmployeeModel.Status.ACTIVE,
       role: EmployeeModel.Role.MANAGER,
       search: '  grau  ',
       page: 3,
@@ -101,7 +101,7 @@ describe('GetEmployeesQuery', () => {
 
     expect(findAllSpy).toHaveBeenCalledTimes(1);
     expect(findAllSpy).toHaveBeenCalledWith({
-      isActive: true,
+      status: EmployeeModel.Status.ACTIVE,
       role: EmployeeModel.Role.MANAGER,
       search: 'grau',
       skip: 20,
@@ -109,14 +109,14 @@ describe('GetEmployeesQuery', () => {
     });
   });
 
-  it('should map status=inactive to isActive false', async () => {
+  it('should forward status=INACTIVE without mapping to boolean', async () => {
     const { sut, findEmployeesStub } = makeSut();
     const findAllSpy = jest.spyOn(findEmployeesStub, 'findAll');
 
-    await sut.execute({ status: 'inactive' });
+    await sut.execute({ status: EmployeeModel.Status.INACTIVE });
 
     expect(findAllSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ isActive: false }),
+      expect.objectContaining({ status: EmployeeModel.Status.INACTIVE }),
     );
   });
 
@@ -138,7 +138,7 @@ describe('GetEmployeesQuery', () => {
     await sut.execute({ page: '2', limit: '15' });
 
     expect(findAllSpy).toHaveBeenCalledWith({
-      isActive: undefined,
+      status: undefined,
       role: undefined,
       search: undefined,
       skip: 15,

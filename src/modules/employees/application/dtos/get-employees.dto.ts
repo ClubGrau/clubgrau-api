@@ -1,18 +1,9 @@
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { PaginationInputDto } from '@shared/application/pagination/pagination.dto';
 
-/** Valores aceitos no filtro HTTP `status` da listagem. */
-export type EmployeeListStatus = 'active' | 'inactive';
-
-export function isEmployeeListStatus(
-  value: unknown,
-): value is EmployeeListStatus {
-  return value === 'active' || value === 'inactive';
-}
-
 /** Input da query GetEmployees (filtros + paginação offset). */
 export interface GetEmployeesDto extends PaginationInputDto {
-  status?: EmployeeListStatus;
+  status?: EmployeeModel.Status;
   role?: EmployeeModel.Role;
   search?: string;
 }
@@ -28,14 +19,14 @@ export interface GetEmployeesItemDto {
   role: EmployeeModel.Role;
   phone: string | null;
   nif: string | null;
-  isActive: boolean;
+  status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
 }
 
 /** Params do outbound port de leitura (já com skip/limit normalizados). */
 export interface FindEmployeesParams {
-  isActive?: boolean;
+  status?: EmployeeModel.Status;
   role?: EmployeeModel.Role;
   search?: string;
   skip: number;
