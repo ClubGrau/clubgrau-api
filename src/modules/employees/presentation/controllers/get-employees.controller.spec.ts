@@ -4,10 +4,8 @@ import {
 } from '@modules/employees/application/dtos/get-employees.dto';
 import { GetEmployeesPort } from '@modules/employees/application/ports/inbound/get-employees.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
-import {
-  GetEmployeesController,
-  GetEmployeesRequest,
-} from './get-employees.controller';
+import { GetEmployeesRequest } from '@modules/employees/presentation/http/get-employees.request';
+import { GetEmployeesController } from './get-employees.controller';
 
 const makeEmployeeItem = (
   overrides: Partial<GetEmployeesItemDto> = {},
@@ -18,7 +16,7 @@ const makeEmployeeItem = (
   role: EmployeeModel.Role.EMPLOYEE,
   phone: null,
   nif: null,
-  isActive: true,
+  status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
   deactivateAt: null,
   ...overrides,
@@ -62,7 +60,7 @@ describe('GetEmployeesController', () => {
   it('should call GetEmployeesPort with normalized filters and pagination', async () => {
     const { sut, getEmployeesStub } = makeSut();
     const request: GetEmployeesRequest = {
-      status: 'active',
+      status: EmployeeModel.Status.ACTIVE,
       role: EmployeeModel.Role.MANAGER,
       search: '  grau  ',
       page: 2,
@@ -73,7 +71,7 @@ describe('GetEmployeesController', () => {
     await sut.handle(request);
 
     expect(getEmployeesSpy).toHaveBeenCalledWith({
-      status: 'active',
+      status: EmployeeModel.Status.ACTIVE,
       role: EmployeeModel.Role.MANAGER,
       search: 'grau',
       page: 2,
@@ -100,11 +98,22 @@ describe('GetEmployeesController', () => {
     const { sut, getEmployeesStub } = makeSut();
     const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');
 
-    const response = await sut.handle({ status: 'vacation' });
+    const response = await sut.handle({ status: 'active' });
 
     expect(response.statusCode).toBe(400);
     expect(response.body).toEqual({ error: 'Invalid param status' });
     expect(getEmployeesSpy).not.toHaveBeenCalled();
+  });
+
+  it('should accept VACATION as a valid status filter', async () => {
+    const { sut, getEmployeesStub } = makeSut();
+    const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');
+
+    await sut.handle({ status: EmployeeModel.Status.VACATION });
+
+    expect(getEmployeesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ status: EmployeeModel.Status.VACATION }),
+    );
   });
 
   it('should return 400 when role is invalid', async () => {
