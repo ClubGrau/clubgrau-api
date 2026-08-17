@@ -1,6 +1,6 @@
 # Employees Module — Agent Guide
 
-> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees).
+> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status presentation).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).  
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
@@ -41,11 +41,12 @@ After a meaningful change, update the relevant section(s) in place.
 |------------|--------|-------------|
 | List employees (query) | Done | `GET /api/employees` |
 | Create employee (command) | Done | `POST /api/employee` |
+| Update employee status (HTTP) | Done (presentation; use case pending) | `POST /api/employee/update-status` |
 | Email uniqueness policy | Done | `EmployeePoliciesService.ensureEmailIsAvailable` |
 | Password confirmation | Done | `CreateEmployeeUsecase` |
 | Password hashing | Done | `EncrypterPort` → `BcryptAdapter` (injected from `app.ts`) |
 | Mongo persistence | Done | `EmployeeMongooseRepository` |
-| Auth token on employee routes | Done | `authTokenMiddleware` on `GET` / `POST /employee` |
+| Auth token on employee routes | Done | `authTokenMiddleware` on `GET` / `POST /employee` / `POST /employee/update-status` |
 | Module HTTP ownership | Done | `infrastructure/inbound/http/employee.routes.ts` |
 | Composition root wiring | Done | `employees.module.ts` + `app.ts` |
 
@@ -60,7 +61,8 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 
 ### Future work
 
-- Get employee by id / update / deactivate / reactivate
+- Update employee status use case (load, transition via entity, persist) — HTTP + inbound port already exist
+- Get employee by id / update other fields
 - Authorization (who may create/list employees) beyond token presence
 - Explicit reactivation flow for inactive employees with the same email
 - Cross-module events / integration beyond this hexagon
@@ -94,11 +96,13 @@ src/modules/employees/
 │   │   ├── create-employee.dto.ts
 │   │   ├── create-employee.dto.spec.ts
 │   │   ├── get-employees.dto.ts      # filters + read model (no password)
-│   │   └── get-employees.dto.spec.ts
+│   │   ├── get-employees.dto.spec.ts
+│   │   └── update-employee-status.dto.ts
 │   ├── ports/
 │   │   ├── inbound/
 │   │   │   ├── create-employee.port.ts
-│   │   │   └── get-employees.port.ts
+│   │   │   ├── get-employees.port.ts
+│   │   │   └── update-employee-status.port.ts
 │   │   └── outbound/
 │   │       ├── create-employee-repository.port.ts
 │   │       └── find-employees.port.ts
@@ -111,12 +115,15 @@ src/modules/employees/
 │
 ├── presentation/
 │   ├── http/
-│   │   └── get-employees.request.ts  # query string bruta (pré-validação)
+│   │   ├── get-employees.request.ts  # query string bruta (pré-validação)
+│   │   └── update-employee-status.request.ts  # body bruto (id/status)
 │   └── controllers/
 │       ├── create-employee.controller.ts
 │       ├── create-employee.controller.spec.ts
 │       ├── get-employees.controller.ts
-│       └── get-employees.controller.spec.ts
+│       ├── get-employees.controller.spec.ts
+│       ├── update-employee-status.controller.ts
+│       └── update-employee-status.controller.spec.ts
 │
 └── infrastructure/
     ├── inbound/http/
@@ -323,6 +330,39 @@ No domain entity creation, no policies, no encrypter.
 
 ---
 
+## Application: Update Employee Status (command)
+
+Presentation + inbound port are delivered. The use case (entity transition + persist) is **not** implemented yet.
+
+### Ports
+
+```ts
+// inbound
+interface UpdateEmployeeStatusPort {
+  execute(params: UpdateEmployeeStatusDto): Promise<UpdateEmployeeStatusResultDto>;
+}
+```
+
+No outbound port yet.
+
+### DTOs
+
+```ts
+interface UpdateEmployeeStatusDto {
+  id: string;
+  status: EmployeeModel.Status;
+}
+
+interface UpdateEmployeeStatusResultDto {
+  id: string;
+  status: EmployeeModel.Status;
+}
+```
+
+Until the use-case spec, `makeEmployeesModule` injects a **temporary** port that rejects with `UpdateEmployeeStatusUsecase not implemented`. That stub must be replaced by `UpdateEmployeeStatusUsecase`; do not add transition logic in the controller.
+
+---
+
 ## Presentation & HTTP
 
 ### Controllers
@@ -350,12 +390,29 @@ HTTP list contract example:
 GET /api/employees?page=1&limit=20&status=ACTIVE&role=MANAGER&search=grau
 ```
 
+`UpdateEmployeeStatusController` extends `BaseController`:
+
+- Required fields: `id`, `status`
+- Missing field → `400` + `MissingParamError`
+- Invalid `status` (not `ACTIVE`|`INACTIVE`|`VACATION`) → `400` + `InvalidParamError`
+- Success → `200` + `{ id, status }` via `ok(...)`
+- Unexpected errors (including the temporary port stub) → `serverError(...)`
+- Raw HTTP body: `UpdateEmployeeStatusRequest` (`id`/`status` as string); typed DTO is produced after validation
+
+HTTP update-status contract example:
+
+```http
+POST /api/employee/update-status
+{ "id": "507f1f77bcf86cd799439011", "status": "INACTIVE" }
+```
+
 ### Routes
 
 ```ts
 // employee.routes.ts
 router.get('/employees', authTokenMiddleware, adaptRoute(getEmployeesController));
 router.post('/employee', authTokenMiddleware, adaptRoute(createEmployeeController));
+router.post('/employee/update-status', authTokenMiddleware, adaptRoute(updateEmployeeStatusController));
 ```
 
 Mounted in `app.ts` as:
@@ -363,9 +420,10 @@ Mounted in `app.ts` as:
 ```text
 GET  /api/employees
 POST /api/employee
+POST /api/employee/update-status
 ```
 
-Both require `Authorization` (Bearer token). Manual samples: `src/client/employee.http`.
+All require `Authorization` (Bearer token). Manual samples: `src/client/employee.http`.
 
 ### Request → response sequences
 
@@ -396,6 +454,17 @@ Client
       → normalizePagination
       → FindEmployeesPort.findAll ({ skip, limit, filters })
   → 200 { data: { employees, page, limit, total, totalPages } }
+```
+
+**Update status**
+
+```text
+Client
+  → employee.routes + authTokenMiddleware + adaptRoute
+  → UpdateEmployeeStatusController.handle
+  → UpdateEmployeeStatusPort.execute
+  → (temporary stub until use-case spec)
+  → 200 { data: { id, status } }  // when the port succeeds
 ```
 
 ---
@@ -447,9 +516,11 @@ Composition order today:
 5. `GetEmployeesQuery(repository)`
 6. `CreateEmployeeController(createEmployee)`
 7. `GetEmployeesController(getEmployees)`
-8. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, authTokenMiddleware })`
+8. Temporary `UpdateEmployeeStatusPort` (rejects until use-case spec)
+9. `UpdateEmployeeStatusController(updateEmployeeStatus)`
+10. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, updateEmployeeStatusController, authTokenMiddleware })`
 
-Returns `{ createEmployeeController, getEmployeesController, createEmployee, getEmployees, router }`.
+Returns `{ createEmployeeController, getEmployeesController, updateEmployeeStatusController, createEmployee, getEmployees, router }`.
 
 **Rule:** when adding a use case or query, wire it in this file; do not construct repositories inside controllers or use cases.
 
@@ -464,7 +535,7 @@ Follow the global playbook in [`AGENTS.md`](../../../AGENTS.md). For this module
 3. Update `src/client/employee.http` if HTTP surface changed
 4. Update **this** `AGENT.md` (status, ports, HTTP, open decisions)
 
-Example next command: `DeactivateEmployee` — entity already has `deactivate()`; add DTO, ports, use case, controller, route, wire, then update this file.
+Example next command: `UpdateEmployeeStatusUsecase` — entity already has `activate()` / `deactivate()` / `putOnVacation()`; replace the temporary inbound port in `employees.module.ts`.
 
 Never shortcut by calling the repository from the controller.
 
@@ -474,7 +545,8 @@ Never shortcut by calling the repository from the controller.
 
 1. **Inactive email collision** — creating a new employee with the same email as an inactive one is blocked (`EmployeeInactiveError`). Reactivation vs. new account needs product/domain confirmation.
 2. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
-3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters already map invalid `status`/`role` to `400`. Broader domain → HTTP status mapping may come later without moving that logic into domain.
+3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters and update-status already map invalid `status`/`role` to `400`. Domain errors from the future update-status use case (`EmployeeNotFoundError`, already-in-status) still surface as `500` until a later mapping spec.
+4. **Update status use case** — HTTP + inbound port exist; module injects a temporary port until the use-case spec.
 
 ---
 
@@ -491,6 +563,8 @@ Never shortcut by calling the repository from the controller.
 | Create HTTP validation / status | `presentation/controllers/create-employee.controller.ts` |
 | List HTTP request shape (raw query) | `presentation/http/get-employees.request.ts` |
 | List HTTP mapping / status | `presentation/controllers/get-employees.controller.ts` |
+| Update-status HTTP request shape (raw body) | `presentation/http/update-employee-status.request.ts` |
+| Update-status HTTP mapping / status | `presentation/controllers/update-employee-status.controller.ts` |
 | Routes | `infrastructure/inbound/http/employee.routes.ts` |
 | Mongo I/O | `infrastructure/outbound/persistence/employee-mongoose.repository.ts` |
 | Document ↔ DTO mapping | `infrastructure/outbound/persistence/employee.mapper.ts` |
