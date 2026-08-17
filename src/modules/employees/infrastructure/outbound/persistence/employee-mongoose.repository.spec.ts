@@ -12,7 +12,7 @@ const mockEmployee = {
   password: 'hashed_password',
   phone: '351912345678',
   nif: 123456789,
-  isActive: true,
+  status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date('2024-01-01T00:00:00Z'),
   deactivateAt: null,
 } as EmployeeDocument;
@@ -51,7 +51,7 @@ describe('EmployeeMongooseRepository', () => {
             role: EmployeeModel.Role.ADMIN,
             phone: '351912345678',
             nif: 123456789,
-            isActive: true,
+            status: EmployeeModel.Status.ACTIVE,
             createdAt: new Date('2024-01-01T00:00:00Z'),
             deactivateAt: null,
           }),
@@ -67,7 +67,7 @@ describe('EmployeeMongooseRepository', () => {
         role: EmployeeModel.Role.ADMIN,
         phone: '351912345678',
         nif: '123456789',
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
       });
@@ -98,7 +98,7 @@ describe('EmployeeMongooseRepository', () => {
         password: 'hashed_password',
         phone: '351912345678',
         nif: '987654321',
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
       };
@@ -112,7 +112,7 @@ describe('EmployeeMongooseRepository', () => {
           password: 'hashed_password',
           phone: '351912345678',
           nif: 987654321,
-          isActive: true,
+          status: EmployeeModel.Status.ACTIVE,
           createdAt: new Date('2024-01-01T00:00:00Z'),
           deactivateAt: null,
         });
@@ -125,7 +125,7 @@ describe('EmployeeMongooseRepository', () => {
         password: 'hashed_password',
         phone: '351912345678',
         nif: 987654321,
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
       });
@@ -146,7 +146,7 @@ describe('EmployeeMongooseRepository', () => {
           role: EmployeeModel.Role.ADMIN,
           phone: '351912345678',
           nif: 123456789,
-          isActive: true,
+          status: EmployeeModel.Status.ACTIVE,
           createdAt: new Date('2024-01-01T00:00:00Z'),
           deactivateAt: null,
         },
@@ -177,7 +177,7 @@ describe('EmployeeMongooseRepository', () => {
             role: EmployeeModel.Role.ADMIN,
             phone: '351912345678',
             nif: '123456789',
-            isActive: true,
+            status: EmployeeModel.Status.ACTIVE,
             createdAt: new Date('2024-01-01T00:00:00Z'),
             deactivateAt: null,
           },
@@ -187,7 +187,7 @@ describe('EmployeeMongooseRepository', () => {
       expect(result.items[0]).not.toHaveProperty('password');
     });
 
-    it('should apply isActive and role filters when provided', async () => {
+    it('should apply status and role filters when provided', async () => {
       const { sut, employeeModelMock } = makeSut();
       const lean = jest.fn().mockResolvedValueOnce([]);
       const limit = jest.fn().mockReturnValueOnce({ lean });
@@ -201,16 +201,40 @@ describe('EmployeeMongooseRepository', () => {
         .mockResolvedValueOnce(0);
 
       await sut.findAll({
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         role: EmployeeModel.Role.MANAGER,
         skip: 0,
         limit: 20,
       });
 
       const expectedFilter = {
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         role: EmployeeModel.Role.MANAGER,
       };
+      expect(findSpy).toHaveBeenCalledWith(expectedFilter);
+      expect(countSpy).toHaveBeenCalledWith(expectedFilter);
+    });
+
+    it('should apply INACTIVE status filter when listing inactive employees', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const lean = jest.fn().mockResolvedValueOnce([]);
+      const limit = jest.fn().mockReturnValueOnce({ lean });
+      const skip = jest.fn().mockReturnValueOnce({ limit });
+      const sort = jest.fn().mockReturnValueOnce({ skip });
+      const findSpy = jest
+        .spyOn(employeeModelMock, 'find')
+        .mockReturnValueOnce({ sort });
+      const countSpy = jest
+        .spyOn(employeeModelMock, 'countDocuments')
+        .mockResolvedValueOnce(0);
+
+      await sut.findAll({
+        status: EmployeeModel.Status.INACTIVE,
+        skip: 0,
+        limit: 20,
+      });
+
+      const expectedFilter = { status: EmployeeModel.Status.INACTIVE };
       expect(findSpy).toHaveBeenCalledWith(expectedFilter);
       expect(countSpy).toHaveBeenCalledWith(expectedFilter);
     });
@@ -230,13 +254,13 @@ describe('EmployeeMongooseRepository', () => {
 
       await sut.findAll({
         search: 'grau.+(test)',
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         skip: 0,
         limit: 20,
       });
 
       const expectedFilter = {
-        isActive: true,
+        status: EmployeeModel.Status.ACTIVE,
         $or: [
           { name: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
           { email: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },

@@ -11,7 +11,11 @@ export const EmployeeSchema = new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String, default: null },
   nif: { type: Number },
-  isActive: { type: Boolean, default: true },
+  status: {
+    type: String,
+    enum: ['ACTIVE', 'INACTIVE', 'VACATION'],
+    default: 'ACTIVE',
+  },
   createdAt: { type: Date, default: Date.now },
   deactivateAt: { type: Date, default: null },
 });
@@ -22,6 +26,8 @@ export type EmployeeSchemaType = InferSchemaType<typeof EmployeeSchema>;
 /** Documento lido do Mongo (lean/hydrated) com `_id`. */
 export type EmployeeDocument = EmployeeSchemaType & {
   _id: mongoose.Types.ObjectId;
+  /** Campo legado — removido do schema; lido só para migração de leituras. */
+  isActive?: boolean;
 };
 
 /** Tipo do Model Mongoose — use este no repository/module. */

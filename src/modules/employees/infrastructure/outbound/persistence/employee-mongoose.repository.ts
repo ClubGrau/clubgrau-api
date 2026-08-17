@@ -72,8 +72,8 @@ export class EmployeeMongooseRepository
   ): QueryFilter<EmployeeSchemaType> {
     const filter: QueryFilter<EmployeeSchemaType> = {};
 
-    if (params.isActive) {
-      filter.isActive = params.isActive;
+    if (params.status) {
+      filter.status = params.status;
     }
     if (params.role) {
       filter.role = params.role;
