@@ -3,6 +3,7 @@ import {
   EmployeeAlreadyExistsError,
   EmployeeInactiveError,
 } from '../errors/employee.errors';
+import { EmployeeModel } from '../models/employee.model';
 
 export class EmployeePoliciesService {
   constructor(private readonly findEmployeeByEmail: FindEmployeeByEmailPort) {}
@@ -11,9 +12,9 @@ export class EmployeePoliciesService {
    * Ensures an email is free to be used when creating a new employee.
    *
    * - not found        -> resolves (the email is available)
-   * - found & active   -> throws EmployeeAlreadyExistsError
-   * - found & inactive -> throws EmployeeInactiveError. Reactivating an
-   *   inactive employee is a business decision not yet defined with the
+   * - found & ACTIVE   -> throws EmployeeAlreadyExistsError
+   * - found & other    -> throws EmployeeInactiveError. Reactivating a
+   *   non-active employee is a business decision not yet defined with the
    *   domain expert; blocking here keeps that scenario explicit instead of
    *   silently creating a duplicate.
    */
@@ -24,7 +25,7 @@ export class EmployeePoliciesService {
       return;
     }
 
-    if (existing.isActive) {
+    if (existing.status === EmployeeModel.Status.ACTIVE) {
       throw new EmployeeAlreadyExistsError();
     }
 

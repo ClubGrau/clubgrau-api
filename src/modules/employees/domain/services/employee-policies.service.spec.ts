@@ -68,7 +68,9 @@ describe('EmployeePoliciesService', () => {
     const { sut, findEmployeeByEmailStub } = makeSut();
     jest
       .spyOn(findEmployeeByEmailStub, 'findByEmail')
-      .mockResolvedValueOnce(makeEmployeeSnapshot({ isActive: true }));
+      .mockResolvedValueOnce(
+        makeEmployeeSnapshot({ status: EmployeeModel.Status.ACTIVE }),
+      );
 
     const result = sut.ensureEmailIsAvailable('john.doe@example.com');
 
@@ -80,13 +82,15 @@ describe('EmployeePoliciesService', () => {
     const { sut, findEmployeeByEmailStub } = makeSut();
     jest
       .spyOn(findEmployeeByEmailStub, 'findByEmail')
-      .mockResolvedValueOnce(makeEmployeeSnapshot({ isActive: false }));
+      .mockResolvedValueOnce(
+        makeEmployeeSnapshot({ status: EmployeeModel.Status.INACTIVE }),
+      );
 
     const result = sut.ensureEmailIsAvailable('john.doe@example.com');
 
     await expect(result).rejects.toBeInstanceOf(EmployeeInactiveError);
     await expect(result).rejects.toThrow(
-      'Employee already exists but is inactive',
+      'Employee already exists but is not active',
     );
   });
 });
