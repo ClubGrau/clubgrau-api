@@ -236,4 +236,4 @@ Do **not** test auth middleware or domain transition rules here.
 | Routes factory | `infrastructure/inbound/http/employee.routes.ts` |
 | Module composition | `employees.module.ts` |
 | API mount | `src/app.ts` (`app.use('/api', employees.router)`) |
-| Next slice | `docs/specs/update-employee-status/usecase.md` (not written yet) |
+| Next slice | [`usecase.md`](./usecase.md) |

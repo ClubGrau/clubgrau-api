@@ -1,6 +1,6 @@
 # Employees Module — Agent Guide
 
-> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status presentation).
+> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).  
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
@@ -41,7 +41,7 @@ After a meaningful change, update the relevant section(s) in place.
 |------------|--------|-------------|
 | List employees (query) | Done | `GET /api/employees` |
 | Create employee (command) | Done | `POST /api/employee` |
-| Update employee status (HTTP) | Done (presentation; use case pending) | `POST /api/employee/update-status` |
+| Update employee status (command) | Done | `POST /api/employee/update-status` |
 | Email uniqueness policy | Done | `EmployeePoliciesService.ensureEmailIsAvailable` |
 | Password confirmation | Done | `CreateEmployeeUsecase` |
 | Password hashing | Done | `EncrypterPort` → `BcryptAdapter` (injected from `app.ts`) |
@@ -54,14 +54,13 @@ After a meaningful change, update the relevant section(s) in place.
 
 | Side | Location | Example |
 |------|----------|---------|
-| Command (write) | `application/usecases/` | `CreateEmployeeUsecase` |
+| Command (write) | `application/usecases/` | `CreateEmployeeUsecase`, `UpdateEmployeeStatusUsecase` |
 | Query (read) | `application/queries/` | `GetEmployeesQuery` |
 
 Queries do **not** call `Employee.create`, policies, or encrypter. They use a dedicated read model DTO (no `password`) and `FindEmployeesPort`.
 
 ### Future work
 
-- Update employee status use case (load, transition via entity, persist) — HTTP + inbound port already exist
 - Get employee by id / update other fields
 - Authorization (who may create/list employees) beyond token presence
 - Explicit reactivation flow for inactive employees with the same email
@@ -105,10 +104,14 @@ src/modules/employees/
 │   │   │   └── update-employee-status.port.ts
 │   │   └── outbound/
 │   │       ├── create-employee-repository.port.ts
-│   │       └── find-employees.port.ts
+│   │       ├── find-employees.port.ts
+│   │       ├── find-employee-by-id.port.ts
+│   │       └── update-employee-status-repository.port.ts
 │   ├── usecases/
 │   │   ├── create-employee.usecase.ts
-│   │   └── create-employee.usecase.spec.ts
+│   │   ├── create-employee.usecase.spec.ts
+│   │   ├── update-employee-status.usecase.ts
+│   │   └── update-employee-status.usecase.spec.ts
 │   └── queries/
 │       ├── get-employees.query.ts
 │       └── get-employees.query.spec.ts
@@ -156,9 +159,9 @@ Factory methods:
 - `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `status=ACTIVE`, `createdAt=now`, `deactivateAt=null`.
 - `Employee.reconstitute(ReconstituteEmployeeProps)` — rebuild from persistence (already-validated VOs + id).
 
-Behavior already on the entity (for future use cases):
+Behavior:
 
-- `activate()` / `deactivate()` / `putOnVacation()`
+- `activate()` / `deactivate()` / `putOnVacation()` — used by `UpdateEmployeeStatusUsecase`
 - `changePassword`, `changeRole`, `changeName`, `changeEmail`, `changePhone`, `assignNif`
 - Convenience getter `isActive` → `status === ACTIVE` (not persisted)
 
@@ -188,7 +191,7 @@ function isStatus(value: unknown): value is Status
 | `EmployeeAlreadyActiveError` | `activate()` on already-active employee |
 | `EmployeeAlreadyInactiveError` | `deactivate()` on already-inactive employee |
 | `EmployeeAlreadyOnVacationError` | `putOnVacation()` on already-on-vacation employee |
-| `EmployeeNotFoundError` | Reserved for future lookups |
+| `EmployeeNotFoundError` | Lookup by id found nothing |
 
 All extend `@shared/domain/errors/domain.error`.
 
@@ -332,8 +335,6 @@ No domain entity creation, no policies, no encrypter.
 
 ## Application: Update Employee Status (command)
 
-Presentation + inbound port are delivered. The use case (entity transition + persist) is **not** implemented yet.
-
 ### Ports
 
 ```ts
@@ -341,9 +342,16 @@ Presentation + inbound port are delivered. The use case (entity transition + per
 interface UpdateEmployeeStatusPort {
   execute(params: UpdateEmployeeStatusDto): Promise<UpdateEmployeeStatusResultDto>;
 }
-```
 
-No outbound port yet.
+// outbound
+interface FindEmployeeByIdPort {
+  findById(id: string): Promise<EmployeeModel.toCreate | null>;
+}
+
+interface UpdateEmployeeStatusRepositoryPort {
+  updateStatus(params: { id: string; status: EmployeeModel.Status; deactivateAt: Date | null }): Promise<void>;
+}
+```
 
 ### DTOs
 
@@ -359,7 +367,19 @@ interface UpdateEmployeeStatusResultDto {
 }
 ```
 
-Until the use-case spec, `makeEmployeesModule` injects a **temporary** port that rejects with `UpdateEmployeeStatusUsecase not implemented`. That stub must be replaced by `UpdateEmployeeStatusUsecase`; do not add transition logic in the controller.
+### Use case flow (`UpdateEmployeeStatusUsecase`)
+
+1. `FindEmployeeByIdPort.findById(id)` — miss / malformed id → `EmployeeNotFoundError`
+2. `Employee.reconstitute` from the snapshot (`Password.fromHash`; never `Employee.create`)
+3. Apply the requested status via entity methods:
+   - `INACTIVE` → `deactivate()` (`deactivateAt = now`)
+   - `ACTIVE` → `activate()` (`deactivateAt = null`)
+   - `VACATION` → `putOnVacation()` (`deactivateAt = null`)
+   - same status as current → `EmployeeAlreadyActiveError` / `EmployeeAlreadyInactiveError` / `EmployeeAlreadyOnVacationError` (no write)
+4. Persist **only** `{ status, deactivateAt }` via `UpdateEmployeeStatusRepositoryPort.updateStatus` (`$set`). Do **not** write `employee.toJSON()` as a full document (`Password.toJSON()` is `'[REDACTED]'`).
+5. Return `{ id, status }` after the transition
+
+No encrypter. No email policies. Session / JWT validity after `INACTIVE` is **not** this command (auth hexagon).
 
 ---
 
@@ -396,7 +416,7 @@ GET /api/employees?page=1&limit=20&status=ACTIVE&role=MANAGER&search=grau
 - Missing field → `400` + `MissingParamError`
 - Invalid `status` (not `ACTIVE`|`INACTIVE`|`VACATION`) → `400` + `InvalidParamError`
 - Success → `200` + `{ id, status }` via `ok(...)`
-- Unexpected errors (including the temporary port stub) → `serverError(...)`
+- Unexpected errors (including domain errors from the use case) → `serverError(...)`
 - Raw HTTP body: `UpdateEmployeeStatusRequest` (`id`/`status` as string); typed DTO is produced after validation
 
 HTTP update-status contract example:
@@ -463,8 +483,12 @@ Client
   → employee.routes + authTokenMiddleware + adaptRoute
   → UpdateEmployeeStatusController.handle
   → UpdateEmployeeStatusPort.execute
-  → (temporary stub until use-case spec)
-  → 200 { data: { id, status } }  // when the port succeeds
+  → UpdateEmployeeStatusUsecase
+      → FindEmployeeByIdPort.findById
+      → Employee.reconstitute
+      → activate / deactivate / putOnVacation
+      → UpdateEmployeeStatusRepositoryPort.updateStatus ({ status, deactivateAt })
+  → 200 { data: { id, status } }
 ```
 
 ---
@@ -484,7 +508,9 @@ Client
 
 - `CreateEmployeeRepositoryPort` → `create`
 - `FindEmployeeByEmailPort` → `findByEmail` (lean + `mapEmployeeDocument`)
+- `FindEmployeeByIdPort` → `findById` (lean + `mapEmployeeDocument`; invalid ObjectId → `null`)
 - `FindEmployeesPort` → `findAll` (`find` + `sort` + `skip` + `limit` + `countDocuments` + `mapEmployeeReadModel`)
+- `UpdateEmployeeStatusRepositoryPort` → `updateStatus` (`updateOne` + `$set` of `status` and `deactivateAt` only)
 
 `findAll` sorts by `{ createdAt: -1, _id: -1 }` for stable pages.
 
@@ -516,7 +542,7 @@ Composition order today:
 5. `GetEmployeesQuery(repository)`
 6. `CreateEmployeeController(createEmployee)`
 7. `GetEmployeesController(getEmployees)`
-8. Temporary `UpdateEmployeeStatusPort` (rejects until use-case spec)
+8. `UpdateEmployeeStatusUsecase(repository, repository)`
 9. `UpdateEmployeeStatusController(updateEmployeeStatus)`
 10. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, updateEmployeeStatusController, authTokenMiddleware })`
 
@@ -535,7 +561,7 @@ Follow the global playbook in [`AGENTS.md`](../../../AGENTS.md). For this module
 3. Update `src/client/employee.http` if HTTP surface changed
 4. Update **this** `AGENT.md` (status, ports, HTTP, open decisions)
 
-Example next command: `UpdateEmployeeStatusUsecase` — entity already has `activate()` / `deactivate()` / `putOnVacation()`; replace the temporary inbound port in `employees.module.ts`.
+Example next command: get employee by id — add query, read port, controller, route, then update this file.
 
 Never shortcut by calling the repository from the controller.
 
@@ -545,8 +571,8 @@ Never shortcut by calling the repository from the controller.
 
 1. **Inactive email collision** — creating a new employee with the same email as an inactive one is blocked (`EmployeeInactiveError`). Reactivation vs. new account needs product/domain confirmation.
 2. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
-3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters and update-status already map invalid `status`/`role` to `400`. Domain errors from the future update-status use case (`EmployeeNotFoundError`, already-in-status) still surface as `500` until a later mapping spec.
-4. **Update status use case** — HTTP + inbound port exist; module injects a temporary port until the use-case spec.
+3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters and update-status already map invalid `status`/`role` to `400`. Domain errors from update-status (`EmployeeNotFoundError`, already-in-status) still surface as `500` until a later mapping spec.
+4. **Session after INACTIVE** — this command only persists the transition. An existing JWT remains valid until expiry unless auth re-checks current status on each request.
 
 ---
 
@@ -558,6 +584,7 @@ Never shortcut by calling the repository from the controller.
 | Role / write snapshot types | `domain/models/employee.model.ts` |
 | Email availability | `domain/services/employee-policies.service.ts` |
 | Create orchestration (command) | `application/usecases/create-employee.usecase.ts` |
+| Update-status orchestration (command) | `application/usecases/update-employee-status.usecase.ts` |
 | List orchestration (query) | `application/queries/get-employees.query.ts` |
 | List read model DTOs | `application/dtos/get-employees.dto.ts` |
 | Create HTTP validation / status | `presentation/controllers/create-employee.controller.ts` |
