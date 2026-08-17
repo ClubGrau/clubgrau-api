@@ -6,6 +6,7 @@ import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/i
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { GetEmployeesQuery } from '@modules/employees/application/queries/get-employees.query';
 import { CreateEmployeeUsecase } from '@modules/employees/application/usecases/create-employee.usecase';
+import { UpdateEmployeeStatusUsecase } from '@modules/employees/application/usecases/update-employee-status.usecase';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
@@ -52,11 +53,8 @@ export function makeEmployeesModule({
   const createEmployeeController = new CreateEmployeeController(createEmployee);
   const getEmployeesController = new GetEmployeesController(getEmployees);
 
-  const updateEmployeeStatus: UpdateEmployeeStatusPort = {
-    execute: async () => {
-      throw new Error('UpdateEmployeeStatusUsecase not implemented');
-    },
-  };
+  const updateEmployeeStatus: UpdateEmployeeStatusPort =
+    new UpdateEmployeeStatusUsecase(employeeRepository, employeeRepository);
   const updateEmployeeStatusController = new UpdateEmployeeStatusController(
     updateEmployeeStatus,
   );
