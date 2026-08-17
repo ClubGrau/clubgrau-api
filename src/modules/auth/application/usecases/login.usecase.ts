@@ -5,6 +5,8 @@ import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { TokenProviderPort } from '../ports/outbound/token-provider.port';
 import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
 
+const ACTIVE_STATUS = 'ACTIVE';
+
 export class LoginUseCase {
   constructor(
     private readonly findAuthenticatableByEmailPort: FindAuthenticatableByEmailPort,
@@ -18,7 +20,7 @@ export class LoginUseCase {
         params.email,
       );
 
-    if (!user || !user.isActive) {
+    if (!user || user.status !== ACTIVE_STATUS) {
       throw new AuthenticationError();
     }
 
@@ -37,7 +39,7 @@ export class LoginUseCase {
       name: user.name,
       email: user.email,
       role: user.role,
-      isActive: user.isActive,
+      status: user.status,
     });
 
     return { token };

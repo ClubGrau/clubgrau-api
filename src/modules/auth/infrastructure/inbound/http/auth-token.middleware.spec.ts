@@ -8,7 +8,7 @@ const makeTokenPayload = (): TokenPayload => ({
   name: 'any_name',
   email: 'any_email@mail.com',
   role: 'EMPLOYEE',
-  isActive: true,
+  status: 'ACTIVE',
 });
 
 const makeSut = () => {

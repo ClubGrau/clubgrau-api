@@ -10,7 +10,8 @@ export type AuthenticatableUser = {
   name: string;
   email: string;
   passwordHash?: string;
-  isActive: boolean;
+  /** Claim de status; string para não acoplar a enums de outros módulos. */
+  status: string;
   /** Claim para o token; string para não acoplar a enums de outros módulos. */
   role: string;
 };

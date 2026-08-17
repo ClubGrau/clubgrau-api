@@ -19,7 +19,7 @@ export class JwtTokenAdapter
       name: payload.name,
       email: payload.email,
       role: payload.role,
-      isActive: payload.isActive,
+      status: payload.status,
     };
     const token = jwt.sign(tokenPayload, secret, {
       expiresIn: Number(envs.tokenExpirationTime),
@@ -40,7 +40,7 @@ export class JwtTokenAdapter
       name: decoded.name as string,
       email: decoded.email as string,
       role: decoded.role as string,
-      isActive: Boolean(decoded.isActive),
+      status: String(decoded.status ?? 'ACTIVE'),
     };
   }
 

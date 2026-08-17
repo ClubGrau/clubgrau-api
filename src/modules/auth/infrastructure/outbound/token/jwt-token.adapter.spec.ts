@@ -22,7 +22,7 @@ const makeValidPayload = (): AuthenticatableUser => ({
   email: 'any_email@mail.com',
   passwordHash: 'hashed_password',
   role: 'EMPLOYEE',
-  isActive: true,
+  status: 'ACTIVE',
 });
 
 const makeTokenPayload = (): TokenPayload => ({
@@ -30,7 +30,7 @@ const makeTokenPayload = (): TokenPayload => ({
   name: 'any_name',
   email: 'any_email@mail.com',
   role: 'EMPLOYEE',
-  isActive: true,
+  status: 'ACTIVE',
 });
 
 const makeSut = () => {
@@ -59,7 +59,7 @@ describe('JwtTokenAdapter', () => {
           name: payload.name,
           email: payload.email,
           role: payload.role,
-          isActive: payload.isActive,
+          status: payload.status,
         },
         'any_secret',
         { expiresIn: 30 },

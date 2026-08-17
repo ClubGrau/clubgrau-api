@@ -12,7 +12,7 @@ const makeStubs = () => ({
       name: 'John Doe',
       email: 'any_email@example.com',
       passwordHash: 'hashed_password',
-      isActive: true,
+      status: 'ACTIVE',
       role: 'EMPLOYEE',
     }),
   } satisfies FindAuthenticatableByEmailPort,
@@ -100,7 +100,7 @@ describe('LoginUsecase', () => {
         name: 'John Doe',
         email: 'any_email@example.com',
         passwordHash: 'hashed_password',
-        isActive: false,
+        status: 'INACTIVE',
         role: 'EMPLOYEE',
       });
     const promise = sut.execute(params);
@@ -145,7 +145,7 @@ describe('LoginUsecase', () => {
       name: 'John Doe',
       email: 'any_email@example.com',
       role: 'EMPLOYEE',
-      isActive: true,
+      status: 'ACTIVE',
     });
   });
 

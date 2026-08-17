@@ -10,7 +10,7 @@ export function mapEmployeeDocumentToAuthenticatable(
     name: document.name,
     email: document.email,
     passwordHash: document.password,
-    isActive: document.isActive ?? true,
+    status: document.status,
     role: document.role,
   };
 }

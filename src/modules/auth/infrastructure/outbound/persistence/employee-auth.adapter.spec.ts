@@ -13,7 +13,7 @@ const mockEmployee = {
   role: 'MANAGER',
   password: 'hashed_password',
   nif: 123456789,
-  isActive: true,
+  status: 'ACTIVE',
   createdAt: new Date('2024-01-01T00:00:00Z'),
   deactivateAt: null,
 } as EmployeeDocument;
@@ -54,7 +54,7 @@ describe('EmployeeAuthAdapter', () => {
             password: 'hashed_password',
             role: 'MANAGER',
             nif: 123456789,
-            isActive: true,
+            status: 'ACTIVE',
             createdAt: new Date('2024-01-01T00:00:00Z'),
             deactivateAt: null,
           }),
@@ -68,7 +68,7 @@ describe('EmployeeAuthAdapter', () => {
         email: 'john.doe@example.com',
         passwordHash: 'hashed_password',
         role: 'MANAGER',
-        isActive: true,
+        status: 'ACTIVE',
       });
     });
 
