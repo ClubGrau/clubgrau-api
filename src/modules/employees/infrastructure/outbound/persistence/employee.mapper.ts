@@ -3,16 +3,6 @@ import { GetEmployeesItemDto } from '@modules/employees/application/dtos/get-emp
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { EmployeeDocument } from './employee.schema';
 
-function resolveStatus(document: EmployeeDocument): EmployeeModel.Status {
-  if (EmployeeModel.isStatus(document.status)) {
-    return document.status;
-  }
-  if (document.isActive === false) {
-    return EmployeeModel.Status.INACTIVE;
-  }
-  return EmployeeModel.Status.ACTIVE;
-}
-
 /** Maps a lean Mongoose document to the application persistence DTO. */
 export function mapEmployeeDocument(
   document: EmployeeDocument,
@@ -25,7 +15,7 @@ export function mapEmployeeDocument(
     role: document.role as EmployeeModel.Role,
     phone: document.phone ?? null,
     nif: document.nif != null ? String(document.nif) : null,
-    status: resolveStatus(document),
+    status: document.status as EmployeeModel.Status,
     createdAt: document.createdAt ?? new Date(0),
     deactivateAt: document.deactivateAt ?? null,
   };
@@ -42,7 +32,7 @@ export function mapEmployeeReadModel(
     role: document.role as EmployeeModel.Role,
     phone: document.phone ?? null,
     nif: document.nif != null ? String(document.nif) : null,
-    status: resolveStatus(document),
+    status: document.status as EmployeeModel.Status,
     createdAt: document.createdAt ?? new Date(0),
     deactivateAt: document.deactivateAt ?? null,
   };

@@ -26,8 +26,6 @@ export type EmployeeSchemaType = InferSchemaType<typeof EmployeeSchema>;
 /** Documento lido do Mongo (lean/hydrated) com `_id`. */
 export type EmployeeDocument = EmployeeSchemaType & {
   _id: mongoose.Types.ObjectId;
-  /** Campo legado — removido do schema; lido só para migração de leituras. */
-  isActive?: boolean;
 };
 
 /** Tipo do Model Mongoose — use este no repository/module. */
