@@ -23,5 +23,13 @@ GET http://localhost:3003/api/employees?page=1&limit=20
 Authorization: Bearer {{token}}
 
 ### List employees (filters + pagination)
-GET http://localhost:3003/api/employees?status=active&role=EMPLOYEE&search=grau&page=2&limit=10
+GET http://localhost:3003/api/employees?status=ACTIVE&role=EMPLOYEE&search=grau&page=2&limit=10
+Authorization: Bearer {{token}}
+
+### List employees (inactive)
+GET http://localhost:3003/api/employees?status=INACTIVE&page=1&limit=10
+Authorization: Bearer {{token}}
+
+### List employees (vacation)
+GET http://localhost:3003/api/employees?status=VACATION&page=1&limit=10
 Authorization: Bearer {{token}}

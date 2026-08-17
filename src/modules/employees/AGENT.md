@@ -110,6 +110,8 @@ src/modules/employees/
 │       └── get-employees.query.spec.ts
 │
 ├── presentation/
+│   ├── http/
+│   │   └── get-employees.request.ts  # query string bruta (pré-validação)
 │   └── controllers/
 │       ├── create-employee.controller.ts
 │       ├── create-employee.controller.spec.ts
@@ -144,13 +146,14 @@ Related outside the module:
 
 Factory methods:
 
-- `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `isActive=true`, `createdAt=now`, `deactivateAt=null`.
+- `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `status=ACTIVE`, `createdAt=now`, `deactivateAt=null`.
 - `Employee.reconstitute(ReconstituteEmployeeProps)` — rebuild from persistence (already-validated VOs + id).
 
 Behavior already on the entity (for future use cases):
 
-- `activate()` / `deactivate()`
+- `activate()` / `deactivate()` / `putOnVacation()`
 - `changePassword`, `changeRole`, `changeName`, `changeEmail`, `changePhone`, `assignNif`
+- Convenience getter `isActive` → `status === ACTIVE` (not persisted)
 
 Snapshot for persistence / outbound **write** ports comes from `employee.toJSON()` and is typed as `EmployeeModel.toCreate`.
 
@@ -158,8 +161,10 @@ Snapshot for persistence / outbound **write** ports comes from `employee.toJSON(
 
 ```ts
 enum Role { ADMIN, MANAGER, EMPLOYEE }
+enum Status { ACTIVE, INACTIVE, VACATION }
 type toCreate = ReturnType<Employee['toJSON']>
 function isRole(value: unknown): value is Role
+function isStatus(value: unknown): value is Status
 ```
 
 `toCreate` is the write/persistence snapshot (includes `password`). List/get responses must use `GetEmployeesItemDto` instead.
@@ -169,11 +174,13 @@ function isRole(value: unknown): value is Role
 | Error | When |
 |-------|------|
 | `InvalidEmployeeRoleError` | Role not in `EmployeeModel.Role` |
+| `InvalidEmployeeStatusError` | Status not in `EmployeeModel.Status` |
 | `PasswordNotMatchError` | `password !== passwordConfirmation` |
-| `EmployeeAlreadyExistsError` | Email found and employee is active |
-| `EmployeeInactiveError` | Email found but employee is inactive |
+| `EmployeeAlreadyExistsError` | Email found and employee is ACTIVE |
+| `EmployeeInactiveError` | Email found but employee is not ACTIVE |
 | `EmployeeAlreadyActiveError` | `activate()` on already-active employee |
 | `EmployeeAlreadyInactiveError` | `deactivate()` on already-inactive employee |
+| `EmployeeAlreadyOnVacationError` | `putOnVacation()` on already-on-vacation employee |
 | `EmployeeNotFoundError` | Reserved for future lookups |
 
 All extend `@shared/domain/errors/domain.error`.
@@ -185,8 +192,8 @@ Current policy: `ensureEmailIsAvailable(email)`
 | Lookup result | Outcome |
 |---------------|---------|
 | Not found | OK — email available |
-| Found + active | `EmployeeAlreadyExistsError` |
-| Found + inactive | `EmployeeInactiveError` (reactivation is an open product decision; do not silently create a duplicate) |
+| Found + ACTIVE | `EmployeeAlreadyExistsError` |
+| Found + not ACTIVE | `EmployeeInactiveError` (reactivation is an open product decision; do not silently create a duplicate) |
 
 Depends on domain port `FindEmployeeByEmailPort` (not on Mongoose).
 
@@ -260,10 +267,8 @@ interface FindEmployeesPort {
 ### DTOs
 
 ```ts
-type EmployeeListStatus = 'active' | 'inactive'
-
 interface GetEmployeesDto extends PaginationInputDto {
-  status?: EmployeeListStatus;
+  status?: EmployeeModel.Status;
   role?: EmployeeModel.Role;
   search?: string;
   // page?: number | string; limit?: number | string; (from shared)
@@ -276,13 +281,13 @@ interface GetEmployeesItemDto {
   role: EmployeeModel.Role;
   phone: string | null;
   nif: string | null;
-  isActive: boolean; // read-model field (not the list filter param)
+  status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
 }
 
 interface FindEmployeesParams {
-  isActive?: boolean; // mapped from status in the query
+  status?: EmployeeModel.Status;
   role?: EmployeeModel.Role;
   search?: string;
   skip: number;
@@ -308,8 +313,8 @@ Defaults: `page=1`, `limit=20`, `max limit=100` (shared).
 ### Query flow (`GetEmployeesQuery`)
 
 1. `normalizePagination(filters)` → `{ page, limit, skip }`
-2. Map `status` → `isActive` (`active`→`true`, `inactive`→`false`, omit→no filter); trim `search` (blank→omit)
-3. `FindEmployeesPort.findAll({ isActive, role, search, skip, limit })` → `{ items, total }`
+2. Trim `search` (blank→omit); forward `status` / `role` as-is (no boolean mapping)
+3. `FindEmployeesPort.findAll({ status, role, search, skip, limit })` → `{ items, total }`
 4. Map via `toPaginatedResult` into `{ employees, page, limit, total, totalPages }`
 
 `total` / `totalPages` always reflect the **filtered** set (`countDocuments` uses the same filter).
@@ -334,7 +339,7 @@ No domain entity creation, no policies, no encrypter.
 `GetEmployeesController` extends `BaseController`:
 
 - No required fields
-- Normalizes query-string filters: `status` (`active`|`inactive`), `role`, `search` (trim), `page`, `limit`
+- Normalizes query-string filters: `status` (`ACTIVE`|`INACTIVE`|`VACATION`), `role`, `search` (trim), `page`, `limit`
 - Invalid `status` or `role` → `400` + `InvalidParamError`
 - Success → `200` + `{ data: { employees, page, limit, total, totalPages } }` via `ok(...)`
 - Unexpected errors → `serverError(...)`
@@ -342,7 +347,7 @@ No domain entity creation, no policies, no encrypter.
 HTTP list contract example:
 
 ```http
-GET /api/employees?page=1&limit=20&status=active&role=MANAGER&search=grau
+GET /api/employees?page=1&limit=20&status=ACTIVE&role=MANAGER&search=grau
 ```
 
 ### Routes
@@ -401,7 +406,8 @@ Client
 
 - Unique index on `email`
 - `role` enum: `ADMIN | MANAGER | EMPLOYEE`
-- Fields: `name`, `email`, `role`, `password`, `phone`, `nif`, `isActive`, `createdAt`, `deactivateAt`
+- Fields: `name`, `email`, `role`, `password`, `phone`, `nif`, `status`, `createdAt`, `deactivateAt`
+- `status` enum: `ACTIVE | INACTIVE | VACATION` (default `ACTIVE`)
 
 ### Repository
 
@@ -420,7 +426,7 @@ Optional `search` builds a case-insensitive `$or` over `name`, `email`, `phone`,
 - Document `_id` ↔ string `id`
 - `phone`: string (or null) in Mongo ↔ string (or null) in snapshots / read models
 - `nif`: number in Mongo ↔ string (or null) in snapshots / read models
-- Defaults for missing `isActive` / dates when reading lean documents
+- Defaults for missing dates when reading lean documents
 - `mapEmployeeDocument` → `EmployeeModel.toCreate` (includes `password`) — write/lookup path
 - `mapEmployeeReadModel` → `GetEmployeesItemDto` (**omits `password`**) — list path
 
@@ -469,7 +475,6 @@ Never shortcut by calling the repository from the controller.
 1. **Inactive email collision** — creating a new employee with the same email as an inactive one is blocked (`EmployeeInactiveError`). Reactivation vs. new account needs product/domain confirmation.
 2. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
 3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters already map invalid `status`/`role` to `400`. Broader domain → HTTP status mapping may come later without moving that logic into domain.
-4. **Employee “vacation” / leave status** — not modeled; list filter is only `status=active|inactive` (maps to `isActive`).
 
 ---
 
@@ -484,6 +489,7 @@ Never shortcut by calling the repository from the controller.
 | List orchestration (query) | `application/queries/get-employees.query.ts` |
 | List read model DTOs | `application/dtos/get-employees.dto.ts` |
 | Create HTTP validation / status | `presentation/controllers/create-employee.controller.ts` |
+| List HTTP request shape (raw query) | `presentation/http/get-employees.request.ts` |
 | List HTTP mapping / status | `presentation/controllers/get-employees.controller.ts` |
 | Routes | `infrastructure/inbound/http/employee.routes.ts` |
 | Mongo I/O | `infrastructure/outbound/persistence/employee-mongoose.repository.ts` |

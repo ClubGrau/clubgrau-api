@@ -71,7 +71,7 @@ Queries must **not** go through entity-create factories, write policies, or the 
 |-------|------|----------------|
 | `domain` | Entity, models, errors, domain services, domain ports | `@shared/domain` only |
 | `application` | Use cases, queries, inbound/outbound ports, DTOs | `domain` + `@shared` |
-| `presentation` | HTTP controllers (required-field validation, status) | `application` + `@shared/presentation` |
+| `presentation` | HTTP controllers, request shapes (raw query/body validation) | `application` + `@shared/presentation` |
 | `infrastructure/inbound` | Module Express routes | `presentation` + shared HTTP adapters |
 | `infrastructure/outbound` | Schema, mapper, repository | `application` + `domain` + frameworks |
 | `*.module.ts` | Wiring: instantiate adapters and inject into ports | module layers + shared |
@@ -81,6 +81,7 @@ Queries must **not** go through entity-create factories, write policies, or the 
 | Kind | Folder |
 |------|--------|
 | Use-case / query input/output DTO | `application/dtos/` |
+| HTTP request (query/body before validation) | `presentation/http/` |
 | Domain concept / write snapshot | `domain/models/` |
 | Port used by a domain service | `domain/ports/` |
 | Driving (inbound) port | `application/ports/inbound/` |
@@ -98,6 +99,7 @@ Queries must **not** go through entity-create factories, write policies, or the 
 | Value object | `kebab-case.vo.ts` | `email.vo.ts` |
 | Port | `kebab-case.port.ts` | `create-employee.port.ts` |
 | DTO | `kebab-case.dto.ts` | `get-employees.dto.ts` |
+| HTTP request (presentation) | `kebab-case.request.ts` | `get-employees.request.ts` |
 | Use case (command) | `kebab-case.usecase.ts` | `create-employee.usecase.ts` |
 | Query | `kebab-case.query.ts` | `get-employees.query.ts` |
 | Controller | `kebab-case.controller.ts` | `get-employees.controller.ts` |
@@ -185,6 +187,7 @@ Never call the repository directly from the controller.
 | Depend inward toward `domain` | Import Express/Mongoose in domain or use cases |
 | Inject ports via constructor | Instantiate bcrypt/mongoose inside use cases |
 | Put I/O DTOs in `application/dtos` | Put HTTP DTOs in `domain/models` |
+| Put raw HTTP request types in `presentation/http` | Reuse a typed application DTO as the unvalidated query/body shape |
 | Put domain concepts/snapshots in `domain/models` | Reuse a write snapshot as list/get response |
 | Put queries under `application/queries/` | Route reads through entity create/policies without need |
 | Co-locate `*.spec.ts` | Create a parallel `__tests__` tree for the module |
