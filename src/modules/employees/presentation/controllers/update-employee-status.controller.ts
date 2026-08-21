@@ -13,6 +13,10 @@ import {
 import { BaseController } from '@shared/presentation/protocols/base-controller';
 import { HttpResponse } from '@shared/presentation/protocols/http-response';
 import { UpdateEmployeeStatusRequest } from '../http/update-employee-status.request';
+import {
+  EmployeeAlreadyInactiveError,
+  EmployeeNotFoundError,
+} from '@modules/employees/domain/errors/employee.errors';
 
 export class UpdateEmployeeStatusController extends BaseController<
   UpdateEmployeeStatusRequest,
@@ -49,6 +53,14 @@ export class UpdateEmployeeStatusController extends BaseController<
 
       return ok({ id: result.id, status: result.status });
     } catch (error) {
+      if (error instanceof EmployeeNotFoundError) {
+        return badRequest(error);
+      }
+
+      if (error instanceof EmployeeAlreadyInactiveError) {
+        return badRequest(error);
+      }
+
       return serverError(error as Error);
     }
   }

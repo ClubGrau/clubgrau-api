@@ -1,4 +1,8 @@
 import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/inbound/update-employee-status.port';
+import {
+  EmployeeAlreadyInactiveError,
+  EmployeeNotFoundError,
+} from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { UpdateEmployeeStatusRequest } from '@modules/employees/presentation/http/update-employee-status.request';
 import { MissingParamError } from '@shared/presentation/errors/missing-param.error';
@@ -132,6 +136,42 @@ describe('UpdateEmployeeStatusController', () => {
     expect(response.statusCode).toBe(500);
     expect(response.body).toEqual({
       error: 'UpdateEmployeeStatusPort error',
+    });
+    expect(updateEmployeeStatusSpy).toHaveBeenCalledWith({
+      id: VALID_EMPLOYEE_ID,
+      status: EmployeeModel.Status.INACTIVE,
+    });
+  });
+
+  it('should return 400 if UpdateEmployeeStatusPort throws EmployeeNotFoundError', async () => {
+    const { sut, updateEmployeeStatusStub } = makeSut();
+    const updateEmployeeStatusSpy = jest
+      .spyOn(updateEmployeeStatusStub, 'execute')
+      .mockRejectedValue(new EmployeeNotFoundError());
+
+    const response = await sut.handle(makeValidRequest());
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: 'Employee not found',
+    });
+    expect(updateEmployeeStatusSpy).toHaveBeenCalledWith({
+      id: VALID_EMPLOYEE_ID,
+      status: EmployeeModel.Status.INACTIVE,
+    });
+  });
+
+  it('should return 400 if UpdateEmployeeStatusPort throws EmployeeAlreadyInactiveError', async () => {
+    const { sut, updateEmployeeStatusStub } = makeSut();
+    const updateEmployeeStatusSpy = jest
+      .spyOn(updateEmployeeStatusStub, 'execute')
+      .mockRejectedValue(new EmployeeAlreadyInactiveError());
+
+    const response = await sut.handle(makeValidRequest());
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({
+      error: 'Employee is already inactive',
     });
     expect(updateEmployeeStatusSpy).toHaveBeenCalledWith({
       id: VALID_EMPLOYEE_ID,
