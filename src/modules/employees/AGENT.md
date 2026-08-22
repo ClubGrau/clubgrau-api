@@ -65,7 +65,6 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 - Get employee by id / update other fields
 - Authorization (who may create/list employees) beyond token presence
 - Cross-module events / integration beyond this hexagon
-- `adaptRoute` exposing JWT actor (`actorId`) to controllers — required by Remove
 
 ---
 
@@ -81,15 +80,18 @@ src/modules/employees/
 │   │   ├── Employee.ts
 │   │   └── employee.spec.ts
 │   ├── models/
-│   │   ├── employee.model.ts         # Role, toCreate, isRole
+│   │   ├── employee.model.ts         # Role, Status, OperationalStatus, isRole
 │   │   └── employee.model.spec.ts
 │   ├── ports/
-│   │   └── find-employee-by-email.port.ts
+│   │   ├── find-employee-by-email.port.ts
+│   │   └── count-non-removed-admins.port.ts
 │   ├── errors/
 │   │   └── employee.errors.ts
 │   └── services/
 │       ├── employee-policies.service.ts
-│       └── employee-policies.service.spec.ts
+│       ├── employee-policies.service.spec.ts
+│       ├── employee-lifecycle.policy.ts
+│       └── employee-lifecycle.policy.spec.ts
 │
 ├── application/
 │   ├── dtos/
@@ -120,7 +122,7 @@ src/modules/employees/
 ├── presentation/
 │   ├── http/
 │   │   ├── get-employees.request.ts  # query string bruta (pré-validação)
-│   │   └── update-employee-status.request.ts  # body bruto (id/status)
+│   │   └── update-employee-status.request.ts  # body bruto (id/status); actorId do adaptRoute
 │   └── controllers/
 │       ├── create-employee.controller.ts
 │       ├── create-employee.controller.spec.ts
@@ -174,10 +176,12 @@ Snapshot for persistence / outbound **write** ports comes from `employee.toJSON(
 
 ```ts
 enum Role { ADMIN, MANAGER, EMPLOYEE }
-enum Status { ACTIVE, INACTIVE, VACATION }
+enum Status { ACTIVE, INACTIVE, VACATION, REMOVED }
+type OperationalStatus = Status.ACTIVE | Status.INACTIVE | Status.VACATION
 type toCreate = ReturnType<Employee['toJSON']>
 function isRole(value: unknown): value is Role
 function isStatus(value: unknown): value is Status
+function isOperationalStatus(value: unknown): value is OperationalStatus
 ```
 
 `toCreate` is the write/persistence snapshot (includes `password`). List/get responses must use `GetEmployeesItemDto` instead.
@@ -195,6 +199,11 @@ function isStatus(value: unknown): value is Status
 | `EmployeeAlreadyInactiveError` | `deactivate()` on already-inactive employee |
 | `EmployeeAlreadyOnVacationError` | `putOnVacation()` on already-on-vacation employee |
 | `EmployeeNotFoundError` | Lookup by id found nothing |
+| `ActorAuthenticationFailedError` | Actor missing/blank, not found, or not ACTIVE |
+| `EmployeeLifecycleForbiddenError` | Actor role/intent outside the lifecycle matrix |
+| `LastAdminProtectedError` | Last non-REMOVED ADMIN leaving ACTIVE |
+| `EmployeeAlreadyRemovedError` | Target already `REMOVED` |
+| `EmployeeNotInactiveError` | Remove-only — target is not `INACTIVE` |
 
 All extend `@shared/domain/errors/domain.error`.
 
@@ -360,8 +369,9 @@ interface UpdateEmployeeStatusRepositoryPort {
 
 ```ts
 interface UpdateEmployeeStatusDto {
+  actorId: string;                          // stampado pelo adaptRoute; nunca do body
   id: string;
-  status: EmployeeModel.Status;
+  status: EmployeeModel.OperationalStatus;  // REMOVED bloqueado no controller
 }
 
 interface UpdateEmployeeStatusResultDto {
@@ -372,19 +382,23 @@ interface UpdateEmployeeStatusResultDto {
 
 ### Use case flow (`UpdateEmployeeStatusUsecase`)
 
-1. `FindEmployeeByIdPort.findById(id)` — miss / malformed id → `EmployeeNotFoundError`
-2. `Employee.reconstitute` from the snapshot (`Password.fromHash`; never `Employee.create`)
-3. Apply the requested status via entity methods:
+1. `actorId` empty/blank → `ActorAuthenticationFailedError` (opaque; do not leak)
+2. `FindEmployeeByIdPort.findById(actorId)` — miss → `ActorAuthenticationFailedError`
+3. `FindEmployeeByIdPort.findById(id)` — miss → `EmployeeNotFoundError`
+4. `Employee.reconstitute` Actor and Target (`Password.fromHash`; `removedAt: snapshot.removedAt ?? null`; never `Employee.create`)
+5. Map status → intent: `ACTIVE→REACTIVATE`, `INACTIVE→DEACTIVATE`, `VACATION→VACATION`
+6. `EmployeeLifecyclePolicy.assertCan({ actor, target, intent })`
+7. Apply the requested status via entity methods:
    - `INACTIVE` → `deactivate()` (`deactivateAt = now`)
    - `ACTIVE` → `activate()` (`deactivateAt = null`)
    - `VACATION` → `putOnVacation()` (`deactivateAt = null`)
    - same status as current → `EmployeeAlreadyActiveError` / `EmployeeAlreadyInactiveError` / `EmployeeAlreadyOnVacationError` (no write)
-4. Persist **only** `{ status, deactivateAt }` via `UpdateEmployeeStatusRepositoryPort.updateStatus` (`$set`). Do **not** write `employee.toJSON()` as a full document (`Password.toJSON()` is `'[REDACTED]'`).
-5. Return `{ id, status }` after the transition
+8. Persist **only** `{ status, deactivateAt }` via `UpdateEmployeeStatusRepositoryPort.updateStatus` (`$set`). Do **not** write `employee.toJSON()` as a full document (`Password.toJSON()` is `'[REDACTED]'`).
+9. Return `{ id, status }` after the transition
 
 No encrypter. No email policies. Session / JWT validity after `INACTIVE` is **not** this command (auth hexagon).
 
-`REMOVED` is **not** a legal `status` on this command. Do not route Remove through `activate` / `deactivate` / `putOnVacation`.
+`REMOVED` is **not** a legal `status` on this command. Do not route Remove through `activate` / `deactivate` / `putOnVacation`. If it reaches the use case, throw `InvalidEmployeeStatusError`.
 
 ---
 
@@ -502,19 +516,32 @@ GET /api/employees?page=1&limit=20&status=ACTIVE&role=MANAGER&search=grau
 
 `UpdateEmployeeStatusController` extends `BaseController`:
 
-- Required fields: `id`, `status`
+- Required fields: `id`, `status` — do **not** require `actorId` as a missing-param
 - Missing field → `400` + `MissingParamError`
-- Invalid `status` (not `ACTIVE`|`INACTIVE`|`VACATION`) → `400` + `InvalidParamError`
+- Invalid `status` (not `ACTIVE`|`INACTIVE`|`VACATION`, including `REMOVED`) → `400` + `InvalidParamError`
+- Forwards `{ actorId: String(request.actorId ?? ''), id, status }` — Actor comes from `adaptRoute` (JWT), never from the body
 - Success → `200` + `{ id, status }` via `ok(...)`
-- Unexpected errors (including domain errors from the use case) → `serverError(...)`
-- Raw HTTP body: `UpdateEmployeeStatusRequest` (`id`/`status` as string); typed DTO is produced after validation
+- Raw HTTP body: `UpdateEmployeeStatusRequest` (`id`/`status` as string, optional `actorId` stamped by the adapter); typed DTO is produced after validation
+
+| Domain error | HTTP |
+|--------------|------|
+| `ActorAuthenticationFailedError` | `401` `unauthorized` |
+| `EmployeeLifecycleForbiddenError` | `403` `forbidden` |
+| `LastAdminProtectedError` | `409` `conflict` |
+| `EmployeeAlreadyRemovedError` | `409` `conflict` |
+| `EmployeeNotFoundError` | `400` `badRequest` |
+| `EmployeeAlreadyActiveError` / `EmployeeAlreadyInactiveError` / `EmployeeAlreadyOnVacationError` | `400` `badRequest` |
+| anything else | `500` `serverError` |
 
 HTTP update-status contract example:
 
 ```http
 POST /api/employee/update-status
+Authorization: Bearer <actor token>
 { "id": "507f1f77bcf86cd799439011", "status": "INACTIVE" }
 ```
+
+Do not send `actorId` in the body. The adapter overwrites any forged value with the JWT id.
 
 ### Routes
 
@@ -570,12 +597,15 @@ Client
 
 ```text
 Client
-  → employee.routes + authTokenMiddleware + adaptRoute
+  → employee.routes + authTokenMiddleware + adaptRoute (stamps actorId from JWT)
   → UpdateEmployeeStatusController.handle
   → UpdateEmployeeStatusPort.execute
   → UpdateEmployeeStatusUsecase
-      → FindEmployeeByIdPort.findById
-      → Employee.reconstitute
+      → FindEmployeeByIdPort.findById (actor) — miss → ActorAuthenticationFailedError
+      → FindEmployeeByIdPort.findById (target) — miss → EmployeeNotFoundError
+      → Employee.reconstitute (actor + target)
+      → map status → intent
+      → EmployeeLifecyclePolicy.assertCan
       → activate / deactivate / putOnVacation
       → UpdateEmployeeStatusRepositoryPort.updateStatus ({ status, deactivateAt })
   → 200 { data: { id, status } }
@@ -632,9 +662,10 @@ Composition order today:
 5. `GetEmployeesQuery(repository)`
 6. `CreateEmployeeController(createEmployee)`
 7. `GetEmployeesController(getEmployees)`
-8. `UpdateEmployeeStatusUsecase(repository, repository)`
-9. `UpdateEmployeeStatusController(updateEmployeeStatus)`
-10. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, updateEmployeeStatusController, authTokenMiddleware })`
+8. `EmployeeLifecyclePolicy(repository)`
+9. `UpdateEmployeeStatusUsecase(repository, repository, lifecyclePolicy)`
+10. `UpdateEmployeeStatusController(updateEmployeeStatus)`
+11. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, updateEmployeeStatusController, authTokenMiddleware })`
 
 Returns `{ createEmployeeController, getEmployeesController, updateEmployeeStatusController, createEmployee, getEmployees, router }`.
 
@@ -660,8 +691,8 @@ Never shortcut by calling the repository from the controller.
 ## Open decisions / known limitations
 
 1. **Inactive email collision** — **resolved in product, not yet in code.** `INACTIVE` still occupies the email (`EmployeeInactiveError` on create). Same person returns via **Reactivate**. A new person needs that email only after **Remove**. The INACTIVE screen is the fork: Reactivate **or** Remove.
-2. **Authorization** — product matrix is in the lifecycle PRD (MANAGER only `EMPLOYEE`; ADMIN-only Remove; Last Admin stays `ACTIVE`). Code still only checks token presence.
-3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters and update-status already map invalid `status`/`role` to `400`. Domain errors from update-status (`EmployeeNotFoundError`, already-in-status) still surface as `500` until a later mapping spec.
+2. **Authorization** — `update-status` now enforces the lifecycle matrix via `EmployeeLifecyclePolicy` (MANAGER only `EMPLOYEE`; Last Admin stays `ACTIVE`; EMPLOYEE actor refused). Create/list still only check token presence. Remove is not shipped.
+3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters map invalid `status`/`role` to `400`. `update-status` maps Actor/policy/already-in-status errors to `401`/`403`/`409`/`400` (see table above).
 4. **Session after INACTIVE / REMOVED** — update-status and Remove only persist the employee document. An existing JWT remains valid until expiry unless auth re-checks current status on each request.
 5. **Remove not shipped** — contract above is the source of truth for the next command. Schema still has `status` enum without `REMOVED` and no `removedAt`.
 
@@ -674,6 +705,7 @@ Never shortcut by calling the repository from the controller.
 | Business creation rules | `domain/entities/Employee.ts` |
 | Role / write snapshot types | `domain/models/employee.model.ts` |
 | Email availability | `domain/services/employee-policies.service.ts` |
+| Lifecycle matrix (Actor / Target / Last Admin) | `domain/services/employee-lifecycle.policy.ts` |
 | Create orchestration (command) | `application/usecases/create-employee.usecase.ts` |
 | Update-status orchestration (command) | `application/usecases/update-employee-status.usecase.ts` |
 | List orchestration (query) | `application/queries/get-employees.query.ts` |
