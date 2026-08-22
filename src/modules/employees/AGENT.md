@@ -1,6 +1,6 @@
 # Employees Module — Agent Guide
 
-> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status).
+> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status + Part 4 Remove designed, not shipped).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).  
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
@@ -61,10 +61,11 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 
 ### Future work
 
+- **Remove employee (anonymize)** — designed below; not shipped
 - Get employee by id / update other fields
 - Authorization (who may create/list employees) beyond token presence
-- Explicit reactivation flow for inactive employees with the same email
 - Cross-module events / integration beyond this hexagon
+- `adaptRoute` exposing JWT actor (`actorId`) to controllers — required by Remove
 
 ---
 
@@ -151,6 +152,8 @@ Related outside the module:
 ---
 
 ## Domain model
+
+Glossary: [`CONTEXT.md`](./CONTEXT.md). Map: [`CONTEXT-MAP.md`](../../../CONTEXT-MAP.md).
 
 ### `Employee` entity
 
@@ -381,6 +384,93 @@ interface UpdateEmployeeStatusResultDto {
 
 No encrypter. No email policies. Session / JWT validity after `INACTIVE` is **not** this command (auth hexagon).
 
+`REMOVED` is **not** a legal `status` on this command. Do not route Remove through `activate` / `deactivate` / `putOnVacation`.
+
+---
+
+## Application: Remove Employee (command) — designed, not shipped
+
+Product decisions (2026-08-21): see PRD [`docs/prd/employee-lifecycle-v1.md`](../../../docs/prd/employee-lifecycle-v1.md). Anonymize (not hard delete); actor password; only from `INACTIVE`; ADMIN-only Remove; MANAGER only Deactivate/Reactivate `EMPLOYEE`; Last Admin stays `ACTIVE`; list excludes `REMOVED`; new Create with the freed email does **not** inherit the old identity. ADRs: [`0001`](../../../docs/adr/remove-or-inactivate-emp/0001-employee-remove-is-anonymization.md), [`0002`](../../../docs/adr/remove-or-inactivate-emp/0002-only-admin-may-remove.md), [`0003`](../../../docs/adr/remove-or-inactivate-emp/0003-last-admin-cannot-be-removed.md), [`0004`](../../../docs/adr/remove-or-inactivate-emp/0004-removed-absent-from-list.md), [`0005`](../../../docs/adr/remove-or-inactivate-emp/0005-remove-does-not-transfer-history.md), [`0006`](../../../docs/adr/remove-or-inactivate-emp/0006-admin-lifecycle-stays-among-admins.md), [`0007`](../../../docs/adr/remove-or-inactivate-emp/0007-lifecycle-authority-matrix.md), [`0008`](../../../docs/adr/remove-or-inactivate-emp/0008-last-admin-must-stay-active.md), [`0009`](../../../docs/adr/remove-or-inactivate-emp/0009-last-admin-cannot-go-on-vacation.md).
+
+Front: **ADMIN** on `INACTIVE` → **Reactivate** or **Remove**. **MANAGER** on `INACTIVE` **`EMPLOYEE`** → **Reactivate** only. Do not offer Remove from `ACTIVE` / `VACATION`.
+
+### Why anonymize
+
+The Mongo `_id` must survive so other contexts can keep an `employeeId`. What those contexts do is **not** this command. After Remove:
+
+| Field | After anonymize |
+|-------|-----------------|
+| `_id` | unchanged |
+| `status` | `REMOVED` (terminal; not an operational status) |
+| `name` | sentinel that satisfies `Name` (e.g. `Removed`) |
+| `email` | unique sentinel `removed.{id}@anonymized.invalid` — original email is free |
+| `phone` / `nif` | `null` |
+| `password` | new unusable hash (random secret via `EncrypterPort`) — old password never matches |
+| `role` | unchanged (for audit); last-ADMIN checks **ignore** `REMOVED` |
+| `removedAt` | `now` |
+| `deactivateAt` | left as set by the prior `INACTIVE` transition |
+
+### Ports (planned)
+
+```ts
+interface RemoveEmployeePort {
+  execute(params: RemoveEmployeeDto): Promise<RemoveEmployeeResultDto>;
+}
+
+interface RemoveEmployeeDto {
+  targetId: string;       // body.id
+  actorId: string;        // JWT — never from the client body
+  actorPassword: string;  // body.password — actor, not target
+}
+
+interface RemoveEmployeeResultDto {
+  id: string;
+}
+
+interface AnonymizeEmployeeRepositoryPort {
+  anonymize(params: {
+    id: string;
+    name: string;
+    email: string;
+    phone: null;
+    nif: null;
+    password: string;
+    status: 'REMOVED';
+    removedAt: Date;
+  }): Promise<void>;
+}
+```
+
+Persist with `$set` of those fields only. Do **not** write `employee.toJSON()` as a full document (`Password.toJSON()` is `'[REDACTED]'`).
+
+### Use case flow (planned)
+
+1. `FindEmployeeByIdPort.findById(actorId)` — miss → treat as auth failure (do not leak)
+2. Actor must be `ACTIVE` and `ADMIN`; `CompareHashPort.compare(actorPassword, actor.hash)` — fail → generic actor-credentials error (same opacity as login). MANAGER / EMPLOYEE → refuse (not Actor)
+3. `FindEmployeeByIdPort.findById(targetId)` — miss → `EmployeeNotFoundError`
+4. Domain: `actorId === targetId` → refuse (self-remove)
+5. `Employee.reconstitute` then `remove()` / `anonymize()`:
+   - not `INACTIVE` → refuse (`EmployeeNotInactiveError`)
+   - already `REMOVED` → refuse
+   - last remaining non-`REMOVED` `ADMIN` → refuse
+6. Encrypt a random secret; apply sentinel name/email; `status = REMOVED`
+7. `AnonymizeEmployeeRepositoryPort.anonymize(...)`
+8. Return `{ id }`
+
+List (`GET /api/employees`): **exclude `REMOVED` by default**. `update-status` must keep using operational statuses only (`ACTIVE` \| `INACTIVE` \| `VACATION`). `ensureEmailIsAvailable` stays as-is for `INACTIVE` (email still occupied until Remove). After anonymize, `findByEmail(original)` returns nothing → create may reuse the email.
+
+Out of this command: JWT blacklist (auth); behaviour of other modules that store `employeeId` (pending domain-expert decisions outside this PRD).
+
+### HTTP (planned)
+
+```http
+POST /api/employee/remove
+Authorization: Bearer <actor token>
+{ "id": "<target>", "password": "<actor password>" }
+```
+
+`adaptRoute` must pass `actorId` from `req.decoded.id`. The body must not accept `actorId`.
+
 ---
 
 ## Presentation & HTTP
@@ -569,10 +659,11 @@ Never shortcut by calling the repository from the controller.
 
 ## Open decisions / known limitations
 
-1. **Inactive email collision** — creating a new employee with the same email as an inactive one is blocked (`EmployeeInactiveError`). Reactivation vs. new account needs product/domain confirmation.
-2. **Authorization** — routes require a valid token; role-based authorization (who may create/list) is not implemented yet.
+1. **Inactive email collision** — **resolved in product, not yet in code.** `INACTIVE` still occupies the email (`EmployeeInactiveError` on create). Same person returns via **Reactivate**. A new person needs that email only after **Remove**. The INACTIVE screen is the fork: Reactivate **or** Remove.
+2. **Authorization** — product matrix is in the lifecycle PRD (MANAGER only `EMPLOYEE`; ADMIN-only Remove; Last Admin stays `ACTIVE`). Code still only checks token presence.
 3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters and update-status already map invalid `status`/`role` to `400`. Domain errors from update-status (`EmployeeNotFoundError`, already-in-status) still surface as `500` until a later mapping spec.
-4. **Session after INACTIVE** — this command only persists the transition. An existing JWT remains valid until expiry unless auth re-checks current status on each request.
+4. **Session after INACTIVE / REMOVED** — update-status and Remove only persist the employee document. An existing JWT remains valid until expiry unless auth re-checks current status on each request.
+5. **Remove not shipped** — contract above is the source of truth for the next command. Schema still has `status` enum without `REMOVED` and no `removedAt`.
 
 ---
 
@@ -592,6 +683,7 @@ Never shortcut by calling the repository from the controller.
 | List HTTP mapping / status | `presentation/controllers/get-employees.controller.ts` |
 | Update-status HTTP request shape (raw body) | `presentation/http/update-employee-status.request.ts` |
 | Update-status HTTP mapping / status | `presentation/controllers/update-employee-status.controller.ts` |
+| Remove (anonymize) orchestration | `application/usecases/remove-employee.usecase.ts` *(planned)* |
 | Routes | `infrastructure/inbound/http/employee.routes.ts` |
 | Mongo I/O | `infrastructure/outbound/persistence/employee-mongoose.repository.ts` |
 | Document ↔ DTO mapping | `infrastructure/outbound/persistence/employee.mapper.ts` |
