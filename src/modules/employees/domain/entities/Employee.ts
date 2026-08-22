@@ -6,6 +6,8 @@ import {
   EmployeeAlreadyActiveError,
   EmployeeAlreadyInactiveError,
   EmployeeAlreadyOnVacationError,
+  EmployeeAlreadyRemovedError,
+  EmployeeNotInactiveError,
   InvalidEmployeeRoleError,
   InvalidEmployeeStatusError,
 } from '../errors/employee.errors';
@@ -20,6 +22,7 @@ interface EmployeeProps {
   status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
+  removedAt: Date | null;
 }
 
 /** Input required to create a brand new employee. */
@@ -46,6 +49,7 @@ export interface ReconstituteEmployeeProps {
   status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
+  removedAt?: Date | null;
 }
 
 export class Employee extends Entity<EmployeeProps> {
@@ -68,6 +72,7 @@ export class Employee extends Entity<EmployeeProps> {
       status: EmployeeModel.Status.ACTIVE,
       createdAt: new Date(),
       deactivateAt: null,
+      removedAt: null,
     });
   }
 
@@ -90,12 +95,16 @@ export class Employee extends Entity<EmployeeProps> {
         status: input.status,
         createdAt: input.createdAt,
         deactivateAt: input.deactivateAt,
+        removedAt: input.removedAt ?? null,
       },
       new UniqueEntityId(input.id),
     );
   }
 
   deactivate(): void {
+    if (this.props.status === EmployeeModel.Status.REMOVED) {
+      throw new EmployeeAlreadyRemovedError();
+    }
     if (this.props.status === EmployeeModel.Status.INACTIVE) {
       throw new EmployeeAlreadyInactiveError();
     }
@@ -104,6 +113,9 @@ export class Employee extends Entity<EmployeeProps> {
   }
 
   activate(): void {
+    if (this.props.status === EmployeeModel.Status.REMOVED) {
+      throw new EmployeeAlreadyRemovedError();
+    }
     if (this.props.status === EmployeeModel.Status.ACTIVE) {
       throw new EmployeeAlreadyActiveError();
     }
@@ -112,6 +124,9 @@ export class Employee extends Entity<EmployeeProps> {
   }
 
   putOnVacation(): void {
+    if (this.props.status === EmployeeModel.Status.REMOVED) {
+      throw new EmployeeAlreadyRemovedError();
+    }
     if (this.props.status === EmployeeModel.Status.VACATION) {
       throw new EmployeeAlreadyOnVacationError();
     }
@@ -119,8 +134,27 @@ export class Employee extends Entity<EmployeeProps> {
     this.props.deactivateAt = null;
   }
 
+  anonymize(): void {
+    if (this.props.status === EmployeeModel.Status.REMOVED) {
+      throw new EmployeeAlreadyRemovedError();
+    }
+    if (this.props.status !== EmployeeModel.Status.INACTIVE) {
+      throw new EmployeeNotInactiveError();
+    }
+    this.props.status = EmployeeModel.Status.REMOVED;
+    this.props.removedAt = new Date();
+    this.props.name = Name.create('Removed');
+    this.props.email = Email.create(`removed.${this.id}@anonymized.invalid`);
+    this.props.phone = null;
+    this.props.nif = null;
+  }
+
   get status(): EmployeeModel.Status {
     return this.props.status;
+  }
+
+  get role(): EmployeeModel.Role {
+    return this.props.role;
   }
 
   get isActive(): boolean {
