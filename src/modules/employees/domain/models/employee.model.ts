@@ -15,7 +15,12 @@ export namespace EmployeeModel {
     ACTIVE = 'ACTIVE',
     INACTIVE = 'INACTIVE',
     VACATION = 'VACATION',
+    REMOVED = 'REMOVED',
   }
+
+  /** Subset of operational (non-terminal) statuses. */
+  export type OperationalStatus =
+    Status.ACTIVE | Status.INACTIVE | Status.VACATION;
 
   /** Snapshot serializado da entidade (persistência / ports de saída). */
   export type toCreate = ReturnType<Employee['toJSON']>;
@@ -26,11 +31,23 @@ export namespace EmployeeModel {
     Object.values(Status),
   );
 
+  export const OPERATIONAL_STATUSES: readonly OperationalStatus[] =
+    Object.freeze([Status.ACTIVE, Status.INACTIVE, Status.VACATION]);
+
   export function isRole(value: unknown): value is Role {
     return typeof value === 'string' && (ROLES as string[]).includes(value);
   }
 
   export function isStatus(value: unknown): value is Status {
     return typeof value === 'string' && (STATUSES as string[]).includes(value);
+  }
+
+  export function isOperationalStatus(
+    value: unknown,
+  ): value is OperationalStatus {
+    return (
+      typeof value === 'string' &&
+      (OPERATIONAL_STATUSES as string[]).includes(value)
+    );
   }
 }
