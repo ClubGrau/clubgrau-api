@@ -7,6 +7,7 @@ import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { GetEmployeesQuery } from '@modules/employees/application/queries/get-employees.query';
 import { CreateEmployeeUsecase } from '@modules/employees/application/usecases/create-employee.usecase';
 import { UpdateEmployeeStatusUsecase } from '@modules/employees/application/usecases/update-employee-status.usecase';
+import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
@@ -53,8 +54,13 @@ export function makeEmployeesModule({
   const createEmployeeController = new CreateEmployeeController(createEmployee);
   const getEmployeesController = new GetEmployeesController(getEmployees);
 
+  const lifecyclePolicy = new EmployeeLifecyclePolicy(employeeRepository);
   const updateEmployeeStatus: UpdateEmployeeStatusPort =
-    new UpdateEmployeeStatusUsecase(employeeRepository, employeeRepository);
+    new UpdateEmployeeStatusUsecase(
+      employeeRepository,
+      employeeRepository,
+      lifecyclePolicy,
+    );
   const updateEmployeeStatusController = new UpdateEmployeeStatusController(
     updateEmployeeStatus,
   );
