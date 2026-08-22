@@ -10,6 +10,8 @@ import {
   EmployeeAlreadyActiveError,
   EmployeeAlreadyInactiveError,
   EmployeeAlreadyOnVacationError,
+  EmployeeAlreadyRemovedError,
+  EmployeeNotInactiveError,
   InvalidEmployeeRoleError,
   InvalidEmployeeStatusError,
 } from '../errors/employee.errors';
@@ -275,6 +277,102 @@ describe('Employee (entity)', () => {
 
       employee.assignNif(null);
       expect(employee.toJSON().nif).toBeNull();
+    });
+  });
+
+  describe('removedAt', () => {
+    it('should default removedAt to null on create', () => {
+      const employee = Employee.create(makeValidProps());
+      expect(employee.toJSON().removedAt).toBeNull();
+    });
+
+    it('should round-trip a provided removedAt through reconstitute', () => {
+      const removedAt = new Date('2025-01-15T10:00:00.000Z');
+      const employee = Employee.reconstitute(
+        makeSnapshot({ status: EmployeeModel.Status.REMOVED, removedAt }),
+      );
+      expect(employee.toJSON().removedAt).toBe(removedAt);
+    });
+
+    it('should default removedAt to null when not provided in reconstitute', () => {
+      const employee = Employee.reconstitute(makeSnapshot());
+      expect(employee.toJSON().removedAt).toBeNull();
+    });
+  });
+
+  describe('get role', () => {
+    it('should expose the reconstituted role', () => {
+      const employee = Employee.reconstitute(
+        makeSnapshot({ role: EmployeeModel.Role.ADMIN }),
+      );
+      expect(employee.role).toBe(EmployeeModel.Role.ADMIN);
+    });
+  });
+
+  describe('anonymize', () => {
+    it('should anonymize an INACTIVE employee and set sentinels', () => {
+      const employee = Employee.reconstitute(
+        makeSnapshot({
+          status: EmployeeModel.Status.INACTIVE,
+          role: EmployeeModel.Role.MANAGER,
+        }),
+      );
+      const originalId = employee.id;
+      const originalRole = employee.role;
+      const originalPasswordHash = employee.props.password.value;
+
+      employee.anonymize();
+
+      const json = employee.toJSON();
+      expect(json.status).toBe(EmployeeModel.Status.REMOVED);
+      expect(json.removedAt).toBeInstanceOf(Date);
+      expect(json.name).toBe('Removed');
+      expect(json.email).toBe(`removed.${originalId}@anonymized.invalid`);
+      expect(json.phone).toBeNull();
+      expect(json.nif).toBeNull();
+      expect(json.id).toBe(originalId);
+      expect(json.role).toBe(originalRole);
+      expect(employee.props.password.value).toBe(originalPasswordHash);
+    });
+
+    it('should throw EmployeeNotInactiveError when ACTIVE', () => {
+      const employee = Employee.create(makeValidProps());
+      expect(() => employee.anonymize()).toThrow(EmployeeNotInactiveError);
+    });
+
+    it('should throw EmployeeNotInactiveError when on VACATION', () => {
+      const employee = Employee.create(makeValidProps());
+      employee.putOnVacation();
+      expect(() => employee.anonymize()).toThrow(EmployeeNotInactiveError);
+    });
+
+    it('should throw EmployeeAlreadyRemovedError when already REMOVED', () => {
+      const employee = Employee.reconstitute(
+        makeSnapshot({ status: EmployeeModel.Status.REMOVED }),
+      );
+      expect(() => employee.anonymize()).toThrow(EmployeeAlreadyRemovedError);
+    });
+  });
+
+  describe('terminal guard on operational transitions', () => {
+    const removedSnapshot = () =>
+      makeSnapshot({ status: EmployeeModel.Status.REMOVED });
+
+    it('activate on REMOVED throws EmployeeAlreadyRemovedError', () => {
+      const employee = Employee.reconstitute(removedSnapshot());
+      expect(() => employee.activate()).toThrow(EmployeeAlreadyRemovedError);
+    });
+
+    it('deactivate on REMOVED throws EmployeeAlreadyRemovedError', () => {
+      const employee = Employee.reconstitute(removedSnapshot());
+      expect(() => employee.deactivate()).toThrow(EmployeeAlreadyRemovedError);
+    });
+
+    it('putOnVacation on REMOVED throws EmployeeAlreadyRemovedError', () => {
+      const employee = Employee.reconstitute(removedSnapshot());
+      expect(() => employee.putOnVacation()).toThrow(
+        EmployeeAlreadyRemovedError,
+      );
     });
   });
 
