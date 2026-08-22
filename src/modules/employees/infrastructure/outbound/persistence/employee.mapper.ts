@@ -18,6 +18,7 @@ export function mapEmployeeDocument(
     status: document.status as EmployeeModel.Status,
     createdAt: document.createdAt ?? new Date(0),
     deactivateAt: document.deactivateAt ?? null,
+    removedAt: document.removedAt ?? null,
   };
 }
 
