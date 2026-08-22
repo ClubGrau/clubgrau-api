@@ -19,19 +19,42 @@ describe('EmployeeModel.Role', () => {
 });
 
 describe('EmployeeModel.Status', () => {
-  it('should expose all statuses', () => {
-    expect(EmployeeModel.STATUSES).toEqual(['ACTIVE', 'INACTIVE', 'VACATION']);
+  it('should expose all statuses including REMOVED', () => {
+    expect(EmployeeModel.STATUSES).toEqual([
+      'ACTIVE',
+      'INACTIVE',
+      'VACATION',
+      'REMOVED',
+    ]);
   });
 
   it('should identify valid statuses', () => {
     expect(EmployeeModel.isStatus('ACTIVE')).toBe(true);
     expect(EmployeeModel.isStatus(EmployeeModel.Status.VACATION)).toBe(true);
+    expect(EmployeeModel.isStatus('REMOVED')).toBe(true);
   });
 
   it('should reject invalid statuses', () => {
     expect(EmployeeModel.isStatus('active')).toBe(false);
     expect(EmployeeModel.isStatus(true)).toBe(false);
     expect(EmployeeModel.isStatus(null)).toBe(false);
+  });
+});
+
+describe('EmployeeModel.isOperationalStatus', () => {
+  it('should accept ACTIVE, INACTIVE, VACATION', () => {
+    expect(EmployeeModel.isOperationalStatus('ACTIVE')).toBe(true);
+    expect(EmployeeModel.isOperationalStatus('INACTIVE')).toBe(true);
+    expect(EmployeeModel.isOperationalStatus('VACATION')).toBe(true);
+  });
+
+  it('should reject REMOVED', () => {
+    expect(EmployeeModel.isOperationalStatus('REMOVED')).toBe(false);
+  });
+
+  it('should reject lowercase and non-string values', () => {
+    expect(EmployeeModel.isOperationalStatus('active')).toBe(false);
+    expect(EmployeeModel.isOperationalStatus(null)).toBe(false);
   });
 });
 
