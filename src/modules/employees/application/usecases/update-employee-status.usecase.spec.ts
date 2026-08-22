@@ -4,6 +4,7 @@ import {
   EmployeeAlreadyInactiveError,
   EmployeeAlreadyOnVacationError,
   EmployeeNotFoundError,
+  InvalidEmployeeStatusError,
 } from '@modules/employees/domain/errors/employee.errors';
 import { Password } from '@shared/domain/value-object';
 import { UpdateEmployeeStatusDto } from '../dtos/update-employee-status.dto';
@@ -27,6 +28,7 @@ const makeSnapshot = (
   status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
   deactivateAt: null,
+  removedAt: null,
   ...overrides,
 });
 
@@ -314,5 +316,37 @@ describe('UpdateEmployeeStatusUsecase', () => {
       id: VALID_EMPLOYEE_ID,
       status: EmployeeModel.Status.INACTIVE,
     });
+  });
+
+  it('should throw InvalidEmployeeStatusError and not persist when status is REMOVED', async () => {
+    const { sut, updateEmployeeStatusRepositoryStub } = makeSut(
+      makeSnapshot({ status: EmployeeModel.Status.INACTIVE }),
+    );
+    const updateSpy = jest.spyOn(
+      updateEmployeeStatusRepositoryStub,
+      'updateStatus',
+    );
+
+    await expect(
+      sut.execute(makeParams({ status: EmployeeModel.Status.REMOVED })),
+    ).rejects.toBeInstanceOf(InvalidEmployeeStatusError);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it('should throw InvalidEmployeeStatusError for an unknown status value (exhaustiveness guard)', async () => {
+    const { sut, updateEmployeeStatusRepositoryStub } = makeSut(
+      makeSnapshot({ status: EmployeeModel.Status.ACTIVE }),
+    );
+    const updateSpy = jest.spyOn(
+      updateEmployeeStatusRepositoryStub,
+      'updateStatus',
+    );
+
+    await expect(
+      sut.execute(
+        makeParams({ status: 'UNKNOWN' as unknown as EmployeeModel.Status }),
+      ),
+    ).rejects.toBeInstanceOf(InvalidEmployeeStatusError);
+    expect(updateSpy).not.toHaveBeenCalled();
   });
 });
