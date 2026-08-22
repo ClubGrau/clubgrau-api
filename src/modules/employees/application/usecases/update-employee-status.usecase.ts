@@ -68,6 +68,8 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
       case EmployeeModel.Status.VACATION:
         employee.putOnVacation();
         return;
+      case EmployeeModel.Status.REMOVED:
+        throw new InvalidEmployeeStatusError(`Invalid status: "${status}"`);
       default: {
         const exhaustive: never = status;
         throw new InvalidEmployeeStatusError(`Invalid status: "${exhaustive}"`);
