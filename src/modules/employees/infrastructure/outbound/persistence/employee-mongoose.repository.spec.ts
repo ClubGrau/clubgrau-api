@@ -4,10 +4,12 @@ import { EmployeeMongooseRepository } from './employee-mongoose.repository';
 import { EmployeeDocument, EmployeeMongooseModel } from './employee.schema';
 import mongoose from 'mongoose';
 
-const REMOVED = EmployeeModel.Status.REMOVED;
-const ACTIVE = EmployeeModel.Status.ACTIVE;
-const INACTIVE = EmployeeModel.Status.INACTIVE;
-const ADMIN = EmployeeModel.Role.ADMIN;
+const employeeStatuses = {
+  REMOVED: EmployeeModel.Status.REMOVED,
+  ACTIVE: EmployeeModel.Status.ACTIVE,
+  INACTIVE: EmployeeModel.Status.INACTIVE,
+  ADMIN: EmployeeModel.Role.ADMIN,
+};
 
 const mockEmployee = {
   _id: new mongoose.Types.ObjectId(),
@@ -252,11 +254,15 @@ describe('EmployeeMongooseRepository', () => {
 
       const result = await sut.findAll({ skip: 20, limit: 10 });
 
-      expect(findSpy).toHaveBeenCalledWith({ status: { $ne: REMOVED } });
+      expect(findSpy).toHaveBeenCalledWith({
+        status: { $ne: employeeStatuses.REMOVED },
+      });
       expect(sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
       expect(skip).toHaveBeenCalledWith(20);
       expect(limit).toHaveBeenCalledWith(10);
-      expect(countSpy).toHaveBeenCalledWith({ status: { $ne: REMOVED } });
+      expect(countSpy).toHaveBeenCalledWith({
+        status: { $ne: employeeStatuses.REMOVED },
+      });
       expect(result).toEqual({
         items: [
           {
@@ -297,7 +303,7 @@ describe('EmployeeMongooseRepository', () => {
       });
 
       const expectedFilter = {
-        status: { $eq: ACTIVE, $ne: REMOVED },
+        status: { $eq: employeeStatuses.ACTIVE, $ne: employeeStatuses.REMOVED },
         role: EmployeeModel.Role.MANAGER,
       };
       expect(findSpy).toHaveBeenCalledWith(expectedFilter);
@@ -323,7 +329,12 @@ describe('EmployeeMongooseRepository', () => {
         limit: 20,
       });
 
-      const expectedFilter = { status: { $eq: INACTIVE, $ne: REMOVED } };
+      const expectedFilter = {
+        status: {
+          $eq: employeeStatuses.INACTIVE,
+          $ne: employeeStatuses.REMOVED,
+        },
+      };
       expect(findSpy).toHaveBeenCalledWith(expectedFilter);
       expect(countSpy).toHaveBeenCalledWith(expectedFilter);
     });
@@ -349,7 +360,7 @@ describe('EmployeeMongooseRepository', () => {
       });
 
       const expectedFilter = {
-        status: { $eq: ACTIVE, $ne: REMOVED },
+        status: { $eq: employeeStatuses.ACTIVE, $ne: employeeStatuses.REMOVED },
         $or: [
           { name: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
           { email: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
@@ -394,8 +405,8 @@ describe('EmployeeMongooseRepository', () => {
       await sut.countNonRemovedAdmins();
 
       expect(countSpy).toHaveBeenCalledWith({
-        role: ADMIN,
-        status: { $ne: REMOVED },
+        role: employeeStatuses.ADMIN,
+        status: { $ne: employeeStatuses.REMOVED },
       });
     });
 
