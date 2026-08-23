@@ -12,7 +12,7 @@ Persist `REMOVED` + `removedAt`, count non-removed ADMINs, `$set` anonymized fie
 
 | Spec | Responsibility |
 |------|----------------|
-| [`01-domain.md`](./01-domain.md) | Enum, `anonymize()`, `CountNonRemovedAdminsPort` interface |
+| [`01-domain.md`](./01-domain.md) | Enum, `anonymize()`, count port interfaces |
 | **This file** | Schema, mapper, repository methods + spec |
 | [`04-remove-employee.md`](./04-remove-employee.md) | Application port `AnonymizeEmployeeRepositoryPort` + use case that calls `anonymize` |
 | [`05-list-and-module-contract.md`](./05-list-and-module-contract.md) | HTTP `?status=REMOVED` → `400` (repo already excludes) |
@@ -26,6 +26,7 @@ Use this document to extend **outbound persistence only**. The Remove use case d
 | Schema `status` enum + `removedAt` | Yes |
 | Mapper `removedAt` on write snapshot + create document | Yes |
 | `countNonRemovedAdmins` | Yes (implements domain port) |
+| `countActiveAdmins` | Yes (implements domain port) |
 | `anonymize` `$set` | Yes |
 | `findAll` always excludes `REMOVED` | Yes |
 | `findById` / `findByEmail` | Unchanged (must still load `REMOVED` / sentinels) |
@@ -36,7 +37,7 @@ Use this document to extend **outbound persistence only**. The Remove use case d
 **Prompt sketch for the agent:**
 
 > Implement slice 2 of employee lifecycle following [`docs/specs/employee-lifecycle/02-persistence.md`](./02-persistence.md).  
-> Add `removedAt` and `REMOVED` on the schema; map it on write snapshots; implement `countNonRemovedAdmins`, `anonymize`, and `findAll` exclusion of `REMOVED`.  
+> Add `removedAt` and `REMOVED` on the schema; map it on write snapshots; implement `countNonRemovedAdmins`, `countActiveAdmins`, `anonymize`, and `findAll` exclusion of `REMOVED`.  
 > Do not add HTTP Remove or change controllers.
 
 ## Schema
@@ -74,7 +75,15 @@ Same `EmployeeMongooseRepository`. Implement:
 countDocuments({ role: EmployeeModel.Role.ADMIN, status: { $ne: EmployeeModel.Status.REMOVED } })
 ```
 
-Return the number. Do not filter on `ACTIVE` only — legacy `INACTIVE` / `VACATION` ADMINs still count.
+Return the number. Do not filter on `ACTIVE` only — legacy `INACTIVE` / `VACATION` ADMINs still count (Remove protection).
+
+### `countActiveAdmins` — `CountActiveAdminsPort`
+
+```ts
+countDocuments({ role: EmployeeModel.Role.ADMIN, status: EmployeeModel.Status.ACTIVE })
+```
+
+Return the number. Used by the policy so `DEACTIVATE` / `VACATION` cannot leave zero login-capable ADMINs.
 
 ### `anonymize`
 
@@ -143,8 +152,8 @@ Do not wire `EmployeeLifecyclePolicy` in this slice.
 |------|--------|
 | `infrastructure/outbound/persistence/employee.schema.ts` | Enum + `removedAt` |
 | `infrastructure/outbound/persistence/employee.mapper.ts` | `removedAt` on write/create maps |
-| `infrastructure/outbound/persistence/employee-mongoose.repository.ts` | `countNonRemovedAdmins`, `anonymize`, `buildFindFilter` |
-| `infrastructure/outbound/persistence/employee-mongoose.repository.spec.ts` | Cover the three behaviors; update `findAll` filters |
+| `infrastructure/outbound/persistence/employee-mongoose.repository.ts` | `countNonRemovedAdmins`, `countActiveAdmins`, `anonymize`, `buildFindFilter` |
+| `infrastructure/outbound/persistence/employee-mongoose.repository.spec.ts` | Cover count / anonymize / findAll; update `findAll` filters |
 | `application/ports/outbound/anonymize-employee-repository.port.ts` | Create if you bind the repo to the port now; else slice 4 |
 | Controllers / use cases / `app.ts` / `.http` | Do not change |
 
@@ -156,6 +165,8 @@ Same `makeChainableMock` harness as today.
 |-----------|--------|
 | `countNonRemovedAdmins` calls `countDocuments` with `{ role: ADMIN, status: { $ne: REMOVED } }` | query exact |
 | `countNonRemovedAdmins` returns the numeric result | e.g. `2` |
+| `countActiveAdmins` calls `countDocuments` with `{ role: ADMIN, status: ACTIVE }` | query exact |
+| `countActiveAdmins` returns the numeric result | e.g. `1` |
 | `anonymize` `updateOne` `$set` only the anonymized fields | no `role` / `deactivateAt` in `$set` |
 | `findAll` without status uses `{ status: { $ne: REMOVED } }` | `find` and `countDocuments` |
 | `findAll` with `status: ACTIVE` ANDs `$eq: ACTIVE` and `$ne: REMOVED` | same filter on find + count |
@@ -170,6 +181,7 @@ Do not add a parallel `__tests__` tree. Schema files are coverage-excluded; do n
 - [ ] Write mapper round-trips `removedAt`
 - [ ] Read model still has no password and no `removedAt`
 - [ ] `countNonRemovedAdmins` counts ADMIN with `status ≠ REMOVED`
+- [ ] `countActiveAdmins` counts ADMIN with `status === ACTIVE`
 - [ ] `anonymize` is partial `$set` only
 - [ ] `findAll` / `countDocuments` never return `REMOVED`
 - [ ] `findById` / `findByEmail` can still load `REMOVED`
@@ -187,6 +199,7 @@ Do not add a parallel `__tests__` tree. Schema files are coverage-excluded; do n
 
 - [ ] A document with `status: REMOVED` is omitted from `findAll` (no status filter and with an operational status filter)
 - [ ] `countNonRemovedAdmins` does not count `REMOVED` ADMINs and does count `INACTIVE` ADMINs
+- [ ] `countActiveAdmins` counts only `ACTIVE` ADMINs
 - [ ] `anonymize` updates PII/status/password/`removedAt` without touching `role` or `deactivateAt`
 - [ ] `findByEmail` on the original address after anonymize is a miss (once slice 4 writes sentinels); `findByEmail` on the sentinel still hits
 - [ ] Repository spec passes

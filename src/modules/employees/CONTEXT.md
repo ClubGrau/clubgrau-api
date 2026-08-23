@@ -33,5 +33,5 @@ Terminal state after Anonymize. Absent from the collaborators list. The `employe
 _Avoid_: deleted, hidden, archived, inactive
 
 **Last Admin**:
-The only collaborator with role `ADMIN` who is not `REMOVED`. Cannot become `INACTIVE`, `VACATION`, or `REMOVED`; status stays `ACTIVE` until another ADMIN exists.
+The only `ADMIN` who can still log in (`ACTIVE`), or — for Remove — the only `ADMIN` who is not `REMOVED`. Cannot leave `ACTIVE` (Deactivate / Vacation) while they are the last `ACTIVE` ADMIN; leftover `INACTIVE` / `VACATION` ADMINs do not count as a second login. Cannot be Removed while they are the last non-`REMOVED` ADMIN. Status stays `ACTIVE` until another `ACTIVE` ADMIN exists.
 _Avoid_: last user, only login

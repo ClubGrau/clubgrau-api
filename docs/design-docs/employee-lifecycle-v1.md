@@ -195,7 +195,7 @@ Do not persist `employee.toJSON()` as a full document (`Password.toJSON()` is `'
 
 ### 7.3 `EmployeeLifecyclePolicy`
 
-Pure domain service. Constructor: `CountNonRemovedAdminsPort` (domain outbound port).
+Pure domain service. Constructor: `CountNonRemovedAdminsPort & CountActiveAdminsPort` (domain outbound ports; same repository implements both).
 
 ```ts
 type LifecycleIntent = 'DEACTIVATE' | 'REACTIVATE' | 'VACATION' | 'REMOVE'
@@ -215,10 +215,16 @@ Rules (in this order):
    - `EMPLOYEE` actor → refuse all (`403`).
    - `MANAGER` actor → allow `DEACTIVATE` / `REACTIVATE` / `VACATION` only if `target.role === EMPLOYEE`; else refuse (`403`). `REMOVE` → refuse (`403`).
    - `ADMIN` actor → allow all intents on any role, except step 4.
-4. **Last Admin:** if `target.role === ADMIN` and `countNonRemovedAdmins() === 1` and intent is `DEACTIVATE` | `VACATION` | `REMOVE` → `LastAdminProtectedError` (`409`). `REACTIVATE` of a leftover `INACTIVE` ADMIN (legacy) is allowed for an ADMIN actor.
+4. **Last Admin:**
+   - `DEACTIVATE` | `VACATION` on an ADMIN who is currently `ACTIVE`: if `countActiveAdmins() === 1` → `LastAdminProtectedError` (`409`). Leftover `INACTIVE` / `VACATION` ADMINs do not count.
+   - `REMOVE` on an ADMIN: if `countNonRemovedAdmins() === 1` → `LastAdminProtectedError` (`409`).
+   - `REACTIVATE` of a leftover `INACTIVE` ADMIN (legacy) is allowed for an ADMIN actor.
+   - `DEACTIVATE` of an ADMIN who is already `VACATION` does not call `countActiveAdmins` (target is not leaving `ACTIVE`).
 5. **Remove extra:** intent `REMOVE` requires `target.status === INACTIVE`; else `409`. Already `REMOVED` → `409` (or not-found opacity on the list; by id this is conflict).
 
-Counting: `{ role: ADMIN, status: { $ne: REMOVED } }`. `INACTIVE` / `VACATION` ADMINs still count (legacy). Going forward, policy + update-status must not create a Last Admin who is not `ACTIVE`.
+Counting:
+- Operational leave (`DEACTIVATE` / `VACATION`): `{ role: ADMIN, status: ACTIVE }`.
+- Remove / legacy: `{ role: ADMIN, status: { $ne: REMOVED } }`. `INACTIVE` / `VACATION` ADMINs still count for Remove. Going forward, policy + update-status must not create a Last Admin who is not `ACTIVE`.
 
 ### 7.4 New domain errors (illustrative names)
 
@@ -344,6 +350,7 @@ Controllers stay Express-free. They map domain errors to the table above (update
 | Method | Behaviour |
 |--------|-----------|
 | `countNonRemovedAdmins` | `countDocuments({ role: 'ADMIN', status: { $ne: 'REMOVED' } })` |
+| `countActiveAdmins` | `countDocuments({ role: 'ADMIN', status: 'ACTIVE' })` |
 | `anonymize` | `updateOne` `$set` of anonymized fields only |
 | `findAll` | always exclude `REMOVED` |
 | `findById` / `findByEmail` | unchanged (Remove and policy need to load `REMOVED` / sentinels if hit) |
@@ -439,8 +446,8 @@ Follow [`AGENTS.md`](../../AGENTS.md) new-command / new-query steps. Specs: [`do
 | Slice | What ships | Spec |
 |-------|------------|------|
 | 0 | `adaptRoute` `actorId`; `forbidden` / `conflict` helpers + specs | [`00-adapt-route-and-http-helpers.md`](../specs/employee-lifecycle/00-adapt-route-and-http-helpers.md) |
-| 1 | Domain: `REMOVED`, `isOperationalStatus`, errors, `anonymize()`, `EmployeeLifecyclePolicy` + `CountNonRemovedAdminsPort` + specs | [`01-domain.md`](../specs/employee-lifecycle/01-domain.md) |
-| 2 | Schema `removedAt` + enum; repo `countNonRemovedAdmins`, `anonymize`, `findAll` exclusion + specs | [`02-persistence.md`](../specs/employee-lifecycle/02-persistence.md) |
+| 1 | Domain: `REMOVED`, `isOperationalStatus`, errors, `anonymize()`, `EmployeeLifecyclePolicy` + count ports + specs | [`01-domain.md`](../specs/employee-lifecycle/01-domain.md) |
+| 2 | Schema `removedAt` + enum; repo `countNonRemovedAdmins`, `countActiveAdmins`, `anonymize`, `findAll` exclusion + specs | [`02-persistence.md`](../specs/employee-lifecycle/02-persistence.md) |
 | 3 | Tighten `UpdateEmployeeStatus` (actor + policy + HTTP map) + specs | [`03-update-employee-status.md`](../specs/employee-lifecycle/03-update-employee-status.md) |
 | 4 | `RemoveEmployee` DTO/ports/use case/controller/route/module/`.http` + specs | [`04-remove-employee.md`](../specs/employee-lifecycle/04-remove-employee.md) |
 | 5 | List controller `isOperationalStatus`; `AGENT.md` contract | [`05-list-and-module-contract.md`](../specs/employee-lifecycle/05-list-and-module-contract.md) |

@@ -420,6 +420,31 @@ describe('EmployeeMongooseRepository', () => {
     });
   });
 
+  describe('countActiveAdmins', () => {
+    it('should call countDocuments with role ADMIN and status ACTIVE', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const countSpy = jest
+        .spyOn(employeeModelMock, 'countDocuments')
+        .mockResolvedValueOnce(1);
+
+      await sut.countActiveAdmins();
+
+      expect(countSpy).toHaveBeenCalledWith({
+        role: employeeStatuses.ADMIN,
+        status: employeeStatuses.ACTIVE,
+      });
+    });
+
+    it('should return the numeric result', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      jest.spyOn(employeeModelMock, 'countDocuments').mockResolvedValueOnce(1);
+
+      const result = await sut.countActiveAdmins();
+
+      expect(result).toBe(1);
+    });
+  });
+
   describe('anonymize', () => {
     it('should call updateOne with $set of the six fields only (no role/deactivateAt)', async () => {
       const { sut, employeeModelMock } = makeSut();

@@ -7,13 +7,17 @@ import {
   LastAdminProtectedError,
 } from '../errors/employee.errors';
 import { EmployeeModel } from '../models/employee.model';
+import { CountActiveAdminsPort } from '../ports/count-active-admins.port';
 import { CountNonRemovedAdminsPort } from '../ports/count-non-removed-admins.port';
 
 export type LifecycleIntent =
   'DEACTIVATE' | 'REACTIVATE' | 'VACATION' | 'REMOVE';
 
 export class EmployeeLifecyclePolicy {
-  constructor(private readonly countPort: CountNonRemovedAdminsPort) {}
+  constructor(
+    private readonly countPort: CountNonRemovedAdminsPort &
+      CountActiveAdminsPort,
+  ) {}
 
   async assertCan(input: {
     actor: Employee;
@@ -52,14 +56,23 @@ export class EmployeeLifecyclePolicy {
 
     // Actor is ADMIN — proceed to rules 5 and 6
 
-    // Rule 5: Last Admin protection for DEACTIVATE, VACATION, REMOVE
-    if (
-      target.role === EmployeeModel.Role.ADMIN &&
-      (intent === 'DEACTIVATE' || intent === 'VACATION' || intent === 'REMOVE')
-    ) {
-      const count = await this.countPort.countNonRemovedAdmins();
-      if (count === 1) {
-        throw new LastAdminProtectedError();
+    // Rule 5: Last Admin protection
+    if (target.role === EmployeeModel.Role.ADMIN) {
+      if (
+        (intent === 'DEACTIVATE' || intent === 'VACATION') &&
+        target.status === EmployeeModel.Status.ACTIVE
+      ) {
+        const activeCount = await this.countPort.countActiveAdmins();
+        if (activeCount === 1) {
+          throw new LastAdminProtectedError();
+        }
+      }
+
+      if (intent === 'REMOVE') {
+        const nonRemovedCount = await this.countPort.countNonRemovedAdmins();
+        if (nonRemovedCount === 1) {
+          throw new LastAdminProtectedError();
+        }
       }
     }
 

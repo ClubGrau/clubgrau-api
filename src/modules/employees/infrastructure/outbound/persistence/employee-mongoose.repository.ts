@@ -14,6 +14,7 @@ import {
   UpdateEmployeeStatusParams,
   UpdateEmployeeStatusRepositoryPort,
 } from '@modules/employees/application/ports/outbound/update-employee-status-repository.port';
+import { CountActiveAdminsPort } from '@modules/employees/domain/ports/count-active-admins.port';
 import { CountNonRemovedAdminsPort } from '@modules/employees/domain/ports/count-non-removed-admins.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
@@ -41,6 +42,7 @@ export class EmployeeMongooseRepository
     FindEmployeesPort,
     UpdateEmployeeStatusRepositoryPort,
     CountNonRemovedAdminsPort,
+    CountActiveAdminsPort,
     AnonymizeEmployeeRepositoryPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
@@ -84,6 +86,13 @@ export class EmployeeMongooseRepository
     return this.employeeModel.countDocuments({
       role: EmployeeModel.Role.ADMIN,
       status: { $ne: EmployeeModel.Status.REMOVED },
+    });
+  }
+
+  async countActiveAdmins(): Promise<number> {
+    return this.employeeModel.countDocuments({
+      role: EmployeeModel.Role.ADMIN,
+      status: EmployeeModel.Status.ACTIVE,
     });
   }
 

@@ -84,7 +84,8 @@ src/modules/employees/
 │   │   └── employee.model.spec.ts
 │   ├── ports/
 │   │   ├── find-employee-by-email.port.ts
-│   │   └── count-non-removed-admins.port.ts
+│   │   ├── count-non-removed-admins.port.ts
+│   │   └── count-active-admins.port.ts
 │   ├── errors/
 │   │   └── employee.errors.ts
 │   └── services/
@@ -210,7 +211,7 @@ function isOperationalStatus(value: unknown): value is OperationalStatus
 | `EmployeeNotFoundError` | Lookup by id found nothing |
 | `ActorAuthenticationFailedError` | Actor missing/blank, not found, or not ACTIVE |
 | `EmployeeLifecycleForbiddenError` | Actor role/intent outside the lifecycle matrix |
-| `LastAdminProtectedError` | Last non-REMOVED ADMIN leaving ACTIVE |
+| `LastAdminProtectedError` | Last `ACTIVE` ADMIN leaving `ACTIVE`, or last non-`REMOVED` ADMIN being Removed |
 | `EmployeeAlreadyRemovedError` | Target already `REMOVED` |
 | `EmployeeNotInactiveError` | Remove-only — target is not `INACTIVE` |
 
@@ -227,6 +228,21 @@ Current policy: `ensureEmailIsAvailable(email)`
 | Found + not ACTIVE | `EmployeeInactiveError` (reactivation is an open product decision; do not silently create a duplicate) |
 
 Depends on domain port `FindEmployeeByEmailPort` (not on Mongoose).
+
+### `EmployeeLifecyclePolicy`
+
+`assertCan({ actor, target, intent })`. Constructor: `CountNonRemovedAdminsPort & CountActiveAdminsPort` (same repository in the module). One instance is shared by update-status and remove.
+
+Rule 5 — Last Admin uses **two** counts:
+
+| Intent | Recusar quando |
+|--------|----------------|
+| `DEACTIVATE` / `VACATION` | target is ADMIN **`ACTIVE`** and `countActiveAdmins() === 1` |
+| `REMOVE` | target is ADMIN and `countNonRemovedAdmins() === 1` |
+
+A leftover `INACTIVE` / `VACATION` ADMIN does **not** keep `DEACTIVATE` / `VACATION` from firing: 1 `ACTIVE` + N non-`REMOVED` still 409. `DEACTIVATE` of an ADMIN who is already `VACATION` does not call `countActiveAdmins` (target is not leaving `ACTIVE`). `REACTIVATE` of a leftover `INACTIVE` ADMIN is allowed; neither count is called.
+
+Matrix refusals and non-ADMIN targets must not hit either port.
 
 ---
 
@@ -679,6 +695,7 @@ Client
 - `FindEmployeesPort` → `findAll` (`find` + `sort` + `skip` + `limit` + `countDocuments` + `mapEmployeeReadModel`)
 - `UpdateEmployeeStatusRepositoryPort` → `updateStatus` (`updateOne` + `$set` of `status` and `deactivateAt` only)
 - `CountNonRemovedAdminsPort` → `countNonRemovedAdmins`
+- `CountActiveAdminsPort` → `countActiveAdmins`
 - `AnonymizeEmployeeRepositoryPort` → `anonymize` (`updateOne` + `$set` of sentinel fields + hash + `REMOVED` + `removedAt` only)
 
 `findAll` sorts by `{ createdAt: -1, _id: -1 }` for stable pages.

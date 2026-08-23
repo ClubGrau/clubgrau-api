@@ -8,6 +8,7 @@ import {
   LastAdminProtectedError,
 } from '../errors/employee.errors';
 import { EmployeeModel } from '../models/employee.model';
+import { CountActiveAdminsPort } from '../ports/count-active-admins.port';
 import { CountNonRemovedAdminsPort } from '../ports/count-non-removed-admins.port';
 import {
   EmployeeLifecyclePolicy,
@@ -36,17 +37,25 @@ const makeEmployee = (
   });
 };
 
+type CountAdminsPort = CountNonRemovedAdminsPort & CountActiveAdminsPort;
+
 type SutTypes = {
   sut: EmployeeLifecyclePolicy;
-  countPort: jest.Mocked<CountNonRemovedAdminsPort>;
+  countPort: jest.Mocked<CountAdminsPort>;
 };
 
 const makeStubs = (): SutTypes => {
-  const countPort: jest.Mocked<CountNonRemovedAdminsPort> = {
+  const countPort: jest.Mocked<CountAdminsPort> = {
     countNonRemovedAdmins: jest.fn().mockResolvedValue(2),
+    countActiveAdmins: jest.fn().mockResolvedValue(2),
   };
   const sut = new EmployeeLifecyclePolicy(countPort);
   return { sut, countPort };
+};
+
+const expectNoCount = (countPort: jest.Mocked<CountAdminsPort>): void => {
+  expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+  expect(countPort.countActiveAdmins).not.toHaveBeenCalled();
 };
 
 describe('EmployeeLifecyclePolicy', () => {
@@ -77,7 +86,7 @@ describe('EmployeeLifecyclePolicy', () => {
         await expect(
           sut.assertCan({ actor, target, intent: 'DEACTIVATE' }),
         ).rejects.toThrow(ActorAuthenticationFailedError);
-        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+        expectNoCount(countPort);
       },
     );
   });
@@ -95,7 +104,7 @@ describe('EmployeeLifecyclePolicy', () => {
       await expect(
         sut.assertCan({ actor, target, intent: 'REMOVE' }),
       ).rejects.toThrow(EmployeeLifecycleForbiddenError);
-      expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+      expectNoCount(countPort);
     });
   });
 
@@ -138,7 +147,7 @@ describe('EmployeeLifecyclePolicy', () => {
         await expect(sut.assertCan({ actor, target, intent })).rejects.toThrow(
           EmployeeLifecycleForbiddenError,
         );
-        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+        expectNoCount(countPort);
       },
     );
   });
@@ -161,7 +170,7 @@ describe('EmployeeLifecyclePolicy', () => {
         await expect(
           sut.assertCan({ actor, target, intent }),
         ).resolves.toBeUndefined();
-        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+        expectNoCount(countPort);
       },
     );
 
@@ -177,7 +186,7 @@ describe('EmployeeLifecyclePolicy', () => {
       await expect(
         sut.assertCan({ actor, target, intent: 'REMOVE' }),
       ).rejects.toThrow(EmployeeLifecycleForbiddenError);
-      expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+      expectNoCount(countPort);
     });
 
     it.each<LifecycleIntent>([
@@ -198,7 +207,7 @@ describe('EmployeeLifecyclePolicy', () => {
         await expect(sut.assertCan({ actor, target, intent })).rejects.toThrow(
           EmployeeLifecycleForbiddenError,
         );
-        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+        expectNoCount(countPort);
       },
     );
 
@@ -220,7 +229,7 @@ describe('EmployeeLifecyclePolicy', () => {
         await expect(sut.assertCan({ actor, target, intent })).rejects.toThrow(
           EmployeeLifecycleForbiddenError,
         );
-        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+        expectNoCount(countPort);
       },
     );
   });
@@ -311,30 +320,29 @@ describe('EmployeeLifecyclePolicy', () => {
   });
 
   describe('Rule 5: Last Admin protection', () => {
-    it.each<LifecycleIntent>(['DEACTIVATE', 'VACATION', 'REMOVE'])(
-      'should throw LastAdminProtectedError when count === 1 and intent is %s on ADMIN target',
+    it.each<LifecycleIntent>(['DEACTIVATE', 'VACATION'])(
+      'should throw LastAdminProtectedError when the last ACTIVE ADMIN would leave ACTIVE via %s',
       async (intent) => {
         const { sut, countPort } = makeStubs();
-        countPort.countNonRemovedAdmins.mockResolvedValue(1);
+        countPort.countActiveAdmins.mockResolvedValue(1);
+        countPort.countNonRemovedAdmins.mockResolvedValue(2);
 
         const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
         const target = makeEmployee({
           id: FIXED_ID_2,
           role: EmployeeModel.Role.ADMIN,
-          status:
-            intent === 'REMOVE'
-              ? EmployeeModel.Status.INACTIVE
-              : EmployeeModel.Status.ACTIVE,
+          status: EmployeeModel.Status.ACTIVE,
         });
 
         await expect(sut.assertCan({ actor, target, intent })).rejects.toThrow(
           LastAdminProtectedError,
         );
-        expect(countPort.countNonRemovedAdmins).toHaveBeenCalledTimes(1);
+        expect(countPort.countActiveAdmins).toHaveBeenCalledTimes(1);
+        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
       },
     );
 
-    it('should allow ADMIN to REACTIVATE an INACTIVE ADMIN without calling count', async () => {
+    it('should throw LastAdminProtectedError on REMOVE when countNonRemovedAdmins === 1', async () => {
       const { sut, countPort } = makeStubs();
       countPort.countNonRemovedAdmins.mockResolvedValue(1);
 
@@ -346,14 +354,34 @@ describe('EmployeeLifecyclePolicy', () => {
       });
 
       await expect(
-        sut.assertCan({ actor, target, intent: 'REACTIVATE' }),
-      ).resolves.toBeUndefined();
-      expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+        sut.assertCan({ actor, target, intent: 'REMOVE' }),
+      ).rejects.toThrow(LastAdminProtectedError);
+      expect(countPort.countNonRemovedAdmins).toHaveBeenCalledTimes(1);
+      expect(countPort.countActiveAdmins).not.toHaveBeenCalled();
     });
 
-    it('should allow ADMIN to REMOVE an INACTIVE ADMIN when count === 2', async () => {
+    it('should allow ADMIN to REACTIVATE an INACTIVE ADMIN without calling count', async () => {
+      const { sut, countPort } = makeStubs();
+      countPort.countNonRemovedAdmins.mockResolvedValue(1);
+      countPort.countActiveAdmins.mockResolvedValue(1);
+
+      const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
+      const target = makeEmployee({
+        id: FIXED_ID_2,
+        role: EmployeeModel.Role.ADMIN,
+        status: EmployeeModel.Status.INACTIVE,
+      });
+
+      await expect(
+        sut.assertCan({ actor, target, intent: 'REACTIVATE' }),
+      ).resolves.toBeUndefined();
+      expectNoCount(countPort);
+    });
+
+    it('should allow ADMIN to REMOVE an INACTIVE ADMIN when countNonRemovedAdmins === 2', async () => {
       const { sut, countPort } = makeStubs();
       countPort.countNonRemovedAdmins.mockResolvedValue(2);
+      countPort.countActiveAdmins.mockResolvedValue(1);
 
       const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
       const target = makeEmployee({
@@ -366,7 +394,47 @@ describe('EmployeeLifecyclePolicy', () => {
         sut.assertCan({ actor, target, intent: 'REMOVE' }),
       ).resolves.toBeUndefined();
       expect(countPort.countNonRemovedAdmins).toHaveBeenCalledTimes(1);
+      expect(countPort.countActiveAdmins).not.toHaveBeenCalled();
     });
+
+    it('should allow DEACTIVATE of a VACATION ADMIN when another ADMIN is still ACTIVE', async () => {
+      const { sut, countPort } = makeStubs();
+      countPort.countActiveAdmins.mockResolvedValue(1);
+      countPort.countNonRemovedAdmins.mockResolvedValue(2);
+
+      const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
+      const target = makeEmployee({
+        id: FIXED_ID_2,
+        role: EmployeeModel.Role.ADMIN,
+        status: EmployeeModel.Status.VACATION,
+      });
+
+      await expect(
+        sut.assertCan({ actor, target, intent: 'DEACTIVATE' }),
+      ).resolves.toBeUndefined();
+      expectNoCount(countPort);
+    });
+
+    it.each<LifecycleIntent>(['DEACTIVATE', 'VACATION'])(
+      'should allow %s of an ADMIN when another ADMIN is still ACTIVE',
+      async (intent) => {
+        const { sut, countPort } = makeStubs();
+        countPort.countActiveAdmins.mockResolvedValue(2);
+
+        const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
+        const target = makeEmployee({
+          id: FIXED_ID_2,
+          role: EmployeeModel.Role.ADMIN,
+          status: EmployeeModel.Status.ACTIVE,
+        });
+
+        await expect(
+          sut.assertCan({ actor, target, intent }),
+        ).resolves.toBeUndefined();
+        expect(countPort.countActiveAdmins).toHaveBeenCalledTimes(1);
+        expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('Count port not called for matrix refusals', () => {
@@ -381,7 +449,7 @@ describe('EmployeeLifecyclePolicy', () => {
       await expect(
         sut.assertCan({ actor, target, intent: 'DEACTIVATE' }),
       ).rejects.toThrow(EmployeeLifecycleForbiddenError);
-      expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+      expectNoCount(countPort);
     });
 
     it('should not call count port when MANAGER actor is rejected for acting on MANAGER target', async () => {
@@ -395,15 +463,15 @@ describe('EmployeeLifecyclePolicy', () => {
       await expect(
         sut.assertCan({ actor, target, intent: 'DEACTIVATE' }),
       ).rejects.toThrow(EmployeeLifecycleForbiddenError);
-      expect(countPort.countNonRemovedAdmins).not.toHaveBeenCalled();
+      expectNoCount(countPort);
     });
   });
 
   describe('Count port rejection propagation', () => {
-    it('should propagate the error thrown by the count port', async () => {
+    it('should propagate the error thrown by countActiveAdmins on DEACTIVATE', async () => {
       const { sut, countPort } = makeStubs();
       const dbError = new Error('Database connection failed');
-      countPort.countNonRemovedAdmins.mockRejectedValue(dbError);
+      countPort.countActiveAdmins.mockRejectedValue(dbError);
 
       const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
       const target = makeEmployee({
@@ -414,6 +482,23 @@ describe('EmployeeLifecyclePolicy', () => {
 
       await expect(
         sut.assertCan({ actor, target, intent: 'DEACTIVATE' }),
+      ).rejects.toThrow(dbError);
+    });
+
+    it('should propagate the error thrown by countNonRemovedAdmins on REMOVE', async () => {
+      const { sut, countPort } = makeStubs();
+      const dbError = new Error('Database connection failed');
+      countPort.countNonRemovedAdmins.mockRejectedValue(dbError);
+
+      const actor = makeEmployee({ role: EmployeeModel.Role.ADMIN });
+      const target = makeEmployee({
+        id: FIXED_ID_2,
+        role: EmployeeModel.Role.ADMIN,
+        status: EmployeeModel.Status.INACTIVE,
+      });
+
+      await expect(
+        sut.assertCan({ actor, target, intent: 'REMOVE' }),
       ).rejects.toThrow(dbError);
     });
   });
