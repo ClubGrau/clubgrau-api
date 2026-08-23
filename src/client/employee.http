@@ -33,3 +33,13 @@ Authorization: Bearer {{token}}
 ### List employees (vacation)
 GET http://localhost:3003/api/employees?status=VACATION&page=1&limit=10
 Authorization: Bearer {{token}}
+
+### Update employee status
+POST http://localhost:3003/api/employee/update-status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "507f1f77bcf86cd799439011",
+  "status": "INACTIVE"
+}

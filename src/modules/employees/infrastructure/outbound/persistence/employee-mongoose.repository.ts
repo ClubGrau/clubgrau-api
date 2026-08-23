@@ -4,7 +4,12 @@ import {
   FindEmployeesResult,
 } from '@modules/employees/application/dtos/get-employees.dto';
 import { CreateEmployeeRepositoryPort } from '@modules/employees/application/ports/outbound/create-employee-repository.port';
+import { FindEmployeeByIdPort } from '@modules/employees/application/ports/outbound/find-employee-by-id.port';
 import { FindEmployeesPort } from '@modules/employees/application/ports/outbound/find-employees.port';
+import {
+  UpdateEmployeeStatusParams,
+  UpdateEmployeeStatusRepositoryPort,
+} from '@modules/employees/application/ports/outbound/update-employee-status-repository.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { QueryFilter } from 'mongoose';
@@ -26,8 +31,10 @@ function escapeRegex(value: string): string {
 export class EmployeeMongooseRepository
   implements
     FindEmployeeByEmailPort,
+    FindEmployeeByIdPort,
     CreateEmployeeRepositoryPort,
-    FindEmployeesPort
+    FindEmployeesPort,
+    UpdateEmployeeStatusRepositoryPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
 
@@ -46,6 +53,24 @@ export class EmployeeMongooseRepository
     if (!employee) return null;
 
     return mapEmployeeDocument(employee as EmployeeDocument);
+  }
+
+  async findById(id: string): Promise<EmployeeModel.toCreate | null> {
+    try {
+      const employee = await this.employeeModel.findById(id).lean();
+      if (!employee) return null;
+
+      return mapEmployeeDocument(employee as EmployeeDocument);
+    } catch {
+      return null;
+    }
+  }
+
+  async updateStatus(params: UpdateEmployeeStatusParams): Promise<void> {
+    await this.employeeModel.updateOne(
+      { _id: params.id },
+      { $set: { status: params.status, deactivateAt: params.deactivateAt } },
+    );
   }
 
   async findAll(params: FindEmployeesParams): Promise<FindEmployeesResult> {

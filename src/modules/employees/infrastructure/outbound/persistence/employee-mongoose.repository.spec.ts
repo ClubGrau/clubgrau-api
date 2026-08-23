@@ -87,6 +87,81 @@ describe('EmployeeMongooseRepository', () => {
     });
   });
 
+  describe('findById', () => {
+    it('should findById employee and map the document snapshot', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const lean = jest.fn().mockResolvedValueOnce({
+        _id: employeeId,
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        password: 'hashed_password',
+        role: EmployeeModel.Role.ADMIN,
+        phone: '351912345678',
+        nif: 123456789,
+        status: EmployeeModel.Status.ACTIVE,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        deactivateAt: null,
+      });
+      const findByIdSpy = jest
+        .spyOn(employeeModelMock, 'findById')
+        .mockReturnValueOnce({ lean });
+
+      const result = await sut.findById(employeeId);
+
+      expect(findByIdSpy).toHaveBeenCalledWith(employeeId);
+      expect(result).toEqual({
+        id: employeeId,
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        password: 'hashed_password',
+        role: EmployeeModel.Role.ADMIN,
+        phone: '351912345678',
+        nif: '123456789',
+        status: EmployeeModel.Status.ACTIVE,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        deactivateAt: null,
+      });
+    });
+
+    it('should return null if no employee is found', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      jest.spyOn(employeeModelMock, 'findById').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValueOnce(null),
+      });
+
+      const result = await sut.findById(employeeId);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('should $set only status and deactivateAt by id', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const deactivateAt = new Date('2024-06-01T00:00:00Z');
+      const updateOneSpy = jest.spyOn(employeeModelMock, 'updateOne');
+
+      await sut.updateStatus({
+        id: employeeId,
+        status: EmployeeModel.Status.INACTIVE,
+        deactivateAt,
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        {
+          $set: {
+            status: EmployeeModel.Status.INACTIVE,
+            deactivateAt,
+          },
+        },
+      );
+    });
+  });
+
   describe('create', () => {
     it('should create a new employee with a valid Mongoose query', async () => {
       const { sut, employeeModelMock } = makeSut();

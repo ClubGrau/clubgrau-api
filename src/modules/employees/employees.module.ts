@@ -2,19 +2,23 @@ import { Connection } from 'mongoose';
 import { RequestHandler, Router } from 'express';
 import { CreateEmployeePort } from '@modules/employees/application/ports/inbound/create-employee.port';
 import { GetEmployeesPort } from '@modules/employees/application/ports/inbound/get-employees.port';
+import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/inbound/update-employee-status.port';
+import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { GetEmployeesQuery } from '@modules/employees/application/queries/get-employees.query';
 import { CreateEmployeeUsecase } from '@modules/employees/application/usecases/create-employee.usecase';
+import { UpdateEmployeeStatusUsecase } from '@modules/employees/application/usecases/update-employee-status.usecase';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
 import { EmployeeMongooseRepository } from '@modules/employees/infrastructure/outbound/persistence/employee-mongoose.repository';
 import { CreateEmployeeController } from '@modules/employees/presentation/controllers/create-employee.controller';
 import { GetEmployeesController } from '@modules/employees/presentation/controllers/get-employees.controller';
-import { EncrypterPort } from '@shared/application/ports/encrypter.port';
+import { UpdateEmployeeStatusController } from '@modules/employees/presentation/controllers/update-employee-status.controller';
 
 export type EmployeesModule = {
   createEmployeeController: CreateEmployeeController;
   getEmployeesController: GetEmployeesController;
+  updateEmployeeStatusController: UpdateEmployeeStatusController;
   createEmployee: CreateEmployeePort;
   getEmployees: GetEmployeesPort;
   router: Router;
@@ -49,15 +53,23 @@ export function makeEmployeesModule({
   const createEmployeeController = new CreateEmployeeController(createEmployee);
   const getEmployeesController = new GetEmployeesController(getEmployees);
 
+  const updateEmployeeStatus: UpdateEmployeeStatusPort =
+    new UpdateEmployeeStatusUsecase(employeeRepository, employeeRepository);
+  const updateEmployeeStatusController = new UpdateEmployeeStatusController(
+    updateEmployeeStatus,
+  );
+
   const router = makeEmployeeRoutes({
     createEmployeeController,
     getEmployeesController,
+    updateEmployeeStatusController,
     authTokenMiddleware,
   });
 
   return {
     createEmployeeController,
     getEmployeesController,
+    updateEmployeeStatusController,
     createEmployee,
     getEmployees,
     router,
