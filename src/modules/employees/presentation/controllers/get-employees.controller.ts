@@ -47,7 +47,7 @@ export class GetEmployeesController extends BaseController<
   ): GetEmployeesDto | InvalidParamError {
     let status: GetEmployeesDto['status'];
     if (request.status !== undefined && request.status !== '') {
-      if (!EmployeeModel.isStatus(request.status)) {
+      if (!EmployeeModel.isOperationalStatus(request.status)) {
         return new InvalidParamError('status');
       }
       status = request.status;

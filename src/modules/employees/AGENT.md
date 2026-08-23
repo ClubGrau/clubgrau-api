@@ -299,7 +299,7 @@ interface FindEmployeesPort {
 
 ```ts
 interface GetEmployeesDto extends PaginationInputDto {
-  status?: EmployeeModel.Status;
+  status?: EmployeeModel.OperationalStatus;
   role?: EmployeeModel.Role;
   search?: string;
   // page?: number | string; limit?: number | string; (from shared)
@@ -318,7 +318,7 @@ interface GetEmployeesItemDto {
 }
 
 interface FindEmployeesParams {
-  status?: EmployeeModel.Status;
+  status?: EmployeeModel.OperationalStatus;
   role?: EmployeeModel.Role;
   search?: string;
   skip: number;
@@ -500,8 +500,8 @@ Out of this command: JWT blacklist (auth); behaviour of other modules that store
 `GetEmployeesController` extends `BaseController`:
 
 - No required fields
-- Normalizes query-string filters: `status` (`ACTIVE`|`INACTIVE`|`VACATION`), `role`, `search` (trim), `page`, `limit`
-- Invalid `status` or `role` → `400` + `InvalidParamError`
+- Normalizes query-string filters: `status` via `EmployeeModel.isOperationalStatus` (`ACTIVE`|`INACTIVE`|`VACATION`; `REMOVED` → `400`), `role`, `search` (trim), `page`, `limit`
+- Invalid `status` (including `REMOVED`) or `role` → `400` + `InvalidParamError`
 - Success → `200` + `{ data: { employees, page, limit, total, totalPages } }` via `ok(...)`
 - Unexpected errors → `serverError(...)`
 

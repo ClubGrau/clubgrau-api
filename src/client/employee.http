@@ -27,8 +27,9 @@ GET http://localhost:3003/api/employees?status=ACTIVE&role=EMPLOYEE&search=grau&
 Authorization: Bearer {{token}}
 
 ### List employees (inactive)
-GET http://localhost:3003/api/employees?status=INACTIVE&page=1&limit=10
+GET http://localhost:3003/api/employees?status=INVALID&page=1&limit=10
 Authorization: Bearer {{token}}
+# GET .../employees?status=REMOVED → 400 Invalid param status
 
 ### List employees (vacation)
 GET http://localhost:3003/api/employees?status=VACATION&page=1&limit=10
