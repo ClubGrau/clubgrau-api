@@ -81,11 +81,11 @@ Remove Actor is always ADMIN. MANAGER never Deactivate / Reactivate / Remove an 
 
 ### Rule 2.5 — Last Admin stays ACTIVE
 
-**Last Admin** = the only collaborator with role `ADMIN` who is not `REMOVED`.
+**Last Admin (operational):** the only collaborator with role `ADMIN` whose status is `ACTIVE`. That person cannot become `INACTIVE` or `VACATION` while they remain the only ADMIN who can log in. Leftover `INACTIVE` / `VACATION` ADMINs do **not** count as a second login-capable ADMIN.
 
-That person cannot become `INACTIVE`, `VACATION`, or `REMOVED`. Status stays `ACTIVE` until another ADMIN exists. Real-world time off without a second ADMIN does not change platform status. Login in this version still requires `ACTIVE` (no `VACATION` login).
+**Last Admin (Remove / legacy):** the only collaborator with role `ADMIN` who is not `REMOVED`. That identity cannot be Removed; Reactivate by another ADMIN is the recovery path if such a row already exists.
 
-Self-Remove is already impossible: Actor must be `ACTIVE` and Target must be `INACTIVE`.
+Self-Remove is already impossible: Actor must be `ACTIVE` and Target must be `INACTIVE`. This version must not create a Last Admin who is not `ACTIVE`. Real-world time off without a second `ACTIVE` ADMIN does not change platform status. Login in this version still requires `ACTIVE` (no `VACATION` login).
 
 ### Rule 2.6 — Actor password (step-up)
 
@@ -135,7 +135,7 @@ Success: `200` with `{ id }` of the Target. The HTTP adapter must pass `actorId`
 3. **As an ADMIN:** on an `INACTIVE` collaborator, I want to choose Reactivate **or** Remove, confirming Remove with **my** password.
 4. **As an ADMIN:** after Remove, I want that person gone from the collaborators list and their former email available for a new hire who is **not** the same identity.
 5. **As an ADMIN:** I want to Deactivate / Reactivate / Remove a MANAGER or another ADMIN (except Last Admin), because those levels stay among ADMINs.
-6. **As the Last Admin:** I must not be able to Deactivate, Vacation, or Remove myself (or be so treated) until another ADMIN exists, so the platform is never left without an ADMIN who can log in.
+6. **As the Last Admin:** I must not be able to Deactivate, Vacation, or Remove myself (or be so treated) until another `ACTIVE` ADMIN exists, so the platform is never left without an ADMIN who can log in.
 
 ---
 
@@ -168,7 +168,7 @@ These scenarios were walked during the grilling session. They are the rationale,
 
 **Why MANAGER cannot act on MANAGER or ADMIN.** “MANAGER is aimed at employees.” Peer-manager conflict and all ADMIN lifecycle escalate to ADMIN. Today’s `update-status` (any token, any target) is **stricter** after this PRD.
 
-**Why Last Admin cannot leave `ACTIVE`.** After the matrix, a MANAGER cannot Reactivate an ADMIN. Login rejects non-`ACTIVE`. If the only ADMIN became `INACTIVE` or `VACATION`, nobody with permission could bring them back. Same lockout as Remove of Last Admin. Fix: Last Admin stays `ACTIVE` until a second ADMIN exists. This version does **not** widen login to `VACATION`.
+**Why Last Admin cannot leave `ACTIVE`.** After the matrix, a MANAGER cannot Reactivate an ADMIN. Login rejects non-`ACTIVE`. If the only `ACTIVE` ADMIN became `INACTIVE` or `VACATION`, leftover non-`REMOVED` ADMINs do not restore login — nobody with permission could bring them back. Same lockout as Remove of Last Admin. Fix: Last Admin stays `ACTIVE` until a second `ACTIVE` ADMIN exists. This version does **not** widen login to `VACATION`.
 
 **Why `REMOVED` is absent from the list.** Sentinels would look like real people and confuse Reactivate vs Create.
 

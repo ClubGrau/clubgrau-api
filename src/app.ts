@@ -24,6 +24,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
   const employees = makeEmployeesModule({
     connection,
     encrypter: bcryptAdapter,
+    compareHash: bcryptAdapter,
     authTokenMiddleware: auth.authTokenMiddleware,
   });
 

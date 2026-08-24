@@ -3,6 +3,10 @@ import {
   FindEmployeesParams,
   FindEmployeesResult,
 } from '@modules/employees/application/dtos/get-employees.dto';
+import {
+  AnonymizeEmployeeParams,
+  AnonymizeEmployeeRepositoryPort,
+} from '@modules/employees/application/ports/outbound/anonymize-employee-repository.port';
 import { CreateEmployeeRepositoryPort } from '@modules/employees/application/ports/outbound/create-employee-repository.port';
 import { FindEmployeeByIdPort } from '@modules/employees/application/ports/outbound/find-employee-by-id.port';
 import { FindEmployeesPort } from '@modules/employees/application/ports/outbound/find-employees.port';
@@ -10,6 +14,8 @@ import {
   UpdateEmployeeStatusParams,
   UpdateEmployeeStatusRepositoryPort,
 } from '@modules/employees/application/ports/outbound/update-employee-status-repository.port';
+import { CountActiveAdminsPort } from '@modules/employees/domain/ports/count-active-admins.port';
+import { CountNonRemovedAdminsPort } from '@modules/employees/domain/ports/count-non-removed-admins.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { QueryFilter } from 'mongoose';
@@ -34,7 +40,10 @@ export class EmployeeMongooseRepository
     FindEmployeeByIdPort,
     CreateEmployeeRepositoryPort,
     FindEmployeesPort,
-    UpdateEmployeeStatusRepositoryPort
+    UpdateEmployeeStatusRepositoryPort,
+    CountNonRemovedAdminsPort,
+    CountActiveAdminsPort,
+    AnonymizeEmployeeRepositoryPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
 
@@ -73,6 +82,37 @@ export class EmployeeMongooseRepository
     );
   }
 
+  async countNonRemovedAdmins(): Promise<number> {
+    return this.employeeModel.countDocuments({
+      role: EmployeeModel.Role.ADMIN,
+      status: { $ne: EmployeeModel.Status.REMOVED },
+    });
+  }
+
+  async countActiveAdmins(): Promise<number> {
+    return this.employeeModel.countDocuments({
+      role: EmployeeModel.Role.ADMIN,
+      status: EmployeeModel.Status.ACTIVE,
+    });
+  }
+
+  async anonymize(params: AnonymizeEmployeeParams): Promise<void> {
+    await this.employeeModel.updateOne(
+      { _id: params.id },
+      {
+        $set: {
+          name: params.name,
+          email: params.email,
+          phone: params.phone,
+          nif: params.nif,
+          password: params.password,
+          status: params.status,
+          removedAt: params.removedAt,
+        },
+      },
+    );
+  }
+
   async findAll(params: FindEmployeesParams): Promise<FindEmployeesResult> {
     const filter = this.buildFindFilter(params);
 
@@ -98,7 +138,9 @@ export class EmployeeMongooseRepository
     const filter: QueryFilter<EmployeeSchemaType> = {};
 
     if (params.status) {
-      filter.status = params.status;
+      filter.status = { $eq: params.status, $ne: EmployeeModel.Status.REMOVED };
+    } else {
+      filter.status = { $ne: EmployeeModel.Status.REMOVED };
     }
     if (params.role) {
       filter.role = params.role;

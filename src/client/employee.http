@@ -1,4 +1,4 @@
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg2MTQzMTU0LCJleHAiOjI5OTU3NDMxNTR9.cm5-3lKod4May1GPHV7QJI25vW2BuaCXOP5nxB631sI
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFiN2FmYTJiZjkyYmFlZWY0ZjUyMDBjOCIsIm5hbWUiOiJWYW4gU3Rlcm95IiwiZW1haWwiOiJ2YW4uc3Rlcm95QGV4YW1wbGUuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3NDI5NDgzLCJleHAiOjI5OTcwMjk0ODN9.2FCGLI0xoHqc9lib5jNjNrjHCpkYKkekyXhM2RkTjH8
 
 ### Create employee
 POST http://localhost:3003/api/employee
@@ -27,19 +27,33 @@ GET http://localhost:3003/api/employees?status=ACTIVE&role=EMPLOYEE&search=grau&
 Authorization: Bearer {{token}}
 
 ### List employees (inactive)
-GET http://localhost:3003/api/employees?status=INACTIVE&page=1&limit=10
+GET http://localhost:3003/api/employees?status=INVALID&page=1&limit=10
 Authorization: Bearer {{token}}
+# GET .../employees?status=REMOVED → 400 Invalid param status
 
 ### List employees (vacation)
 GET http://localhost:3003/api/employees?status=VACATION&page=1&limit=10
 Authorization: Bearer {{token}}
 
 ### Update employee status
+# Actor vem do Bearer token (adaptRoute stampa actorId). Não enviar actorId no body.
 POST http://localhost:3003/api/employee/update-status
 Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-  "id": "507f1f77bcf86cd799439011",
+  "id": "75a8421596c6c09cff9425d6",
   "status": "INACTIVE"
+}
+
+### Remove employee (anonymize)
+# Actor vem do Bearer token (adaptRoute stampa actorId). Não enviar actorId no body.
+# password é a senha do Actor (step-up), não a do Target.
+POST http://localhost:3003/api/employee/remove
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "75a8421596c6c09cff9425d6",
+  "password": "P@ssword123"
 }

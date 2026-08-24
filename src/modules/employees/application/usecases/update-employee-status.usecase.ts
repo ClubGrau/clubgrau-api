@@ -1,9 +1,14 @@
 import { Employee } from '@modules/employees/domain/entities/Employee';
 import {
+  ActorAuthenticationFailedError,
   EmployeeNotFoundError,
   InvalidEmployeeStatusError,
 } from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
+import {
+  EmployeeLifecyclePolicy,
+  LifecycleIntent,
+} from '@modules/employees/domain/services/employee-lifecycle.policy';
 import { Email, Name, Nif, Password, Phone } from '@shared/domain/value-object';
 import {
   UpdateEmployeeStatusDto,
@@ -17,26 +22,39 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
   constructor(
     private readonly findEmployeeById: FindEmployeeByIdPort,
     private readonly updateEmployeeStatusRepository: UpdateEmployeeStatusRepositoryPort,
+    private readonly lifecyclePolicy: EmployeeLifecyclePolicy,
   ) {}
 
   async execute(
     params: UpdateEmployeeStatusDto,
   ): Promise<UpdateEmployeeStatusResultDto> {
-    const isEmployee = await this.findEmployeeById.findById(params.id);
-    if (!isEmployee) {
+    const error = new ActorAuthenticationFailedError();
+    if (!params.actorId?.trim()) throw error;
+
+    const actorSnapshot = await this.findEmployeeById.findById(params.actorId);
+    if (!actorSnapshot) throw error;
+
+    const targetEmployeeSnapshot = await this.findEmployeeById.findById(
+      params.id,
+    );
+    if (!targetEmployeeSnapshot) {
       throw new EmployeeNotFoundError();
     }
 
-    const employee = this.reconstitute(isEmployee);
-    this.applyTransition(employee, params.status);
+    const actor = this.reconstitute(actorSnapshot);
+    const target = this.reconstitute(targetEmployeeSnapshot);
+    const intent = this.mapIntent(params.status);
+
+    await this.lifecyclePolicy.assertCan({ actor, target, intent });
+    this.applyTransition(target, params.status);
 
     await this.updateEmployeeStatusRepository.updateStatus({
-      id: employee.id,
-      status: employee.status,
-      deactivateAt: employee.toJSON().deactivateAt,
+      id: target.id,
+      status: target.status,
+      deactivateAt: target.toJSON().deactivateAt,
     });
 
-    return { id: employee.id, status: employee.status };
+    return { id: target.id, status: target.status };
   }
 
   private reconstitute(snapshot: EmployeeModel.toCreate): Employee {
@@ -51,7 +69,23 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
       status: snapshot.status,
       createdAt: snapshot.createdAt,
       deactivateAt: snapshot.deactivateAt,
+      removedAt: snapshot.removedAt ?? null,
     });
+  }
+
+  private mapIntent(status: EmployeeModel.OperationalStatus): LifecycleIntent {
+    switch (status) {
+      case EmployeeModel.Status.ACTIVE:
+        return 'REACTIVATE';
+      case EmployeeModel.Status.INACTIVE:
+        return 'DEACTIVATE';
+      case EmployeeModel.Status.VACATION:
+        return 'VACATION';
+      default: {
+        const exhaustive: never = status;
+        throw new InvalidEmployeeStatusError(`Invalid status: "${exhaustive}"`);
+      }
+    }
   }
 
   private applyTransition(
@@ -68,6 +102,8 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
       case EmployeeModel.Status.VACATION:
         employee.putOnVacation();
         return;
+      case EmployeeModel.Status.REMOVED:
+        throw new InvalidEmployeeStatusError(`Invalid status: "${status}"`);
       default: {
         const exhaustive: never = status;
         throw new InvalidEmployeeStatusError(`Invalid status: "${exhaustive}"`);

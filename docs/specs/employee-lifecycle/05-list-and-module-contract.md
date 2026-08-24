@@ -88,12 +88,12 @@ Sections that must match **shipped** code after slices 0–5:
 
 1. **Module status** — Remove is Done (`POST /api/employee/remove`). Drop “designed, not shipped”.
 2. **Directory map** — policy, lifecycle errors, Remove files, `removedAt`, new ports.
-3. **Domain** — `Status` includes `REMOVED`; `isOperationalStatus`; `anonymize()`; `EmployeeLifecyclePolicy` + `CountNonRemovedAdminsPort`; new errors. Keep `EmployeePoliciesService` as **email occupancy only**.
+3. **Domain** — `Status` includes `REMOVED`; `isOperationalStatus`; `anonymize()`; `EmployeeLifecyclePolicy` + `CountNonRemovedAdminsPort` + `CountActiveAdminsPort`; new errors. Keep `EmployeePoliciesService` as **email occupancy only**.
 4. **Update-status command** — `actorId` on DTO; policy before transition; HTTP `400`/`401`/`403`/`409`.
 5. **Remove command** — ports, flow, anonymize `$set`, HTTP. No “planned”.
 6. **Get Employees** — `isOperationalStatus`; `findAll` excludes `REMOVED`; `total` on the filtered set.
 7. **HTTP / routes** — four routes; `adaptRoute` stamps `actorId`; do not send `actorId` in bodies.
-8. **Persistence** — enum + `removedAt`; `countNonRemovedAdmins`; `anonymize`; list exclusion; `findById`/`findByEmail` unchanged.
+8. **Persistence** — enum + `removedAt`; `countNonRemovedAdmins`; `countActiveAdmins`; `anonymize`; list exclusion; `findById`/`findByEmail` unchanged.
 9. **Wiring** — `compareHash`; policy constructed once; injected into update-status **and** Remove.
 10. **Sequences** — update-status, Remove, list (design §13).
 11. **Open decisions**

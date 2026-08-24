@@ -13,11 +13,12 @@ export const EmployeeSchema = new mongoose.Schema({
   nif: { type: Number },
   status: {
     type: String,
-    enum: ['ACTIVE', 'INACTIVE', 'VACATION'],
+    enum: ['ACTIVE', 'INACTIVE', 'VACATION', 'REMOVED'],
     default: 'ACTIVE',
   },
   createdAt: { type: Date, default: Date.now },
   deactivateAt: { type: Date, default: null },
+  removedAt: { type: Date, default: null },
 });
 
 /** Campos inferidos do Schema (sem `_id` — é o que `connection.model` tipa). */

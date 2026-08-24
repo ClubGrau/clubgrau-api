@@ -12,8 +12,8 @@ Give the hexagon a **terminal** `REMOVED` status, an `anonymize()` behavior, and
 
 | Spec | Responsibility |
 |------|----------------|
-| **This file** | Model, entity, errors, domain port, policy + specs |
-| [`02-persistence.md`](./02-persistence.md) | Schema / mapper / repo implement the count port |
+| **This file** | Model, entity, errors, domain ports, policy + specs |
+| [`02-persistence.md`](./02-persistence.md) | Schema / mapper / repo implement the count ports |
 | [`03-update-employee-status.md`](./03-update-employee-status.md) | Use case calls `assertCan` |
 | [`04-remove-employee.md`](./04-remove-employee.md) | Use case calls `assertCan(REMOVE)` + persist anonymize |
 | `EmployeePoliciesService` | **Unchanged** — create-time email occupancy only |
@@ -28,6 +28,7 @@ Use this document to change **domain only** (`domain/` + the smallest compile se
 | `Employee.anonymize()`, `removedAt` on props, `get role()` | Yes |
 | New domain errors | Yes |
 | `CountNonRemovedAdminsPort` (domain outbound) | Yes — interface only |
+| `CountActiveAdminsPort` (domain outbound) | Yes — interface only |
 | `EmployeeLifecyclePolicy` + `*.spec.ts` | Yes |
 | Compile seams in `UpdateEmployeeStatusUsecase` / existing reconstitutes | Yes — see [Compile seams](#compile-seams) |
 | Schema / repository / HTTP / wiring | **No** |
@@ -36,7 +37,7 @@ Use this document to change **domain only** (`domain/` + the smallest compile se
 **Prompt sketch for the agent:**
 
 > Implement slice 1 of employee lifecycle following [`docs/specs/employee-lifecycle/01-domain.md`](./01-domain.md).  
-> Add `REMOVED` + `isOperationalStatus`, `Employee.anonymize()`, lifecycle errors, `CountNonRemovedAdminsPort`, and `EmployeeLifecyclePolicy.assertCan`.  
+> Add `REMOVED` + `isOperationalStatus`, `Employee.anonymize()`, lifecycle errors, `CountNonRemovedAdminsPort`, `CountActiveAdminsPort`, and `EmployeeLifecyclePolicy.assertCan`.  
 > Do not touch schema, HTTP, or Remove use case. Keep `EmployeePoliciesService` as email occupancy.
 
 ## 1. `EmployeeModel.Status`
@@ -120,7 +121,9 @@ Add to `domain/errors/employee.errors.ts` (same `DomainError` style, fixed messa
 
 Existing already-in-status / not-found errors stay. Do not reuse `AuthenticationError` from the auth hexagon (cross-module domain import is forbidden).
 
-## 4. `CountNonRemovedAdminsPort`
+## 4. Count ports
+
+### `CountNonRemovedAdminsPort`
 
 File: `domain/ports/count-non-removed-admins.port.ts`.
 
@@ -130,7 +133,21 @@ export interface CountNonRemovedAdminsPort {
 }
 ```
 
-This is a **domain** outbound port (policy is a domain service). The repository implements it in slice 2. Query meaning: `{ role: ADMIN, status: { $ne: REMOVED } }` — `INACTIVE` / `VACATION` ADMINs still count (legacy). Do not implement the query here.
+Query meaning: `{ role: ADMIN, status: { $ne: REMOVED } }` — `INACTIVE` / `VACATION` ADMINs still count (legacy Remove protection). Do not implement the query here.
+
+### `CountActiveAdminsPort`
+
+File: `domain/ports/count-active-admins.port.ts`.
+
+```ts
+export interface CountActiveAdminsPort {
+  countActiveAdmins(): Promise<number>;
+}
+```
+
+Query meaning: `{ role: ADMIN, status: ACTIVE }`. Used so `DEACTIVATE` / `VACATION` cannot leave zero login-capable ADMINs. Do not implement the query here.
+
+Both are **domain** outbound ports (policy is a domain service). The repository implements them in slice 2.
 
 ## 5. `EmployeeLifecyclePolicy`
 
@@ -139,7 +156,7 @@ Files:
 - `domain/services/employee-lifecycle.policy.ts` (or `employee-lifecycle-policy.service.ts` if you prefer kebab matching `employee-policies.service.ts` — **name the class `EmployeeLifecyclePolicy`**)
 - co-located `*.spec.ts`
 
-Pure domain. Constructor injects `CountNonRemovedAdminsPort` only. No Express, Mongoose, bcrypt, encrypter, or `EmployeePoliciesService`.
+Pure domain. Constructor injects `CountNonRemovedAdminsPort & CountActiveAdminsPort`. No Express, Mongoose, bcrypt, encrypter, or `EmployeePoliciesService`.
 
 ```ts
 export type LifecycleIntent = 'DEACTIVATE' | 'REACTIVATE' | 'VACATION' | 'REMOVE'
@@ -155,20 +172,21 @@ assertCan(input: {
 
 ### Rules (this order, stop at first throw)
 
-1. **Actor usable.** `actor.status !== ACTIVE` → `ActorAuthenticationFailedError`. Do not call the count port.
+1. **Actor usable.** `actor.status !== ACTIVE` → `ActorAuthenticationFailedError`. Do not call either count port.
 2. **Self-Remove.** `actor.id === target.id` **and** `intent === 'REMOVE'` → `EmployeeLifecycleForbiddenError`. (Statuses already differ in the happy path; this is belt-and-braces.)
 3. **Target already Removed.** `target.status === REMOVED` (any intent) → `EmployeeAlreadyRemovedError`. Terminal; no lifecycle command applies.
 4. **Matrix**
    - Actor `EMPLOYEE` → `EmployeeLifecycleForbiddenError` (all intents).
    - Actor `MANAGER` → allow `DEACTIVATE` / `REACTIVATE` / `VACATION` only if `target.role === EMPLOYEE`; else forbidden. `REMOVE` → always forbidden.
    - Actor `ADMIN` → allow all intents on any role, except steps 5–6.
-5. **Last Admin.** If `target.role === ADMIN` **and** intent is `DEACTIVATE` \| `VACATION` \| `REMOVE`:
-   - `count = await countNonRemovedAdmins()`
-   - if `count === 1` → `LastAdminProtectedError`
-   - `REACTIVATE` of a leftover `INACTIVE` ADMIN is **allowed** for an ADMIN actor (do not call count / do not throw Last Admin).
+5. **Last Admin.** If `target.role === ADMIN`:
+   - `DEACTIVATE` \| `VACATION` **and** `target.status === ACTIVE`: `count = await countActiveAdmins()`; if `count === 1` → `LastAdminProtectedError`. Leftover `INACTIVE` / `VACATION` ADMINs do not keep this check from firing. Do not call `countNonRemovedAdmins`.
+   - `REMOVE`: `count = await countNonRemovedAdmins()`; if `count === 1` → `LastAdminProtectedError`. Do not call `countActiveAdmins`.
+   - `REACTIVATE` of a leftover `INACTIVE` ADMIN is **allowed** for an ADMIN actor (do not call either count / do not throw Last Admin).
+   - `DEACTIVATE` of an ADMIN who is already `VACATION` does not call `countActiveAdmins` (target is not leaving `ACTIVE`).
 6. **Remove extra.** If `intent === 'REMOVE'` and `target.status !== INACTIVE` → `EmployeeNotInactiveError`.
 
-Call `countNonRemovedAdmins` **only** in step 5 when the Last Admin check actually runs. Matrix refusals and non-ADMIN targets must not hit the port (keeps tests honest and avoids extra I/O).
+Call a count port **only** in step 5 when that Last Admin check actually runs. Matrix refusals and non-ADMIN targets must not hit either port (keeps tests honest and avoids extra I/O).
 
 `VACATION` is an operational intent. On the matrix it follows **Deactivate** (MANAGER → `EMPLOYEE` only; ADMIN → any role except Last Admin leaving `ACTIVE`).
 
@@ -202,6 +220,7 @@ Do not change `GetEmployeesController` in this slice.
 | `domain/entities/Employee.ts` + `employee.spec.ts` | `removedAt`, `role` getter, `anonymize()`, terminal guard on operational methods |
 | `domain/errors/employee.errors.ts` | five new errors |
 | `domain/ports/count-non-removed-admins.port.ts` | Create |
+| `domain/ports/count-active-admins.port.ts` | Create |
 | `domain/services/employee-lifecycle.policy.ts` + `*.spec.ts` | Create |
 | `application/usecases/update-employee-status.usecase.ts` | `REMOVED` branch throws `InvalidEmployeeStatusError` only |
 | Schema, repo, controllers, module, `.http` | Do not change |
@@ -235,7 +254,7 @@ Mirror existing `makeSnapshot` / `create` style.
 
 ### `employee-lifecycle.policy.spec.ts`
 
-`makeStubs` / `makeSut` / `SutTypes`. Stub `CountNonRemovedAdminsPort` (`countNonRemovedAdmins: jest.fn().mockResolvedValue(2)`). Build Actor/Target via `Employee.reconstitute` (hashed password). `afterEach` → `jest.restoreAllMocks()`. No Mongo / HTTP.
+`makeStubs` / `makeSut` / `SutTypes`. Stub `CountNonRemovedAdminsPort & CountActiveAdminsPort` (`countNonRemovedAdmins` and `countActiveAdmins`: `jest.fn().mockResolvedValue(2)`). Build Actor/Target via `Employee.reconstitute` (hashed password). `afterEach` → `jest.restoreAllMocks()`. No Mongo / HTTP.
 
 Helper to reconstitute with role/status overrides.
 
@@ -244,20 +263,23 @@ Required cases:
 | `it(...)` | Assert |
 |-----------|--------|
 | `should be defined` | instance of `EmployeeLifecyclePolicy` |
-| Actor not `ACTIVE` (INACTIVE / VACATION / REMOVED) | `ActorAuthenticationFailedError`; count **not** called |
-| Actor `EMPLOYEE` any intent | `EmployeeLifecycleForbiddenError`; count **not** called |
-| Actor `MANAGER` + Target `EMPLOYEE` + DEACTIVATE / REACTIVATE / VACATION | resolves; count **not** called |
-| Actor `MANAGER` + Target `EMPLOYEE` + REMOVE | forbidden; count **not** called |
+| Actor not `ACTIVE` (INACTIVE / VACATION / REMOVED) | `ActorAuthenticationFailedError`; neither count called |
+| Actor `EMPLOYEE` any intent | `EmployeeLifecycleForbiddenError`; neither count called |
+| Actor `MANAGER` + Target `EMPLOYEE` + DEACTIVATE / REACTIVATE / VACATION | resolves; neither count called |
+| Actor `MANAGER` + Target `EMPLOYEE` + REMOVE | forbidden; neither count called |
 | Actor `MANAGER` + Target `MANAGER` or `ADMIN` (any intent) | forbidden |
 | Actor `ADMIN` + Target `EMPLOYEE`/`MANAGER` + DEACTIVATE / REACTIVATE / VACATION / REMOVE (Target INACTIVE for REMOVE) | resolves |
 | Actor `ADMIN` + REMOVE while Target `ACTIVE` or `VACATION` | `EmployeeNotInactiveError` |
 | Actor `ADMIN` + any intent on Target `REMOVED` | `EmployeeAlreadyRemovedError` |
 | Self-Remove (`actor.id === target.id`, intent REMOVE) | forbidden |
-| Last Admin (`count === 1`) + DEACTIVATE / VACATION / REMOVE on ADMIN Target | `LastAdminProtectedError`; count called once |
-| Last Admin + REACTIVATE of INACTIVE ADMIN | resolves; count **not** called |
-| Two ADMINs (`count === 2`) + ADMIN Actor REMOVE INACTIVE ADMIN Target | resolves |
+| Last `ACTIVE` ADMIN (`countActiveAdmins === 1`) + DEACTIVATE / VACATION on ACTIVE ADMIN Target — even if `countNonRemovedAdmins === 2` | `LastAdminProtectedError`; `countActiveAdmins` once; `countNonRemovedAdmins` not called |
+| Last non-`REMOVED` ADMIN (`countNonRemovedAdmins === 1`) + REMOVE on ADMIN Target | `LastAdminProtectedError`; `countNonRemovedAdmins` once; `countActiveAdmins` not called |
+| Last Admin + REACTIVATE of INACTIVE ADMIN | resolves; neither count called |
+| Two non-`REMOVED` ADMINs (`countNonRemovedAdmins === 2`) + ADMIN Actor REMOVE INACTIVE ADMIN Target | resolves |
+| Two `ACTIVE` ADMINs (`countActiveAdmins === 2`) + DEACTIVATE / VACATION on ADMIN Target | resolves; `countActiveAdmins` once |
+| `DEACTIVATE` of a `VACATION` ADMIN while `countActiveAdmins === 1` | resolves; neither count called |
 | `EMPLOYEE` / `MANAGER` refusals do not call count | already covered; keep explicit |
-| Count port rejection | propagate the same error |
+| Count port rejection | propagate the same error (`countActiveAdmins` on DEACTIVATE; `countNonRemovedAdmins` on REMOVE) |
 
 ## Checklist (agent)
 
@@ -265,7 +287,7 @@ Required cases:
 - [ ] `isStatus` includes `REMOVED`; HTTP subset is `isOperationalStatus`
 - [ ] `anonymize()` has no I/O and does not hash
 - [ ] Policy is the only matrix/Last-Admin owner; `EmployeePoliciesService` untouched
-- [ ] `CountNonRemovedAdminsPort` lives under `domain/ports/`
+- [ ] `CountNonRemovedAdminsPort` and `CountActiveAdminsPort` live under `domain/ports/`
 - [ ] `assertCan` rule order matches this spec
 - [ ] Co-located specs cover the tables
 - [ ] Hexagon still compiles (REMOVED switch seam)
@@ -284,7 +306,7 @@ Required cases:
 - [ ] `EmployeeModel.isOperationalStatus('REMOVED') === false` and `isStatus('REMOVED') === true`
 - [ ] `INACTIVE` employee `anonymize()` → `REMOVED` + sentinels; original role/id kept
 - [ ] MANAGER cannot `assertCan` REMOVE or act on MANAGER/ADMIN
-- [ ] Last Admin DEACTIVATE / VACATION / REMOVE → `LastAdminProtectedError`
+- [ ] Last Admin DEACTIVATE / VACATION (last `ACTIVE`) / REMOVE (last non-`REMOVED`) → `LastAdminProtectedError`
 - [ ] ADMIN may REACTIVATE a leftover INACTIVE ADMIN
 - [ ] Policy + entity + model specs pass
 - [ ] `EmployeePoliciesService` specs still pass unchanged

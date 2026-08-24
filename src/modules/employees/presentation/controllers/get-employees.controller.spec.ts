@@ -105,6 +105,35 @@ describe('GetEmployeesController', () => {
     expect(getEmployeesSpy).not.toHaveBeenCalled();
   });
 
+  it('should return 400 when status is REMOVED', async () => {
+    const { sut, getEmployeesStub } = makeSut();
+    const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');
+
+    const response = await sut.handle({ status: EmployeeModel.Status.REMOVED });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toEqual({ error: 'Invalid param status' });
+    expect(getEmployeesSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    EmployeeModel.Status.ACTIVE,
+    EmployeeModel.Status.INACTIVE,
+    EmployeeModel.Status.VACATION,
+  ])(
+    'should call GetEmployeesPort with status %s when it is an operational status',
+    async (operationalStatus) => {
+      const { sut, getEmployeesStub } = makeSut();
+      const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');
+
+      await sut.handle({ status: operationalStatus });
+
+      expect(getEmployeesSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ status: operationalStatus }),
+      );
+    },
+  );
+
   it('should accept VACATION as a valid status filter', async () => {
     const { sut, getEmployeesStub } = makeSut();
     const getEmployeesSpy = jest.spyOn(getEmployeesStub, 'execute');

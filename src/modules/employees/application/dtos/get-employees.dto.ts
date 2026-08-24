@@ -3,7 +3,7 @@ import { PaginationInputDto } from '@shared/application/pagination/pagination.dt
 
 /** Input da query GetEmployees (filtros + paginação offset). */
 export interface GetEmployeesDto extends PaginationInputDto {
-  status?: EmployeeModel.Status;
+  status?: EmployeeModel.OperationalStatus;
   role?: EmployeeModel.Role;
   search?: string;
 }
@@ -26,7 +26,7 @@ export interface GetEmployeesItemDto {
 
 /** Params do outbound port de leitura (já com skip/limit normalizados). */
 export interface FindEmployeesParams {
-  status?: EmployeeModel.Status;
+  status?: EmployeeModel.OperationalStatus;
   role?: EmployeeModel.Role;
   search?: string;
   skip: number;

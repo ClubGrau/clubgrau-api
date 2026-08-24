@@ -4,6 +4,13 @@ import { EmployeeMongooseRepository } from './employee-mongoose.repository';
 import { EmployeeDocument, EmployeeMongooseModel } from './employee.schema';
 import mongoose from 'mongoose';
 
+const employeeStatuses = {
+  REMOVED: EmployeeModel.Status.REMOVED,
+  ACTIVE: EmployeeModel.Status.ACTIVE,
+  INACTIVE: EmployeeModel.Status.INACTIVE,
+  ADMIN: EmployeeModel.Role.ADMIN,
+};
+
 const mockEmployee = {
   _id: new mongoose.Types.ObjectId(),
   name: 'John Doe',
@@ -15,6 +22,7 @@ const mockEmployee = {
   status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date('2024-01-01T00:00:00Z'),
   deactivateAt: null,
+  removedAt: null,
 } as EmployeeDocument;
 
 const mongooseMocks = () => makeChainableMock(mockEmployee);
@@ -54,6 +62,7 @@ describe('EmployeeMongooseRepository', () => {
             status: EmployeeModel.Status.ACTIVE,
             createdAt: new Date('2024-01-01T00:00:00Z'),
             deactivateAt: null,
+            removedAt: null,
           }),
         });
 
@@ -70,6 +79,7 @@ describe('EmployeeMongooseRepository', () => {
         status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
+        removedAt: null,
       });
     });
 
@@ -102,6 +112,7 @@ describe('EmployeeMongooseRepository', () => {
         status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
+        removedAt: null,
       });
       const findByIdSpy = jest
         .spyOn(employeeModelMock, 'findById')
@@ -121,6 +132,7 @@ describe('EmployeeMongooseRepository', () => {
         status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
+        removedAt: null,
       });
     });
 
@@ -176,6 +188,7 @@ describe('EmployeeMongooseRepository', () => {
         status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
+        removedAt: null,
       };
       const createSpy = jest
         .spyOn(employeeModelMock, 'create')
@@ -190,6 +203,7 @@ describe('EmployeeMongooseRepository', () => {
           status: EmployeeModel.Status.ACTIVE,
           createdAt: new Date('2024-01-01T00:00:00Z'),
           deactivateAt: null,
+          removedAt: null,
         });
       const result = await sut.create(employeeData);
       expect(createSpy).toHaveBeenCalledWith({
@@ -203,6 +217,7 @@ describe('EmployeeMongooseRepository', () => {
         status: EmployeeModel.Status.ACTIVE,
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
+        removedAt: null,
       });
       expect(result).toEqual({ id: employeeData.id });
     });
@@ -224,6 +239,7 @@ describe('EmployeeMongooseRepository', () => {
           status: EmployeeModel.Status.ACTIVE,
           createdAt: new Date('2024-01-01T00:00:00Z'),
           deactivateAt: null,
+          removedAt: null,
         },
       ]);
       const limit = jest.fn().mockReturnValueOnce({ lean });
@@ -238,11 +254,15 @@ describe('EmployeeMongooseRepository', () => {
 
       const result = await sut.findAll({ skip: 20, limit: 10 });
 
-      expect(findSpy).toHaveBeenCalledWith({});
+      expect(findSpy).toHaveBeenCalledWith({
+        status: { $ne: employeeStatuses.REMOVED },
+      });
       expect(sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
       expect(skip).toHaveBeenCalledWith(20);
       expect(limit).toHaveBeenCalledWith(10);
-      expect(countSpy).toHaveBeenCalledWith({});
+      expect(countSpy).toHaveBeenCalledWith({
+        status: { $ne: employeeStatuses.REMOVED },
+      });
       expect(result).toEqual({
         items: [
           {
@@ -283,7 +303,7 @@ describe('EmployeeMongooseRepository', () => {
       });
 
       const expectedFilter = {
-        status: EmployeeModel.Status.ACTIVE,
+        status: { $eq: employeeStatuses.ACTIVE, $ne: employeeStatuses.REMOVED },
         role: EmployeeModel.Role.MANAGER,
       };
       expect(findSpy).toHaveBeenCalledWith(expectedFilter);
@@ -309,7 +329,12 @@ describe('EmployeeMongooseRepository', () => {
         limit: 20,
       });
 
-      const expectedFilter = { status: EmployeeModel.Status.INACTIVE };
+      const expectedFilter = {
+        status: {
+          $eq: employeeStatuses.INACTIVE,
+          $ne: employeeStatuses.REMOVED,
+        },
+      };
       expect(findSpy).toHaveBeenCalledWith(expectedFilter);
       expect(countSpy).toHaveBeenCalledWith(expectedFilter);
     });
@@ -335,7 +360,7 @@ describe('EmployeeMongooseRepository', () => {
       });
 
       const expectedFilter = {
-        status: EmployeeModel.Status.ACTIVE,
+        status: { $eq: employeeStatuses.ACTIVE, $ne: employeeStatuses.REMOVED },
         $or: [
           { name: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
           { email: { $regex: 'grau\\.\\+\\(test\\)', $options: 'i' } },
@@ -367,6 +392,99 @@ describe('EmployeeMongooseRepository', () => {
       const result = await sut.findAll({ skip: 0, limit: 20 });
 
       expect(result).toEqual({ items: [], total: 0 });
+    });
+  });
+
+  describe('countNonRemovedAdmins', () => {
+    it('should call countDocuments with correct filter', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const countSpy = jest
+        .spyOn(employeeModelMock, 'countDocuments')
+        .mockResolvedValueOnce(2);
+
+      await sut.countNonRemovedAdmins();
+
+      expect(countSpy).toHaveBeenCalledWith({
+        role: employeeStatuses.ADMIN,
+        status: { $ne: employeeStatuses.REMOVED },
+      });
+    });
+
+    it('should return the numeric result', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      jest.spyOn(employeeModelMock, 'countDocuments').mockResolvedValueOnce(2);
+
+      const result = await sut.countNonRemovedAdmins();
+
+      expect(result).toBe(2);
+    });
+  });
+
+  describe('countActiveAdmins', () => {
+    it('should call countDocuments with role ADMIN and status ACTIVE', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const countSpy = jest
+        .spyOn(employeeModelMock, 'countDocuments')
+        .mockResolvedValueOnce(1);
+
+      await sut.countActiveAdmins();
+
+      expect(countSpy).toHaveBeenCalledWith({
+        role: employeeStatuses.ADMIN,
+        status: employeeStatuses.ACTIVE,
+      });
+    });
+
+    it('should return the numeric result', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      jest.spyOn(employeeModelMock, 'countDocuments').mockResolvedValueOnce(1);
+
+      const result = await sut.countActiveAdmins();
+
+      expect(result).toBe(1);
+    });
+  });
+
+  describe('anonymize', () => {
+    it('should call updateOne with $set of the six fields only (no role/deactivateAt)', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const removedAt = new Date('2025-01-15T10:00:00Z');
+      const updateOneSpy = jest.spyOn(employeeModelMock, 'updateOne');
+
+      await sut.anonymize({
+        id: employeeId,
+        name: 'anonymized',
+        email: `removed-${employeeId}@removed.invalid`,
+        phone: null,
+        nif: null,
+        password: 'hashed_anonymous',
+        status: EmployeeModel.Status.REMOVED,
+        removedAt,
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        {
+          $set: {
+            name: 'anonymized',
+            email: `removed-${employeeId}@removed.invalid`,
+            phone: null,
+            nif: null,
+            password: 'hashed_anonymous',
+            status: EmployeeModel.Status.REMOVED,
+            removedAt,
+          },
+        },
+      );
+      const setPayload = (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+      expect(setPayload).not.toHaveProperty('role');
+      expect(setPayload).not.toHaveProperty('deactivateAt');
     });
   });
 });
