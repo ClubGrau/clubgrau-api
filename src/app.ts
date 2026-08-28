@@ -26,6 +26,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     encrypter: bcryptAdapter,
     compareHash: bcryptAdapter,
     authTokenMiddleware: auth.authTokenMiddleware,
+    makeRequireRoles: auth.makeRequireRoles,
   });
 
   const customers = makeCustomersModule({

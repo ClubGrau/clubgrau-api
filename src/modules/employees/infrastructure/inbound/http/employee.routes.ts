@@ -11,6 +11,7 @@ export type EmployeeRoutesDependencies = {
   updateEmployeeStatusController: UpdateEmployeeStatusController;
   removeEmployeeController: RemoveEmployeeController;
   authTokenMiddleware: RequestHandler;
+  requireRoles: (...roles: string[]) => RequestHandler;
 };
 
 export function makeEmployeeRoutes({
@@ -19,17 +20,20 @@ export function makeEmployeeRoutes({
   updateEmployeeStatusController,
   removeEmployeeController,
   authTokenMiddleware,
+  requireRoles,
 }: EmployeeRoutesDependencies): Router {
   const router = Router();
 
   router.get(
     '/employees',
     authTokenMiddleware,
+    requireRoles('ADMIN', 'MANAGER'),
     adaptRoute(getEmployeesController),
   );
   router.post(
     '/employee',
     authTokenMiddleware,
+    requireRoles('ADMIN', 'MANAGER'),
     adaptRoute(createEmployeeController),
   );
   router.post(

@@ -48,6 +48,7 @@ After a meaningful change, update the relevant section(s) in place.
 | Password hashing | Done | `EncrypterPort` → `BcryptAdapter` (injected from `app.ts`) |
 | Mongo persistence | Done | `EmployeeMongooseRepository` |
 | Auth token on employee routes | Done | `authTokenMiddleware` on `GET` / `POST /employee` / `POST /employee/update-status` / `POST /employee/remove` |
+| Role gate on create/list | Done | `requireRoles('ADMIN', 'MANAGER')` on `GET /employees` and `POST /employee` — `EMPLOYEE` → 403 |
 | Module HTTP ownership | Done | `infrastructure/inbound/http/employee.routes.ts` |
 | Composition root wiring | Done | `employees.module.ts` + `app.ts` |
 
@@ -63,7 +64,6 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 ### Future work
 
 - Get employee by id / update other fields
-- Authorization (who may create/list employees) beyond token presence
 - Cross-module events / integration beyond this hexagon
 
 ---
@@ -154,7 +154,8 @@ Related outside the module:
 
 | Path | Role |
 |------|------|
-| `src/app.ts` | Injects `connection` + `BcryptAdapter` (`encrypter` + `compareHash`) + `authTokenMiddleware`, mounts `/api` |
+| `src/app.ts` | Injects `connection` + `BcryptAdapter` (`encrypter` + `compareHash`) + `authTokenMiddleware` + `makeRequireRoles`, mounts `/api` |
+| `src/modules/auth/.../require-roles.middleware.ts` | Role allowlist gate (`makeRequireRoles`) |
 | `src/shared/**` | Entity base, VOs, EncrypterPort, CompareHashPort, BaseController, adaptRoute, offset pagination |
 | `src/client/employee.http` | Manual REST Client requests |
 | [`AGENTS.md`](../../../AGENTS.md) | Global constitution |
@@ -588,8 +589,8 @@ Do not send `actorId` in the body. `password` is the Actor’s (step-up), not th
 
 ```ts
 // employee.routes.ts
-router.get('/employees', authTokenMiddleware, adaptRoute(getEmployeesController));
-router.post('/employee', authTokenMiddleware, adaptRoute(createEmployeeController));
+router.get('/employees', authTokenMiddleware, requireRoles('ADMIN', 'MANAGER'), adaptRoute(getEmployeesController));
+router.post('/employee', authTokenMiddleware, requireRoles('ADMIN', 'MANAGER'), adaptRoute(createEmployeeController));
 router.post('/employee/update-status', authTokenMiddleware, adaptRoute(updateEmployeeStatusController));
 router.post('/employee/remove', authTokenMiddleware, adaptRoute(removeEmployeeController));
 ```
@@ -603,7 +604,7 @@ POST /api/employee/update-status
 POST /api/employee/remove
 ```
 
-All require `Authorization` (Bearer token). Manual samples: `src/client/employee.http`.
+All require `Authorization` (Bearer token). `GET /employees` and `POST /employee` also require role `ADMIN` or `MANAGER` (`EMPLOYEE` → 403). `update-status` and `remove` keep domain-level authorization via `EmployeeLifecyclePolicy`. `adaptRoute` stamps `actorId` and, when present, `actorRole` from the JWT. Manual samples: `src/client/employee.http`.
 
 ### Request → response sequences
 
@@ -611,7 +612,7 @@ All require `Authorization` (Bearer token). Manual samples: `src/client/employee
 
 ```text
 Client
-  → employee.routes + authTokenMiddleware + adaptRoute
+  → employee.routes + authTokenMiddleware + requireRoles('ADMIN', 'MANAGER') + adaptRoute
   → CreateEmployeeController.handle
   → CreateEmployeePort.execute
   → CreateEmployeeUsecase
@@ -627,7 +628,7 @@ Client
 
 ```text
 Client
-  → employee.routes + authTokenMiddleware + adaptRoute
+  → employee.routes + authTokenMiddleware + requireRoles('ADMIN', 'MANAGER') + adaptRoute
   → GetEmployeesController.handle
   → GetEmployeesPort.execute
   → GetEmployeesQuery
@@ -717,7 +718,7 @@ When adding fields: update **schema → mapper → entity props / create props �
 
 ## Wiring (`employees.module.ts`)
 
-Factory: `makeEmployeesModule({ connection, encrypter, compareHash, authTokenMiddleware })`.
+Factory: `makeEmployeesModule({ connection, encrypter, compareHash, authTokenMiddleware, makeRequireRoles })`.
 
 `app.ts` passes the same `BcryptAdapter` instance as `encrypter` and `compareHash`.
 
@@ -735,7 +736,7 @@ Composition order today:
 10. `UpdateEmployeeStatusController(updateEmployeeStatus)`
 11. `RemoveEmployeeUsecase(repository, compareHash, encrypter, lifecyclePolicy, repository)`
 12. `RemoveEmployeeController(removeEmployee)`
-13. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, updateEmployeeStatusController, removeEmployeeController, authTokenMiddleware })`
+13. `makeEmployeeRoutes({ createEmployeeController, getEmployeesController, updateEmployeeStatusController, removeEmployeeController, authTokenMiddleware, requireRoles })`
 
 Returns `{ createEmployeeController, getEmployeesController, updateEmployeeStatusController, removeEmployeeController, createEmployee, getEmployees, router }`.
 
@@ -761,7 +762,7 @@ Never shortcut by calling the repository from the controller.
 ## Open decisions / known limitations
 
 1. **Inactive email collision** — **resolved in product, not yet in code.** `INACTIVE` still occupies the email (`EmployeeInactiveError` on create). Same person returns via **Reactivate**. A new person needs that email only after **Remove**. The INACTIVE screen is the fork: Reactivate **or** Remove.
-2. **Authorization** — `update-status` and `remove` enforce the lifecycle matrix via `EmployeeLifecyclePolicy` (MANAGER only `EMPLOYEE`; Last Admin stays `ACTIVE`; EMPLOYEE actor refused; only ADMIN may Remove). Create/list still only check token presence.
+2. **Authorization** — `update-status` and `remove` enforce the lifecycle matrix via `EmployeeLifecyclePolicy` (MANAGER only `EMPLOYEE`; Last Admin stays `ACTIVE`; EMPLOYEE actor refused; only ADMIN may Remove). Create/list require `ADMIN` or `MANAGER` via `requireRoles` gate. `EMPLOYEE` → 403.
 3. **Error HTTP mapping** — create-path failures mostly go through `serverError`; list filters map invalid `status`/`role` to `400`. `update-status` and `remove` map Actor/policy/already-in-status errors to `401`/`403`/`409`/`400` (see tables above).
 4. **Session after INACTIVE / REMOVED** — update-status and Remove only persist the employee document. An existing JWT remains valid until expiry unless auth re-checks current status on each request.
 5. **CompareHashPort** — resolved as a dedicated `@shared/application/ports/compare-hash.port.ts`. `BcryptAdapter` implements both `EncrypterPort` and `CompareHashPort`; `app.ts` injects the same instance.

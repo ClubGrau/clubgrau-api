@@ -35,6 +35,7 @@ type EmployeesModuleDeps = {
   encrypter: EncrypterPort;
   compareHash: CompareHashPort;
   authTokenMiddleware: RequestHandler;
+  makeRequireRoles: (...roles: string[]) => RequestHandler;
 };
 
 export function makeEmployeesModule({
@@ -42,6 +43,7 @@ export function makeEmployeesModule({
   encrypter,
   compareHash,
   authTokenMiddleware,
+  makeRequireRoles,
 }: EmployeesModuleDeps): EmployeesModule {
   const employeeModel = connection.model('Employee', EmployeeSchema);
   const employeeRepository = new EmployeeMongooseRepository(employeeModel);
@@ -81,12 +83,15 @@ export function makeEmployeesModule({
   );
   const removeEmployeeController = new RemoveEmployeeController(removeEmployee);
 
+  const requireRoles = makeRequireRoles;
+
   const router = makeEmployeeRoutes({
     createEmployeeController,
     getEmployeesController,
     updateEmployeeStatusController,
     removeEmployeeController,
     authTokenMiddleware,
+    requireRoles,
   });
 
   return {

@@ -1,6 +1,7 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFiN2FmYTJiZjkyYmFlZWY0ZjUyMDBjOCIsIm5hbWUiOiJWYW4gU3Rlcm95IiwiZW1haWwiOiJ2YW4uc3Rlcm95QGV4YW1wbGUuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3NDI5NDgzLCJleHAiOjI5OTcwMjk0ODN9.2FCGLI0xoHqc9lib5jNjNrjHCpkYKkekyXhM2RkTjH8
 
 ### Create employee
+# Requer role ADMIN ou MANAGER (requireRoles). EMPLOYEE → 403.
 POST http://localhost:3003/api/employee
 Content-Type: application/json
 Authorization: Bearer {{token}}
@@ -15,6 +16,7 @@ Authorization: Bearer {{token}}
 }
 
 ### List employees
+# Requer role ADMIN ou MANAGER (requireRoles). EMPLOYEE → 403.
 GET http://localhost:3003/api/employees
 Authorization: Bearer {{token}}
 
