@@ -9,6 +9,7 @@ export const adaptRoute = <Req, Res>(controller: BaseController<Req, Res>) => {
       ...(req.query || {}),
       ...(req.headers || {}),
       ...(req.decoded?.id ? { actorId: String(req.decoded.id) } : {}),
+      ...(req.decoded?.role ? { actorRole: String(req.decoded.role) } : {}),
     };
     const httpResponse = await controller.handle(request);
     res.status(httpResponse.statusCode).json(httpResponse.body);

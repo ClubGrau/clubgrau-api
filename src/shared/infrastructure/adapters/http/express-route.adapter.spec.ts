@@ -7,7 +7,7 @@ type FakeRequest = {
   params?: Record<string, unknown>;
   query?: Record<string, unknown>;
   headers?: Record<string, unknown>;
-  decoded?: { id?: unknown };
+  decoded?: { id?: unknown; role?: unknown };
 };
 
 const makeFakeReq = (overrides: FakeRequest = {}): Request =>
@@ -134,6 +134,47 @@ describe('adaptRoute', () => {
 
     const [request] = handle.mock.calls[0];
     expect(request).not.toHaveProperty('actorId');
+  });
+
+  it('should stamp actorRole from req.decoded.role', async () => {
+    const { controller, handle } = makeController();
+    const sut = adaptRoute(controller);
+    const req = makeFakeReq({ decoded: { role: 'ADMIN' } });
+    const res = makeFakeRes();
+
+    await sut(req, res);
+
+    expect(handle).toHaveBeenCalledWith(
+      expect.objectContaining({ actorRole: 'ADMIN' }),
+    );
+  });
+
+  it('should overwrite body actorRole with req.decoded.role', async () => {
+    const { controller, handle } = makeController();
+    const sut = adaptRoute(controller);
+    const req = makeFakeReq({
+      body: { actorRole: 'forged' },
+      decoded: { role: 'MANAGER' },
+    });
+    const res = makeFakeRes();
+
+    await sut(req, res);
+
+    expect(handle).toHaveBeenCalledWith(
+      expect.objectContaining({ actorRole: 'MANAGER' }),
+    );
+  });
+
+  it('should omit actorRole when req.decoded.role is missing', async () => {
+    const { controller, handle } = makeController();
+    const sut = adaptRoute(controller);
+    const req = makeFakeReq({ decoded: { id: 'jwt-actor' } });
+    const res = makeFakeRes();
+
+    await sut(req, res);
+
+    const [request] = handle.mock.calls[0];
+    expect(request).not.toHaveProperty('actorRole');
   });
 
   it('should write the controller HttpResponse status and body', async () => {
