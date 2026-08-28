@@ -6,6 +6,10 @@ import {
   AuthTokenMiddleware,
   makeAuthTokenMiddleware,
 } from '@modules/auth/infrastructure/inbound/http/auth-token.middleware';
+import {
+  makeRequireRoles,
+  RequireRolesMiddleware,
+} from '@modules/auth/infrastructure/inbound/http/require-roles.middleware';
 import { makeAuthRoutes } from '@modules/auth/infrastructure/inbound/http/auth.routes';
 import { EmployeeAuthAdapter } from '@modules/auth/infrastructure/outbound/persistence/employee-auth.adapter';
 import { JwtTokenAdapter } from '@modules/auth/infrastructure/outbound/token/jwt-token.adapter';
@@ -17,6 +21,7 @@ export type AuthModule = {
   authController: AuthController;
   login: LoginPort;
   authTokenMiddleware: AuthTokenMiddleware;
+  makeRequireRoles: (...roles: string[]) => RequireRolesMiddleware;
   router: Router;
 };
 
@@ -46,6 +51,7 @@ export function makeAuthModule({
     authController,
     login,
     authTokenMiddleware,
+    makeRequireRoles,
     router: makeAuthRoutes({ authController }),
   };
 }
