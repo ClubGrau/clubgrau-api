@@ -23,27 +23,30 @@ export function makeEmployeeRoutes({
   requireRoles,
 }: EmployeeRoutesDependencies): Router {
   const router = Router();
+  const requiredRoleEmployee = requireRoles('ADMIN', 'MANAGER');
 
   router.get(
     '/employees',
     authTokenMiddleware,
-    requireRoles('ADMIN', 'MANAGER'),
+    requiredRoleEmployee,
     adaptRoute(getEmployeesController),
   );
   router.post(
     '/employee',
     authTokenMiddleware,
-    requireRoles('ADMIN', 'MANAGER'),
+    requiredRoleEmployee,
     adaptRoute(createEmployeeController),
   );
   router.post(
     '/employee/update-status',
     authTokenMiddleware,
+    requiredRoleEmployee,
     adaptRoute(updateEmployeeStatusController),
   );
   router.post(
     '/employee/remove',
     authTokenMiddleware,
+    requiredRoleEmployee,
     adaptRoute(removeEmployeeController),
   );
 
