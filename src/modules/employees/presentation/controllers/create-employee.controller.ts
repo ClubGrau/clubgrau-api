@@ -13,9 +13,10 @@ import {
 } from '@shared/presentation/helpers/http-helper';
 import { BaseController } from '@shared/presentation/protocols/base-controller';
 import { HttpResponse } from '@shared/presentation/protocols/http-response';
+import { CreateEmployeeRequest } from '../http/create-employee.request';
 
 export class CreateEmployeeController extends BaseController<
-  CreateEmployeeDto,
+  CreateEmployeeRequest,
   HttpErrorBody | HttpSuccessBody<CreateEmployeeResultDto>
 > {
   constructor(private readonly createEmployee: CreateEmployeePort) {
@@ -23,7 +24,7 @@ export class CreateEmployeeController extends BaseController<
   }
 
   async handle(
-    request: CreateEmployeeDto,
+    request: CreateEmployeeRequest,
   ): Promise<
     HttpResponse<HttpErrorBody | HttpSuccessBody<CreateEmployeeResultDto>>
   > {
@@ -44,13 +45,20 @@ export class CreateEmployeeController extends BaseController<
       }
 
       const result = await this.createEmployee.execute({
-        name: request.name,
-        email: request.email,
-        role: request.role,
+        name: String(request.name),
+        email: String(request.email),
+        role: request.role as CreateEmployeeDto['role'],
         phone: request.phone,
-        nif: request.nif,
-        password: request.password,
-        passwordConfirmation: request.passwordConfirmation,
+        nif: request.nif ? Number(request.nif) : null,
+        password: String(request.password),
+        passwordConfirmation: String(request.passwordConfirmation),
+        username: request.username ?? null,
+        gender: request.gender ?? null,
+        address: request.address ?? null,
+        languages: request.languages ?? null,
+        emergencyContact: request.emergencyContact ?? null,
+        employmentId: request.employmentId ?? null,
+        jobTitle: request.jobTitle ?? null,
       });
 
       return created({ id: result.id });

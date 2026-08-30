@@ -23,6 +23,13 @@ const mockEmployee = {
   createdAt: new Date('2024-01-01T00:00:00Z'),
   deactivateAt: null,
   removedAt: null,
+  username: null,
+  gender: null,
+  address: null,
+  languages: null,
+  emergencyContact: null,
+  employmentId: null,
+  jobTitle: null,
 } as EmployeeDocument;
 
 const mongooseMocks = () => makeChainableMock(mockEmployee);
@@ -80,6 +87,13 @@ describe('EmployeeMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
         removedAt: null,
+        username: null,
+        gender: null,
+        address: null,
+        languages: null,
+        emergencyContact: null,
+        employmentId: null,
+        jobTitle: null,
       });
     });
 
@@ -133,6 +147,13 @@ describe('EmployeeMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
         removedAt: null,
+        username: null,
+        gender: null,
+        address: null,
+        languages: null,
+        emergencyContact: null,
+        employmentId: null,
+        jobTitle: null,
       });
     });
 
@@ -189,6 +210,13 @@ describe('EmployeeMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
         removedAt: null,
+        username: null,
+        gender: null,
+        address: null,
+        languages: null,
+        emergencyContact: null,
+        employmentId: null,
+        jobTitle: null,
       };
       const createSpy = jest
         .spyOn(employeeModelMock, 'create')
@@ -204,6 +232,13 @@ describe('EmployeeMongooseRepository', () => {
           createdAt: new Date('2024-01-01T00:00:00Z'),
           deactivateAt: null,
           removedAt: null,
+          username: null,
+          gender: null,
+          address: null,
+          languages: null,
+          emergencyContact: null,
+          employmentId: null,
+          jobTitle: null,
         });
       const result = await sut.create(employeeData);
       expect(createSpy).toHaveBeenCalledWith({
@@ -218,6 +253,13 @@ describe('EmployeeMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         deactivateAt: null,
         removedAt: null,
+        username: null,
+        gender: null,
+        address: null,
+        languages: null,
+        emergencyContact: null,
+        employmentId: null,
+        jobTitle: null,
       });
       expect(result).toEqual({ id: employeeData.id });
     });
@@ -275,6 +317,13 @@ describe('EmployeeMongooseRepository', () => {
             status: EmployeeModel.Status.ACTIVE,
             createdAt: new Date('2024-01-01T00:00:00Z'),
             deactivateAt: null,
+            username: null,
+            gender: null,
+            address: null,
+            languages: null,
+            emergencyContact: null,
+            employmentId: null,
+            jobTitle: null,
           },
         ],
         total: 45,

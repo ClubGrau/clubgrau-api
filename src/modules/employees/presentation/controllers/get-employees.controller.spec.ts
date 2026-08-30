@@ -19,6 +19,13 @@ const makeEmployeeItem = (
   status: EmployeeModel.Status.ACTIVE,
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
   deactivateAt: null,
+  username: null,
+  gender: null,
+  address: null,
+  languages: null,
+  emergencyContact: null,
+  employmentId: null,
+  jobTitle: null,
   ...overrides,
 });
 

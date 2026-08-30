@@ -9,6 +9,13 @@ export interface CreateEmployeeDto {
   nif?: number | null;
   password: string;
   passwordConfirmation: string;
+  username?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  languages?: string | null;
+  emergencyContact?: string | null;
+  employmentId?: string | null;
+  jobTitle?: string | null;
 }
 
 /** Output do caso de uso CreateEmployee (saída da application). */

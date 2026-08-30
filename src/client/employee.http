@@ -1,18 +1,30 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFiN2FmYTJiZjkyYmFlZWY0ZjUyMDBjOCIsIm5hbWUiOiJWYW4gU3Rlcm95IiwiZW1haWwiOiJ2YW4uc3Rlcm95QGV4YW1wbGUuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3NDI5NDgzLCJleHAiOjI5OTcwMjk0ODN9.2FCGLI0xoHqc9lib5jNjNrjHCpkYKkekyXhM2RkTjH8
+@employeeToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImM4ZDU2NzQ5YTY4ZDFhMDQ1OTA0N2UzZiIsIm5hbWUiOiJRQSBFbXBsb3llZSBPbmUiLCJlbWFpbCI6InFhLmUxLnAwQGV4YW1wbGUuY29tIiwicm9sZSI6IkVNUExPWUVFIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3OTYyNjYyLCJleHAiOjI5OTc1NjI2NjJ9.uH6n6cV3gFYJKuubA4B8IuZrzezKyOSEV_LkM9_7Aks
 
 ### Create employee
 # Requer role ADMIN ou MANAGER (requireRoles). EMPLOYEE → 403.
+# status no body é ignorado — o domínio força ACTIVE.
+# passwordConfirmation continua obrigatório (frontend pode repetir password).
 POST http://localhost:3003/api/employee
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{employeeToken}}
 
 {
   "name": " Usuario do Grau ",
   "email": "usuariodo.grau@example.com",
   "role": "ADMIN",
   "phone": "+351 912 345 678",
+  "nif": "123456789",
   "password": "P@ssword123",
-  "passwordConfirmation": "P@ssword123"
+  "passwordConfirmation": "P@ssword123",
+  "status": "ACTIVE",
+  "username": "usuariograu",
+  "gender": "male",
+  "address": "Rua do Grau, 10",
+  "languages": "pt,en",
+  "emergencyContact": "+351 910 000 000",
+  "employmentId": "HR-001",
+  "jobTitle": "Barber"
 }
 
 ### List employees

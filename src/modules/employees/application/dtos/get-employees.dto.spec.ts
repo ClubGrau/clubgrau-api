@@ -47,6 +47,13 @@ describe('GetEmployeesItemDto', () => {
       status: EmployeeModel.Status.ACTIVE,
       createdAt,
       deactivateAt: null,
+      username: 'jdoe',
+      gender: 'male',
+      address: 'Rua do Grau, 10',
+      languages: 'pt,en',
+      emergencyContact: '351910000000',
+      employmentId: 'HR-001',
+      jobTitle: 'Barber',
     };
 
     expect(item).toBeDefined();
@@ -59,6 +66,13 @@ describe('GetEmployeesItemDto', () => {
     expect(item.status).toBe(EmployeeModel.Status.ACTIVE);
     expect(item.createdAt).toBe(createdAt);
     expect(item.deactivateAt).toBeNull();
+    expect(item.username).toBe('jdoe');
+    expect(item.gender).toBe('male');
+    expect(item.address).toBe('Rua do Grau, 10');
+    expect(item.languages).toBe('pt,en');
+    expect(item.emergencyContact).toBe('351910000000');
+    expect(item.employmentId).toBe('HR-001');
+    expect(item.jobTitle).toBe('Barber');
     expect(item).not.toHaveProperty('password');
   });
 });
@@ -78,6 +92,13 @@ describe('GetEmployeesResultDto', () => {
           status: EmployeeModel.Status.ACTIVE,
           createdAt,
           deactivateAt: null,
+          username: null,
+          gender: null,
+          address: null,
+          languages: null,
+          emergencyContact: null,
+          employmentId: null,
+          jobTitle: null,
         },
       ],
       page: 1,

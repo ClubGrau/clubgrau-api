@@ -22,6 +22,13 @@ export interface GetEmployeesItemDto {
   status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
+  username: string | null;
+  gender: string | null;
+  address: string | null;
+  languages: string | null;
+  emergencyContact: string | null;
+  employmentId: string | null;
+  jobTitle: string | null;
 }
 
 /** Params do outbound port de leitura (já com skip/limit normalizados). */

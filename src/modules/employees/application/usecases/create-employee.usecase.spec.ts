@@ -180,6 +180,13 @@ describe('HireEmployeeUsecase', () => {
         nif: null,
         password: 'encrypted-password',
         status: EmployeeModel.Status.ACTIVE,
+        username: null,
+        gender: null,
+        address: null,
+        languages: null,
+        emergencyContact: null,
+        employmentId: null,
+        jobTitle: null,
         deactivateAt: null,
         createdAt: expect.any(Date),
       }),
@@ -222,6 +229,13 @@ describe('HireEmployeeUsecase', () => {
         phone: undefined,
         nif: undefined,
         password: 'P@ssword123',
+        username: undefined,
+        gender: undefined,
+        address: undefined,
+        languages: undefined,
+        emergencyContact: undefined,
+        employmentId: undefined,
+        jobTitle: undefined,
       });
     });
 
@@ -238,6 +252,48 @@ describe('HireEmployeeUsecase', () => {
           phone: '+351 912 345 678',
           nif: 123456789,
         }),
+      );
+    });
+
+    it('should forward optional profile fields to Employee.create', async () => {
+      const { sut } = makeSut();
+      const createSpy = jest.spyOn(Employee, 'create');
+
+      await sut.execute(
+        makeValidParams({
+          username: 'jdoe',
+          gender: 'male',
+          address: 'Rua do Grau, 10',
+          languages: 'pt,en',
+          emergencyContact: '+351 910 000 000',
+          employmentId: 'HR-001',
+          jobTitle: 'Barber',
+        }),
+      );
+
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'jdoe',
+          gender: 'male',
+          address: 'Rua do Grau, 10',
+          languages: 'pt,en',
+          emergencyContact: '+351 910 000 000',
+          employmentId: 'HR-001',
+          jobTitle: 'Barber',
+        }),
+      );
+    });
+
+    it('should persist normalized emergency contact when provided', async () => {
+      const { sut, createEmployeeRepositoryStub } = makeSut();
+      const createSpy = jest.spyOn(createEmployeeRepositoryStub, 'create');
+
+      await sut.execute(
+        makeValidParams({ emergencyContact: '+351 910 000 000' }),
+      );
+
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ emergencyContact: '351910000000' }),
       );
     });
 
@@ -278,6 +334,14 @@ describe('HireEmployeeUsecase', () => {
     it('should propagate an error for an invalid phone', async () => {
       const { sut } = makeSut();
       const execute = () => sut.execute(makeValidParams({ phone: '123' }));
+
+      await expect(execute).rejects.toBeInstanceOf(InvalidPhoneFormatError);
+    });
+
+    it('should propagate an error for an invalid emergency contact', async () => {
+      const { sut } = makeSut();
+      const execute = () =>
+        sut.execute(makeValidParams({ emergencyContact: '123' }));
 
       await expect(execute).rejects.toBeInstanceOf(InvalidPhoneFormatError);
     });

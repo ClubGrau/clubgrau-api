@@ -57,6 +57,13 @@ describe('Employee (entity)', () => {
       expect(json.role).toBe(EmployeeModel.Role.EMPLOYEE);
       expect(json.phone).toBeNull();
       expect(json.nif).toBeNull();
+      expect(json.username).toBeNull();
+      expect(json.gender).toBeNull();
+      expect(json.address).toBeNull();
+      expect(json.languages).toBeNull();
+      expect(json.emergencyContact).toBeNull();
+      expect(json.employmentId).toBeNull();
+      expect(json.jobTitle).toBeNull();
       expect(json.status).toBe(EmployeeModel.Status.ACTIVE);
       expect(employee.isActive).toBe(true);
       expect(json.deactivateAt).toBeNull();
@@ -92,6 +99,37 @@ describe('Employee (entity)', () => {
         nif: 123456789,
       });
       expect(employee.toJSON().nif).toBe('123456789');
+    });
+
+    it('should accept optional profile fields', () => {
+      const employee = Employee.create({
+        ...makeValidProps(),
+        username: 'jdoe',
+        gender: 'male',
+        address: 'Rua do Grau, 10',
+        languages: 'pt,en',
+        emergencyContact: '+351 910 000 000',
+        employmentId: 'HR-001',
+        jobTitle: 'Barber',
+      });
+      const json = employee.toJSON();
+
+      expect(json.username).toBe('jdoe');
+      expect(json.gender).toBe('male');
+      expect(json.address).toBe('Rua do Grau, 10');
+      expect(json.languages).toBe('pt,en');
+      expect(json.emergencyContact).toBe('351910000000');
+      expect(json.employmentId).toBe('HR-001');
+      expect(json.jobTitle).toBe('Barber');
+    });
+
+    it('should throw for an invalid emergency contact phone', () => {
+      expect(() =>
+        Employee.create({
+          ...makeValidProps(),
+          emergencyContact: '123',
+        }),
+      ).toThrow(InvalidPhoneFormatError);
     });
 
     it('should throw for an invalid role', () => {

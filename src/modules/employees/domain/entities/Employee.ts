@@ -21,6 +21,13 @@ interface EmployeeProps {
   role: EmployeeModel.Role;
   status: EmployeeModel.Status;
   createdAt: Date;
+  username: string | null;
+  gender: string | null;
+  address: string | null;
+  languages: string | null;
+  emergencyContact: Phone | null;
+  employmentId: string | null;
+  jobTitle: string | null;
   deactivateAt: Date | null;
   removedAt: Date | null;
 }
@@ -33,8 +40,16 @@ export interface CreateEmployeeProps {
   phone?: string | null;
   nif?: number | null;
   role: EmployeeModel.Role;
+  username?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  languages?: string | null;
+  emergencyContact?: string | null;
+  employmentId?: string | null;
+  jobTitle?: string | null;
   createdAt?: Date;
   deactivateAt?: Date | null;
+  removedAt?: Date | null;
 }
 
 /** Full snapshot used to rebuild an employee from persistence. */
@@ -47,6 +62,13 @@ export interface ReconstituteEmployeeProps {
   nif: Nif | null;
   role: EmployeeModel.Role;
   status: EmployeeModel.Status;
+  username?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  languages?: string | null;
+  emergencyContact?: Phone | null;
+  employmentId?: string | null;
+  jobTitle?: string | null;
   createdAt: Date;
   deactivateAt: Date | null;
   removedAt?: Date | null;
@@ -70,6 +92,15 @@ export class Employee extends Entity<EmployeeProps> {
       nif: input.nif ? Nif.create(input.nif.toString()) : null,
       role: input.role,
       status: EmployeeModel.Status.ACTIVE,
+      username: input.username ?? null,
+      gender: input.gender ?? null,
+      address: input.address ?? null,
+      languages: input.languages ?? null,
+      emergencyContact: input.emergencyContact
+        ? Phone.create(input.emergencyContact)
+        : null,
+      employmentId: input.employmentId ?? null,
+      jobTitle: input.jobTitle ?? null,
       createdAt: new Date(),
       deactivateAt: null,
       removedAt: null,
@@ -93,6 +124,13 @@ export class Employee extends Entity<EmployeeProps> {
         nif: input.nif,
         role: input.role,
         status: input.status,
+        username: input.username ?? null,
+        gender: input.gender ?? null,
+        address: input.address ?? null,
+        languages: input.languages ?? null,
+        emergencyContact: input.emergencyContact ?? null,
+        employmentId: input.employmentId ?? null,
+        jobTitle: input.jobTitle ?? null,
         createdAt: input.createdAt,
         deactivateAt: input.deactivateAt,
         removedAt: input.removedAt ?? null,

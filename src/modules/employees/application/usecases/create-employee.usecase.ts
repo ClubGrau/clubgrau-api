@@ -31,6 +31,13 @@ export class CreateEmployeeUsecase implements CreateEmployeePort {
       phone: params.phone,
       nif: params.nif,
       password: params.password,
+      username: params.username,
+      gender: params.gender,
+      address: params.address,
+      languages: params.languages,
+      emergencyContact: params.emergencyContact,
+      employmentId: params.employmentId,
+      jobTitle: params.jobTitle,
     }).toJSON();
 
     await this.employeePoliciesService.ensureEmailIsAvailable(

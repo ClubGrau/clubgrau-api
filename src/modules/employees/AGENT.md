@@ -65,6 +65,9 @@ Queries do **not** call `Employee.create`, policies, or encrypter. They use a de
 
 - Get employee by id / update other fields
 - Cross-module events / integration beyond this hexagon
+- `emergencyContact` may become an `EmergencyContact` VO (name + kinship + phone) if the form grows
+- `username` may be dropped if auth stays email-based
+- `languages` + `jobTitle` + `employmentId` may move into an `EmployeeProfile` VO if profile management becomes autonomous
 
 ---
 
@@ -127,6 +130,7 @@ src/modules/employees/
 │
 ├── presentation/
 │   ├── http/
+│   │   ├── create-employee.request.ts         # body bruto (nif string|number; status ignorado)
 │   │   ├── get-employees.request.ts  # query string bruta (pré-validação)
 │   │   ├── update-employee-status.request.ts  # body bruto (id/status); actorId do adaptRoute
 │   │   └── remove-employee.request.ts         # body bruto (id/password); actorId do adaptRoute
@@ -171,8 +175,8 @@ Glossary: [`CONTEXT.md`](./CONTEXT.md). Map: [`CONTEXT-MAP.md`](../../../CONTEXT
 
 Factory methods:
 
-- `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `status=ACTIVE`, `createdAt=now`, `deactivateAt=null`.
-- `Employee.reconstitute(ReconstituteEmployeeProps)` — rebuild from persistence (already-validated VOs + id).
+- `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `status=ACTIVE`, `createdAt=now`, `deactivateAt=null`. Optional profile: `username`, `gender`, `address`, `languages`, `employmentId`, `jobTitle` (primitives) and `emergencyContact` (`Phone.create` if present, same as `phone`).
+- `Employee.reconstitute(ReconstituteEmployeeProps)` — rebuild from persistence (already-validated VOs + id). Profile fields default to `null` when omitted.
 
 Behavior:
 
@@ -274,6 +278,13 @@ interface CreateEmployeeDto {
   nif?: number | null;
   password: string;
   passwordConfirmation: string;
+  username?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  languages?: string | null;
+  emergencyContact?: string | null;
+  employmentId?: string | null;
+  jobTitle?: string | null;
 }
 
 interface CreateEmployeeResultDto {
@@ -290,7 +301,7 @@ interface CreateEmployeeResultDto {
 5. Persist via `CreateEmployeeRepositoryPort.create`
 6. Return `{ id }`
 
-Optional `phone` is validated by `Phone.create` inside `Employee.create` (omit/`null` → `null`).
+Optional `phone` and `emergencyContact` are validated by `Phone.create` inside `Employee.create` (omit/`null` → `null`). Profile primitives persist as-is (omit → `null`).
 
 ---
 
@@ -332,6 +343,13 @@ interface GetEmployeesItemDto {
   status: EmployeeModel.Status;
   createdAt: Date;
   deactivateAt: Date | null;
+  username: string | null;
+  gender: string | null;
+  address: string | null;
+  languages: string | null;
+  emergencyContact: string | null;
+  employmentId: string | null;
+  jobTitle: string | null;
 }
 
 interface FindEmployeesParams {
@@ -511,8 +529,9 @@ Out of this command: JWT blacklist (auth); behaviour of other modules that store
 - Missing field → `400` + `MissingParamError`
 - Success → `201` + `{ id }` via `created(...)`
 - Unexpected errors → `serverError(...)`
+- Raw HTTP body: `CreateEmployeeRequest`. `nif` may arrive as string (`"123456789"`) and is converted with `Number(...)` (absent → `null`). `status` on the body is ignored (domain always creates `ACTIVE`).
 
-`role` / `phone` / `nif` are passed through when present; domain validates role and VOs.
+`role` / `phone` / `nif` / profile fields are passed through when present; domain validates role and VOs.
 
 `GetEmployeesController` extends `BaseController`:
 
@@ -682,7 +701,7 @@ Client
 
 - Unique index on `email`
 - `role` enum: `ADMIN | MANAGER | EMPLOYEE`
-- Fields: `name`, `email`, `role`, `password`, `phone`, `nif`, `status`, `createdAt`, `deactivateAt`, `removedAt`
+- Fields: `name`, `email`, `role`, `password`, `phone`, `nif`, `status`, `createdAt`, `deactivateAt`, `removedAt`, `username`, `gender`, `address`, `languages`, `emergencyContact`, `employmentId`, `jobTitle`
 - `status` enum: `ACTIVE | INACTIVE | VACATION | REMOVED` (default `ACTIVE`)
 - `removedAt`: `Date | null` (default `null`)
 
@@ -781,6 +800,7 @@ Never shortcut by calling the repository from the controller.
 | Update-status orchestration (command) | `application/usecases/update-employee-status.usecase.ts` |
 | List orchestration (query) | `application/queries/get-employees.query.ts` |
 | List read model DTOs | `application/dtos/get-employees.dto.ts` |
+| Create HTTP request shape (raw body) | `presentation/http/create-employee.request.ts` |
 | Create HTTP validation / status | `presentation/controllers/create-employee.controller.ts` |
 | List HTTP request shape (raw query) | `presentation/http/get-employees.request.ts` |
 | List HTTP mapping / status | `presentation/controllers/get-employees.controller.ts` |

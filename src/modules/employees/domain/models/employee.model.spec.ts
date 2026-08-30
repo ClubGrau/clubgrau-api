@@ -76,6 +76,13 @@ describe('EmployeeModel.toCreate', () => {
     expect(toCreate.password).toBe('[REDACTED]');
     expect(toCreate.phone).toBeNull();
     expect(toCreate.nif).toBeNull();
+    expect(toCreate.username).toBeNull();
+    expect(toCreate.gender).toBeNull();
+    expect(toCreate.address).toBeNull();
+    expect(toCreate.languages).toBeNull();
+    expect(toCreate.emergencyContact).toBeNull();
+    expect(toCreate.employmentId).toBeNull();
+    expect(toCreate.jobTitle).toBeNull();
     expect(toCreate.status).toBe(EmployeeModel.Status.ACTIVE);
     expect(toCreate.deactivateAt).toBeNull();
     expect(toCreate.createdAt).toBeInstanceOf(Date);
