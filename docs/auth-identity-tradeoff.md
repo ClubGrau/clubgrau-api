@@ -128,6 +128,8 @@ Pagar este débito quando **qualquer** item for verdadeiro:
 
 Até lá, manter o adapter e **não** extrair `users` “por pureza”.
 
+**Password Reset (2026-09-01):** o gatilho 2 disparou (redefinição de senha). **Não se paga o débito nesta v1.** Auth ganha um port de escrita (`replacePasswordHash` ou equivalente); o adapter continua a apontar à collection `Employee`. Extrair `users` continua reservado ao segundo ator autenticável, lockout/2FA, ou IdP.
+
 ### Checklist de migração (quando pagar)
 
 - [ ] Criar módulo `users` (hexágono) com entity/schema de credenciais
@@ -171,9 +173,9 @@ Falhas de autenticação (não encontrado, senha inválida, inativo) convergem p
 | Campo | Valor |
 |-------|-------|
 | Status | Aceito (pragmático) |
-| Data | 2026-07-18 |
-| Abordagem atual | Adapter no `auth` → collection `Employee` |
-| Débito | Extrair identity (`users`) nos gatilhos acima |
+| Data | 2026-07-18 · **Revisto:** 2026-09-01 (Password Reset = opção B) |
+| Abordagem atual | Adapter no `auth` → collection `Employee` (leitura **e** escrita do hash) |
+| Débito | Extrair identity (`users`) nos gatilhos acima — gatilho 2 disparou e **não** foi pago |
 | Não fazer agora | Módulo `users`, split de senha do employee, IdP externo |
 
 Atualize este arquivo quando a decisão mudar (ex.: início da extração de identity ou adoção de IdP).
