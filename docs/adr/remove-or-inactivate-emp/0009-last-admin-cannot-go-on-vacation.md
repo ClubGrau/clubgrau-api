@@ -1,3 +1,7 @@
 # Last Admin cannot go on VACATION
 
-Login rejects any status other than `ACTIVE`. There is no second `ACTIVE` ADMIN to restore the Last Admin, and a MANAGER cannot act on ADMINs. `VACATION` would lock the platform the same way `INACTIVE` would. Last Admin stays `ACTIVE` until another `ACTIVE` ADMIN exists. Leftover `INACTIVE` / `VACATION` ADMINs do not count as that second login. This version does not let `VACATION` users log in.
+**Status:** superseded by [0014](./0014-last-admin-is-login-capable.md)
+
+This decision assumed login rejected any status other than `ACTIVE`. Under that premise, `VACATION` would lock the platform the same way `INACTIVE` would, so Last Admin could not take vacation.
+
+That premise is false: `VACATION` is a full session (login, password reset, Actor). Last Admin **may** go on `VACATION`. Leftover `VACATION` ADMINs count as login-capable.
