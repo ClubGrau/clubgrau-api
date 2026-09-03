@@ -38,8 +38,9 @@ flowchart TB
   subgraph Shared["shared"]
     ADAPT_ROUTE["adapters/http<br/>adaptRoute"]
     BCRYPT["adapters/bcrypt<br/>BcryptAdapter"]
+    RESEND["adapters/resend<br/>ResendMailerAdapter"]
     PRES_SHARED["presentation<br/>BaseController / HttpResponse"]
-    ENC_PORT["application/ports<br/>EncrypterPort"]
+    ENC_PORT["application/ports<br/>EncrypterPort / MailerPort"]
     DOMAIN_SHARED["domain<br/>Entity / VOs"]
   end
 
@@ -223,7 +224,8 @@ grau-api/
 │   │   │       └── nif/nif.vo.ts
 │   │   ├── application/
 │   │   │   └── ports/
-│   │   │       └── encrypter.port.ts
+│   │   │       ├── encrypter.port.ts
+│   │   │       └── mailer.port.ts
 │   │   ├── presentation/
 │   │   │   ├── protocols/
 │   │   │   │   ├── base-controller.ts
@@ -237,9 +239,13 @@ grau-api/
 │   │       └── adapters/
 │   │           ├── http/
 │   │           │   └── express-route.adapter.ts        # Express req/res ↔ controller
-│   │           └── bcrypt/
-│   │               ├── bcrypt.adapter.ts               # implements EncrypterPort
-│   │               └── bcrypt.adapter.spec.ts
+│   │           ├── bcrypt/
+│   │           │   ├── bcrypt.adapter.ts               # implements EncrypterPort
+│   │           │   └── bcrypt.adapter.spec.ts
+│   │           └── resend/
+│   │               ├── resend-mailer.adapter.ts        # implements MailerPort
+│   │               ├── in-memory-mailer.ts             # spec fake
+│   │               └── *.spec.ts
 │   │
 │   └── client/
 │       └── employee.http                               # REST Client requests
@@ -266,4 +272,5 @@ Normative tables (layers, where to put types, path aliases, naming, testing, Do/
 - Controllers in `presentation` do not import Express; `adaptRoute` bridges the gap.
 - Module HTTP routes live in `infrastructure/inbound/http` and are mounted by `employees.module.ts`.
 - `EncrypterPort` is shared; the concrete implementation (`BcryptAdapter`) is injected at the composition root (`app.ts`).
+- `MailerPort` is shared; `ResendMailerAdapter` is the production adapter and `InMemoryMailer` is the spec fake (wired into auth in a later slice).
 - Current employees hexagon contract (ports, DTOs, HTTP) → [`src/modules/employees/AGENT.md`](../src/modules/employees/AGENT.md).
