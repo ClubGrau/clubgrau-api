@@ -26,6 +26,7 @@ export const EmployeeSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   deactivateAt: { type: Date, default: null },
   removedAt: { type: Date, default: null },
+  sessionVersion: { type: Number, default: 0 },
 });
 
 /** Campos inferidos do Schema (sem `_id` — é o que `connection.model` tipa). */
