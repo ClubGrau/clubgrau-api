@@ -35,17 +35,20 @@ export function makeAuthModule({
   compareHash,
 }: AuthModuleDeps): AuthModule {
   const employeeModel = connection.model('Employee', EmployeeSchema);
-  const findAuthenticatableByEmail = new EmployeeAuthAdapter(employeeModel);
+  const employeeAuthAdapter = new EmployeeAuthAdapter(employeeModel);
   const jwtTokenAdapter = new JwtTokenAdapter();
 
   const login: LoginPort = new LoginUseCase(
-    findAuthenticatableByEmail,
+    employeeAuthAdapter,
     compareHash,
     jwtTokenAdapter,
   );
 
   const authController = new AuthController(login);
-  const authTokenMiddleware = makeAuthTokenMiddleware(jwtTokenAdapter);
+  const authTokenMiddleware = makeAuthTokenMiddleware(
+    jwtTokenAdapter,
+    employeeAuthAdapter,
+  );
 
   return {
     authController,
