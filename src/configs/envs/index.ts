@@ -6,4 +6,5 @@ export default {
   resendApiKey: process.env.RESEND_API_KEY,
   resendFrom: process.env.RESEND_FROM, // TODO - add default email vcalue from config
   passwordResetPepper: process.env.PASSWORD_RESET_PEPPER,
+  frontendPublicOrigin: process.env.FRONTEND_PUBLIC_ORIGIN,
 };
