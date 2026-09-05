@@ -22,6 +22,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
   const auth = makeAuthModule({
     connection,
     compareHash: bcryptAdapter,
+    encrypter: bcryptAdapter,
     mailer: mailerAdapter,
     frontendPublicOrigin: envs.frontendPublicOrigin ?? '',
   });

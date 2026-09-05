@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { FindAuthenticatableByEmailPort } from '@modules/auth/application/ports/outbound/find-authenticable-by-email.port';
 import { FindAuthenticatableByIdPort } from '@modules/auth/application/ports/outbound/find-authenticatable-by-id.port';
+import { UpdateEmployeeCredentialsPort } from '@modules/auth/application/ports/outbound/update-employee-credentials.port';
 import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
 import {
   EmployeeDocument,
@@ -9,7 +10,10 @@ import {
 import { mapEmployeeDocumentToAuthenticatable } from './employee-authenticatable.mapper';
 
 export class EmployeeAuthAdapter
-  implements FindAuthenticatableByEmailPort, FindAuthenticatableByIdPort
+  implements
+    FindAuthenticatableByEmailPort,
+    FindAuthenticatableByIdPort,
+    UpdateEmployeeCredentialsPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
 
@@ -37,5 +41,23 @@ export class EmployeeAuthAdapter
     }
 
     return mapEmployeeDocumentToAuthenticatable(employee as EmployeeDocument);
+  }
+
+  async updateCredentials(
+    ownerId: string,
+    passwordHash: string,
+  ): Promise<void> {
+    const isValidObjectId = Types.ObjectId.isValid(ownerId);
+    if (!isValidObjectId) {
+      return;
+    }
+
+    await this.employeeModel.findOneAndUpdate(
+      { _id: ownerId },
+      {
+        $set: { password: passwordHash },
+        $inc: { sessionVersion: 1 },
+      },
+    );
   }
 }
