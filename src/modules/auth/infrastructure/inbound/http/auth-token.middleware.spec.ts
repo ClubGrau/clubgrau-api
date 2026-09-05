@@ -9,6 +9,7 @@ const makeTokenPayload = (): TokenPayload => ({
   email: 'any_email@mail.com',
   role: 'EMPLOYEE',
   status: 'ACTIVE',
+  sessionVersion: 0,
 });
 
 const makeSut = () => {

@@ -2,6 +2,17 @@ POST http://localhost:3003/auth
 Content-Type: application/json
 
 {
-    "email": "van.steroy@example.com",
+    "email": "qa.e1.p0@example.com",
+    "password": "P@ssword123"
+}
+
+###
+
+# Login — employee em VACATION (loginCapable)
+POST http://localhost:3003/auth
+Content-Type: application/json
+
+{
+    "email": "qa.vacation@example.com",
     "password": "P@ssword123"
 }

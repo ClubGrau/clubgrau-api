@@ -1,6 +1,8 @@
 import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
 import { EmployeeDocument } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
 
+const LOGIN_CAPABLE_STATUSES = new Set(['ACTIVE', 'VACATION']);
+
 /** Maps a lean Employee document to the auth-owned AuthenticatableUser snapshot. */
 export function mapEmployeeDocumentToAuthenticatable(
   document: EmployeeDocument,
@@ -12,5 +14,7 @@ export function mapEmployeeDocumentToAuthenticatable(
     passwordHash: document.password,
     status: document.status,
     role: document.role,
+    loginCapable: LOGIN_CAPABLE_STATUSES.has(document.status),
+    sessionVersion: document.sessionVersion ?? 0,
   };
 }

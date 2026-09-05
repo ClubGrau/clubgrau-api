@@ -1,9 +1,9 @@
 import { AuthenticationError } from '@modules/auth/domain/errors/auth.errors';
+import { TokenPayload } from '@modules/auth/domain/models/token-payload.model';
 import { FindAuthenticatableByEmailPort } from '../ports/outbound/find-authenticable-by-email.port';
 import { LoginUseCase } from './login.usecase';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { TokenProviderPort } from '../ports/outbound/token-provider.port';
-import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
 
 const makeStubs = () => ({
   findAuthenticatableByEmailPortStub: {
@@ -14,6 +14,8 @@ const makeStubs = () => ({
       passwordHash: 'hashed_password',
       status: 'ACTIVE',
       role: 'EMPLOYEE',
+      loginCapable: true,
+      sessionVersion: 0,
     }),
   } satisfies FindAuthenticatableByEmailPort,
   comparePasswordPortStub: {
@@ -23,7 +25,7 @@ const makeStubs = () => ({
     generateToken: jest.fn().mockReturnValue({
       token: 'any_token',
     }),
-  } satisfies TokenProviderPort<AuthenticatableUser>,
+  } satisfies TokenProviderPort<TokenPayload>,
 });
 
 const makeSut = (): SutTypes => {
@@ -49,7 +51,7 @@ type SutTypes = {
   sut: LoginUseCase;
   findAuthenticatableByEmailPortStub: FindAuthenticatableByEmailPort;
   comparePasswordPortStub: CompareHashPort;
-  tokenProviderPortStub: TokenProviderPort<AuthenticatableUser>;
+  tokenProviderPortStub: TokenProviderPort<TokenPayload>;
 };
 
 describe('LoginUsecase', () => {
@@ -87,7 +89,7 @@ describe('LoginUsecase', () => {
     await expect(promise).rejects.toThrow(AuthenticationError);
   });
 
-  it('should throw AuthenticationError when user is not active', async () => {
+  it('should throw AuthenticationError when user is not login capable', async () => {
     const { sut, findAuthenticatableByEmailPortStub } = makeSut();
     const params = {
       email: 'any_email@example.com',
@@ -102,6 +104,8 @@ describe('LoginUsecase', () => {
         passwordHash: 'hashed_password',
         status: 'INACTIVE',
         role: 'EMPLOYEE',
+        loginCapable: false,
+        sessionVersion: 0,
       });
     const promise = sut.execute(params);
     await expect(promise).rejects.toThrow(AuthenticationError);
@@ -146,6 +150,40 @@ describe('LoginUsecase', () => {
       email: 'any_email@example.com',
       role: 'EMPLOYEE',
       status: 'ACTIVE',
+      sessionVersion: 0,
+    });
+  });
+
+  it('should succeed when loginCapable is true and status is VACATION', async () => {
+    const { sut, findAuthenticatableByEmailPortStub, tokenProviderPortStub } =
+      makeSut();
+    const params = {
+      email: 'any_email@example.com',
+      password: 'any_password',
+    };
+    jest
+      .spyOn(findAuthenticatableByEmailPortStub, 'findAuthenticatableByEmail')
+      .mockResolvedValueOnce({
+        id: 'any_id',
+        name: 'John Doe',
+        email: 'any_email@example.com',
+        passwordHash: 'hashed_password',
+        status: 'VACATION',
+        role: 'EMPLOYEE',
+        loginCapable: true,
+        sessionVersion: 2,
+      });
+    const tokenProviderSpy = jest.spyOn(tokenProviderPortStub, 'generateToken');
+
+    await sut.execute(params);
+
+    expect(tokenProviderSpy).toHaveBeenCalledWith({
+      id: 'any_id',
+      name: 'John Doe',
+      email: 'any_email@example.com',
+      role: 'EMPLOYEE',
+      status: 'VACATION',
+      sessionVersion: 2,
     });
   });
 

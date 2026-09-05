@@ -69,6 +69,8 @@ describe('EmployeeAuthAdapter', () => {
         passwordHash: 'hashed_password',
         role: 'MANAGER',
         status: 'ACTIVE',
+        loginCapable: true,
+        sessionVersion: 0,
       });
     });
 
