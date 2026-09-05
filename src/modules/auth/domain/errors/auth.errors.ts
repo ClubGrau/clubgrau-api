@@ -10,3 +10,15 @@ export class AuthenticationError extends DomainError {
     super(message);
   }
 }
+
+export class PasswordResetedNotMatchError extends DomainError {
+  constructor() {
+    super('Password and passwordConfirmation do not match');
+  }
+}
+
+export class InvalidOrExpiredTokenError extends DomainError {
+  constructor() {
+    super('Invalid or expired link');
+  }
+}
