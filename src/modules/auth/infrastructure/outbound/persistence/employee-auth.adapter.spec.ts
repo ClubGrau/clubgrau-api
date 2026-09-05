@@ -147,4 +147,36 @@ describe('EmployeeAuthAdapter', () => {
       expect(findOneSpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('updateCredentials', () => {
+    it('should findOneAndUpdate password and increment sessionVersion', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const ownerId = new mongoose.Types.ObjectId().toHexString();
+      const findOneAndUpdateSpy = jest
+        .spyOn(employeeModelMock, 'findOneAndUpdate')
+        .mockResolvedValueOnce(null);
+
+      await sut.updateCredentials(ownerId, 'new-password-hash');
+
+      expect(findOneAndUpdateSpy).toHaveBeenCalledWith(
+        { _id: ownerId },
+        {
+          $set: { password: 'new-password-hash' },
+          $inc: { sessionVersion: 1 },
+        },
+      );
+    });
+
+    it('should not call findOneAndUpdate for an invalid ObjectId', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const findOneAndUpdateSpy = jest.spyOn(
+        employeeModelMock,
+        'findOneAndUpdate',
+      );
+
+      await sut.updateCredentials('not-an-object-id', 'new-password-hash');
+
+      expect(findOneAndUpdateSpy).not.toHaveBeenCalled();
+    });
+  });
 });

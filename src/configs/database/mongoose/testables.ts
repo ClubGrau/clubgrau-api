@@ -9,5 +9,6 @@ export const makeChainableMock = <T>(returnValue?: T) => ({
   select: jest.fn().mockReturnThis(),
   create: jest.fn().mockReturnValue(returnValue),
   updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }),
+  findOneAndUpdate: jest.fn().mockResolvedValue(null),
   lean: jest.fn().mockReturnValue(returnValue),
 });
