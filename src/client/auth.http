@@ -16,3 +16,13 @@ Content-Type: application/json
     "email": "qa.vacation@example.com",
     "password": "P@ssword123"
 }
+
+###
+
+# Request password reset
+POST http://localhost:3003/auth/password-reset
+Content-Type: application/json
+
+{
+    "email": "graubarberclub@gmail.com"
+} 
