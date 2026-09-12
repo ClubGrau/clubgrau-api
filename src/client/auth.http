@@ -1,3 +1,5 @@
+# Login ACTIVE — 200 { data: { token } }
+# VACATION também é loginCapable → 200. INACTIVE / REMOVED / unknown / senha errada → 401 opaco.
 POST http://localhost:3003/auth
 Content-Type: application/json
 
@@ -19,10 +21,25 @@ Content-Type: application/json
 
 ###
 
-# Request password reset
+# Request password reset — sempre 200 { data: { ok: true } }
+# Email desconhecido / INACTIVE / REMOVED / cooldown / falha de envio: mesmo 200; token nunca no body.
 POST http://localhost:3003/auth/password-reset
 Content-Type: application/json
 
 {
     "email": "graubarberclub@gmail.com"
-} 
+}
+
+###
+
+# Complete password reset — 200 { data: { id } } (sem JWT)
+# Token: valor cru do link do email (não commitar um Reset Token real nem PASSWORD_RESET_PEPPER).
+# Depois do complete, um Session Token antigo em GET /api/employees → 401 Invalid token.
+POST http://localhost:3003/auth/password-reset/complete
+Content-Type: application/json
+
+{
+  "token": "<raw token from the email link>",
+  "password": "P@ssword123",
+  "passwordConfirmation": "P@ssword123"
+}
