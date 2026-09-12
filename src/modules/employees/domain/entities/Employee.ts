@@ -222,6 +222,10 @@ export class Employee extends Entity<EmployeeProps> {
     this.props.phone = phone;
   }
 
+  changeUsername(username: string | null): void {
+    this.props.username = username;
+  }
+
   assignNif(nif: Nif | null): void {
     this.props.nif = nif;
   }

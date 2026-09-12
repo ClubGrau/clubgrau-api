@@ -316,6 +316,23 @@ describe('Employee (entity)', () => {
       employee.assignNif(null);
       expect(employee.toJSON().nif).toBeNull();
     });
+
+    it('should change and clear the username', () => {
+      const employee = Employee.create(makeValidProps());
+
+      employee.changeUsername('jdoe');
+      expect(employee.toJSON().username).toBe('jdoe');
+
+      employee.changeUsername(null);
+      expect(employee.toJSON().username).toBeNull();
+    });
+
+    it('should not trim username on change', () => {
+      const employee = Employee.create(makeValidProps());
+
+      employee.changeUsername('  jdoe  ');
+      expect(employee.toJSON().username).toBe('  jdoe  ');
+    });
   });
 
   describe('removedAt', () => {
