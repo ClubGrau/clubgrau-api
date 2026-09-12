@@ -125,10 +125,12 @@ Use aliases instead of `../../../` across packages (`tsconfig.json` / `jest.conf
 |---------|----------|
 | Entity base / DomainError / VOs | `@shared/domain` |
 | EncrypterPort | `@shared/application/ports` |
+| MailerPort | `@shared/application/ports` |
 | Offset pagination | `@shared/application/pagination` |
 | BaseController / HttpResponse / helpers | `@shared/presentation` |
 | `adaptRoute` (Express ↔ controller) | `@shared/infrastructure/adapters/http` |
 | BcryptAdapter | `@shared/infrastructure/adapters/bcrypt` (injected in `app.ts`) |
+| ResendMailerAdapter / InMemoryMailer | `@shared/infrastructure/adapters/resend` |
 
 ### Persistence
 

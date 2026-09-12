@@ -1,5 +1,4 @@
 import * as jwt from 'jsonwebtoken';
-import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
 import { TokenPayload } from '@modules/auth/domain/models/token-payload.model';
 import { JwtTokenAdapter } from './jwt-token.adapter';
 
@@ -16,21 +15,14 @@ jest.mock('@configs/envs', () => ({
   },
 }));
 
-const makeValidPayload = (): AuthenticatableUser => ({
-  id: 'any_id',
-  name: 'any_name',
-  email: 'any_email@mail.com',
-  passwordHash: 'hashed_password',
-  role: 'EMPLOYEE',
-  status: 'ACTIVE',
-});
-
-const makeTokenPayload = (): TokenPayload => ({
+const makeTokenPayload = (overrides?: Partial<TokenPayload>): TokenPayload => ({
   id: 'any_id',
   name: 'any_name',
   email: 'any_email@mail.com',
   role: 'EMPLOYEE',
   status: 'ACTIVE',
+  sessionVersion: 0,
+  ...overrides,
 });
 
 const makeSut = () => {
@@ -49,7 +41,7 @@ describe('JwtTokenAdapter', () => {
     it('should call jwt.sign with payload, secret and TOKEN_EXPIRATION_TIME', () => {
       const { sut } = makeSut();
       const signSpy = jest.spyOn(jwt, 'sign');
-      const payload = makeValidPayload();
+      const payload = makeTokenPayload({ sessionVersion: 3 });
 
       const { token } = sut.generateToken(payload);
 
@@ -60,6 +52,7 @@ describe('JwtTokenAdapter', () => {
           email: payload.email,
           role: payload.role,
           status: payload.status,
+          sessionVersion: 3,
         },
         'any_secret',
         { expiresIn: 30 },
@@ -69,16 +62,17 @@ describe('JwtTokenAdapter', () => {
       expect(token.length).toBeGreaterThan(0);
     });
 
-    it('should not include passwordHash in the signed payload', () => {
+    it('should not include passwordHash or loginCapable in the signed payload', () => {
       const { sut } = makeSut();
       const signSpy = jest.spyOn(jwt, 'sign');
 
-      sut.generateToken(makeValidPayload());
+      sut.generateToken(makeTokenPayload());
 
       const signedPayload = signSpy.mock.calls[0]?.[0] as
         Record<string, unknown> | undefined;
       expect(signedPayload).toBeDefined();
       expect(signedPayload).not.toHaveProperty('passwordHash');
+      expect(signedPayload).not.toHaveProperty('loginCapable');
     });
 
     it('should throw if JWT_SECRET is not set', () => {
@@ -90,7 +84,7 @@ describe('JwtTokenAdapter', () => {
       envs.jwtSecret = undefined;
 
       const { sut } = makeSut();
-      expect(() => sut.generateToken(makeValidPayload())).toThrow(
+      expect(() => sut.generateToken(makeTokenPayload())).toThrow(
         'JWT_SECRET is not set in environment variables',
       );
 
@@ -101,7 +95,7 @@ describe('JwtTokenAdapter', () => {
   describe('decode', () => {
     it('should call jwt.verify and return TokenPayload', () => {
       const { sut } = makeSut();
-      const payload = makeTokenPayload();
+      const payload = makeTokenPayload({ sessionVersion: 1 });
       const verifySpy = jest
         .spyOn(jwt, 'verify')
         .mockReturnValue(payload as never);
@@ -110,6 +104,21 @@ describe('JwtTokenAdapter', () => {
 
       expect(verifySpy).toHaveBeenCalledWith('any_token', 'any_secret');
       expect(decoded).toEqual(payload);
+    });
+
+    it('should default sessionVersion to 0 when claim is missing', () => {
+      const { sut } = makeSut();
+      jest.spyOn(jwt, 'verify').mockReturnValue({
+        id: 'any_id',
+        name: 'any_name',
+        email: 'any_email@mail.com',
+        role: 'EMPLOYEE',
+        status: 'ACTIVE',
+      } as never);
+
+      const decoded = sut.decode('legacy_token');
+
+      expect(decoded.sessionVersion).toBe(0);
     });
 
     it('should throw if jwt.verify returns a string', () => {

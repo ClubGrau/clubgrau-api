@@ -14,4 +14,8 @@ export type AuthenticatableUser = {
   status: string;
   /** Claim para o token; string para não acoplar a enums de outros módulos. */
   role: string;
+  /** Derivado no adapter a partir de status; não vai para o JWT. */
+  loginCapable: boolean;
+  /** Carimbo de sessão; vai para o JWT. */
+  sessionVersion: number;
 };

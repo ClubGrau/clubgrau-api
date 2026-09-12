@@ -1,7 +1,7 @@
 # PRD: Employee Lifecycle — Deactivate, Reactivate, Remove
 
 **Product Requirements Document**
-**Date:** 21/08/2026 | **Status:** Ready for Design Doc | **Version:** 1.0
+**Date:** 21/08/2026 | **Revised:** 31/08/2026 (login-capable = `ACTIVE` \| `VACATION`) | **Status:** Ready for Design Doc | **Version:** 1.1
 
 **Glossary:** [`src/modules/employees/CONTEXT.md`](../../src/modules/employees/CONTEXT.md)
 **ADRs:** [`docs/adr/remove-or-inactivate-emp/`](../adr/remove-or-inactivate-emp/)
@@ -23,9 +23,10 @@ Operators also need a real **Remove**: the person disappears from the collaborat
 - Hard delete of the Mongo document
 - Audit UI / list filter for `REMOVED`
 - Revoking JWTs on Deactivate or Remove (Auth sibling)
-- Changing login to accept `VACATION`
 - Create-employee authorization matrix (who may create which role)
 - Behaviour of any downstream module when it sees a `REMOVED` `employeeId`
+
+Login and session for `VACATION` belong in Auth ([Password Reset PRD](./password-reset-v1.md)). This document only records the consequence for Last Admin and Actor (Rule 2.5).
 
 ---
 
@@ -79,13 +80,13 @@ Remove does not `deleteOne`. After success:
 
 Remove Actor is always ADMIN. MANAGER never Deactivate / Reactivate / Remove an ADMIN or a peer MANAGER. ADMIN lifecycle stays among ADMINs.
 
-### Rule 2.5 — Last Admin stays ACTIVE
+### Rule 2.5 — Last Admin stays login-capable
 
-**Last Admin (operational):** the only collaborator with role `ADMIN` whose status is `ACTIVE`. That person cannot become `INACTIVE` or `VACATION` while they remain the only ADMIN who can log in. Leftover `INACTIVE` / `VACATION` ADMINs do **not** count as a second login-capable ADMIN.
+**Last Admin (operational):** the only collaborator with role `ADMIN` whose status is login-capable (`ACTIVE` or `VACATION`). That person cannot become `INACTIVE` while they remain the only ADMIN who can log in. An ADMIN on `VACATION` **does** count as a second login-capable ADMIN. The Last Admin **may** go on `VACATION` — they keep a full session.
 
 **Last Admin (Remove / legacy):** the only collaborator with role `ADMIN` who is not `REMOVED`. That identity cannot be Removed; Reactivate by another ADMIN is the recovery path if such a row already exists.
 
-Self-Remove is already impossible: Actor must be `ACTIVE` and Target must be `INACTIVE`. This version must not create a Last Admin who is not `ACTIVE`. Real-world time off without a second `ACTIVE` ADMIN does not change platform status. Login in this version still requires `ACTIVE` (no `VACATION` login).
+Self-Remove is already impossible: Actor must be login-capable and Target must be `INACTIVE`. Real-world time off does not lock the platform: `VACATION` can still log in, reset a password, and act as Actor.
 
 ### Rule 2.6 — Actor password (step-up)
 
@@ -122,7 +123,7 @@ Authorization: Bearer <Actor token>
 
 Success: `200` with `{ id }` of the Target. The HTTP adapter must pass `actorId` from the decoded token into the use case. The body must not accept `actorId`.
 
-**Auth (sibling, not this command):** login already refuses `status !== ACTIVE`. Existing JWTs are not revoked here. Product rule “inactive / removed must not keep using the API” belongs in Auth (re-check current status after decode).
+**Auth (sibling, not this command):** login accepts `ACTIVE` and `VACATION`; refuses `INACTIVE` and `REMOVED` (same opaque error). Existing JWTs are not revoked here. Product rule “inactive / removed must not keep using the API” belongs in Auth (re-check current status after decode; `VACATION` remains a valid session).
 
 **Other modules:** may hold `employeeId`. This PRD only guarantees the id still exists after Remove. What they do with `REMOVED` is out of scope.
 
@@ -135,7 +136,7 @@ Success: `200` with `{ id }` of the Target. The HTTP adapter must pass `actorId`
 3. **As an ADMIN:** on an `INACTIVE` collaborator, I want to choose Reactivate **or** Remove, confirming Remove with **my** password.
 4. **As an ADMIN:** after Remove, I want that person gone from the collaborators list and their former email available for a new hire who is **not** the same identity.
 5. **As an ADMIN:** I want to Deactivate / Reactivate / Remove a MANAGER or another ADMIN (except Last Admin), because those levels stay among ADMINs.
-6. **As the Last Admin:** I must not be able to Deactivate, Vacation, or Remove myself (or be so treated) until another `ACTIVE` ADMIN exists, so the platform is never left without an ADMIN who can log in.
+6. **As the Last Admin:** I must not be Deactivated or Removed until another login-capable ADMIN exists, so the platform is never left without an ADMIN who can log in. I **may** go on `VACATION` — that is still a login.
 
 ---
 
@@ -145,9 +146,9 @@ Success: `200` with `{ id }` of the Target. The HTTP adapter must pass `actorId`
 - **Remove while already `REMOVED`:** refuse (`EmployeeNotFoundError` or equivalent — do not distinguish “never existed” from “already removed” on the list path; by id, treat as not found or already removed without leaking extra detail).
 - **MANAGER Remove, or MANAGER acting on MANAGER/ADMIN:** refuse even if the client sends the request.
 - **EMPLOYEE calling lifecycle endpoints:** refuse.
-- **Last Admin** Deactivate / Vacation / Remove: refuse, with a clear reason that another ADMIN must exist first.
+- **Last Admin** Deactivate / Remove: refuse, with a clear reason that another login-capable ADMIN must exist first. Last Admin **Vacation:** allowed.
 - **Wrong Actor password:** generic credentials failure; do not persist Anonymize.
-- **Actor not `ACTIVE`:** refuse (stale JWT after someone inactivated the Actor).
+- **Actor not login-capable (`INACTIVE` / `REMOVED`):** refuse (stale JWT after someone inactivated the Actor). `VACATION` Actor is allowed.
 - **Email Create while Target still `INACTIVE`:** still blocked; operator must Reactivate or Remove first.
 - **Same email after Remove:** new Create does not inherit the old id or its history.
 - **Target is Last Admin but `INACTIVE` (legacy data):** cannot Remove; Reactivate (by another ADMIN) is the recovery path if such a row already exists. This version must not create that state going forward (Rule 2.5).
@@ -168,7 +169,7 @@ These scenarios were walked during the grilling session. They are the rationale,
 
 **Why MANAGER cannot act on MANAGER or ADMIN.** “MANAGER is aimed at employees.” Peer-manager conflict and all ADMIN lifecycle escalate to ADMIN. Today’s `update-status` (any token, any target) is **stricter** after this PRD.
 
-**Why Last Admin cannot leave `ACTIVE`.** After the matrix, a MANAGER cannot Reactivate an ADMIN. Login rejects non-`ACTIVE`. If the only `ACTIVE` ADMIN became `INACTIVE` or `VACATION`, leftover non-`REMOVED` ADMINs do not restore login — nobody with permission could bring them back. Same lockout as Remove of Last Admin. Fix: Last Admin stays `ACTIVE` until a second `ACTIVE` ADMIN exists. This version does **not** widen login to `VACATION`.
+**Why Last Admin cannot become `INACTIVE` (but may go on `VACATION`).** After the matrix, a MANAGER cannot Reactivate an ADMIN. Login accepts `ACTIVE` and `VACATION` only. If the only login-capable ADMIN became `INACTIVE`, leftover `INACTIVE` ADMINs do not restore login — nobody with permission could bring them back. `VACATION` does not create that lockout: the person can still log in, reset a password, and act as Actor. Fix: Last Admin stays login-capable until a second login-capable ADMIN exists. They may take vacation alone. This supersedes the earlier “Last Admin must stay `ACTIVE` / cannot go on `VACATION`” rationale (ADRs 0008 and 0009).
 
 **Why `REMOVED` is absent from the list.** Sentinels would look like real people and confuse Reactivate vs Create.
 
@@ -187,7 +188,7 @@ These scenarios were walked during the grilling session. They are the rationale,
 - [ ] `INACTIVE` + ADMIN + wrong password → no write; generic error.
 - [ ] `ACTIVE` / `VACATION` + Remove → refused.
 - [ ] MANAGER + Target `MANAGER` or `ADMIN` (Deactivate / Reactivate / Remove) → refused.
-- [ ] Last Admin + Deactivate or Vacation or Remove → refused.
+- [ ] Last Admin + Deactivate or Remove → refused; Last Admin + Vacation → allowed.
 - [ ] Two ADMINs: ADMIN A may Remove ADMIN B if B is `INACTIVE` and A remains a non-`REMOVED` ADMIN.
 - [ ] Body cannot spoof `actorId`; Actor is taken from the JWT.
 - [ ] `update-status` still does not accept `REMOVED` as a status payload.

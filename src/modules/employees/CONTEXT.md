@@ -21,8 +21,12 @@ Replacement of personal data with sentinels, keeping `_id`, setting terminal sta
 _Avoid_: hard delete, erase identity, GDPR erase of the id
 
 **Actor**:
-The authenticated ADMIN who executes Remove. The modal asks only for their password (not the Target’s, not `passwordConfirmation`, not the Target’s name typed out). The `id` in the request is the Target.
-_Avoid_: Target password, passwordConfirmation, any token, MANAGER acting on ADMIN
+The authenticated ADMIN who executes Remove. Must be login-capable (`ACTIVE` or `VACATION`). The modal asks only for their password (not the Target’s, not `passwordConfirmation`, not the Target’s name typed out). The `id` in the request is the Target.
+_Avoid_: Target password, passwordConfirmation, any token, MANAGER acting on ADMIN, Actor must be ACTIVE
+
+**Login-capable**:
+Status from which a collaborator may authenticate and hold a full session: `ACTIVE` or `VACATION`. `INACTIVE` and `REMOVED` are not login-capable.
+_Avoid_: isActive, enabled, not deactivated, ACTIVE-only session
 
 **Target**:
 The `INACTIVE` collaborator who is a candidate for Reactivate or Remove. May be `ADMIN`, `MANAGER`, or `EMPLOYEE` — the Target’s role does not by itself block Remove.
@@ -33,5 +37,5 @@ Terminal state after Anonymize. Absent from the collaborators list. The `employe
 _Avoid_: deleted, hidden, archived, inactive
 
 **Last Admin**:
-The only `ADMIN` who can still log in (`ACTIVE`), or — for Remove — the only `ADMIN` who is not `REMOVED`. Cannot leave `ACTIVE` (Deactivate / Vacation) while they are the last `ACTIVE` ADMIN; leftover `INACTIVE` / `VACATION` ADMINs do not count as a second login. Cannot be Removed while they are the last non-`REMOVED` ADMIN. Status stays `ACTIVE` until another `ACTIVE` ADMIN exists.
-_Avoid_: last user, only login
+The only `ADMIN` who is login-capable (`ACTIVE` or `VACATION`), or — for Remove — the only `ADMIN` who is not `REMOVED`. Cannot become `INACTIVE` while they are the last login-capable ADMIN; leftover `INACTIVE` ADMINs do not count as a second login. An ADMIN on `VACATION` still counts. May go on `VACATION` even as Last Admin. Cannot be Removed while they are the last non-`REMOVED` ADMIN.
+_Avoid_: last user, only login, must stay ACTIVE, Last Admin cannot take vacation

@@ -1,0 +1,3 @@
+# Password-reset request sends the email before replacing the outstanding token
+
+If only login-capable addresses reach `MailerPort.send`, a `500` on Resend failure enumerates registered emails. If the request persists (and last-wins replaces) *before* send, a mail failure leaves a 15-minute cooldown and no inbox — the owner cannot retry, and the previous live link is already dead. Generate the raw token, send, and only then upsert the hash. Mail failure: log, return the same opaque `200`, leave the previous row untouched. Persist-after-send can yield a rare “email with a token not in the database”; the previous outstanding token remains valid. No queue in v1.

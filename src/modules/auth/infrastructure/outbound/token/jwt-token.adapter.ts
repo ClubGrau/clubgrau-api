@@ -2,16 +2,13 @@ import envs from '@configs/envs';
 import { LoginResultDto } from '@modules/auth/application/dtos/login.dto';
 import { TokenDecoderPort } from '@modules/auth/application/ports/outbound/token-decoder.port';
 import { TokenProviderPort } from '@modules/auth/application/ports/outbound/token-provider.port';
-import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
 import { TokenPayload } from '@modules/auth/domain/models/token-payload.model';
 import * as jwt from 'jsonwebtoken';
 
 export class JwtTokenAdapter
-  implements
-    TokenProviderPort<AuthenticatableUser>,
-    TokenDecoderPort<TokenPayload>
+  implements TokenProviderPort<TokenPayload>, TokenDecoderPort<TokenPayload>
 {
-  generateToken(payload: AuthenticatableUser): LoginResultDto {
+  generateToken(payload: TokenPayload): LoginResultDto {
     const secret = this.getSecret();
 
     const tokenPayload: TokenPayload = {
@@ -20,6 +17,7 @@ export class JwtTokenAdapter
       email: payload.email,
       role: payload.role,
       status: payload.status,
+      sessionVersion: payload.sessionVersion,
     };
     const token = jwt.sign(tokenPayload, secret, {
       expiresIn: Number(envs.tokenExpirationTime),
@@ -41,6 +39,7 @@ export class JwtTokenAdapter
       email: decoded.email as string,
       role: decoded.role as string,
       status: String(decoded.status ?? 'ACTIVE'),
+      sessionVersion: Number(decoded.sessionVersion ?? 0),
     };
   }
 

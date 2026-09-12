@@ -1,0 +1,3 @@
+# MailerPort lives in @shared, same criterion as bcrypt
+
+Sending email is not a product hexagon ([ADR 0003](./0003-mailer-is-a-port-resend-is-the-adapter.md)). v1 has a single caller (`auth`) and a single template (`password-reset`), but the team already treats I/O ports used by more than one hexagon as `@shared` (`EncrypterPort` / `CompareHashPort`). Welcome and receipts are out of this PRD; they will need the same `send({ to, template, vars })` seam. The port therefore lives in `@shared/application/ports`; the Resend adapter and a test fake live in `@shared/infrastructure`. Auth is still the only caller in v1. A `mail` module with HTTP remains rejected.

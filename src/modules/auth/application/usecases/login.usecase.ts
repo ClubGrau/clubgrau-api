@@ -3,15 +3,13 @@ import { LoginDto, LoginResultDto } from '../dtos/login.dto';
 import { AuthenticationError } from '@modules/auth/domain/errors/auth.errors';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { TokenProviderPort } from '../ports/outbound/token-provider.port';
-import { AuthenticatableUser } from '@modules/auth/domain/models/authenticatable-user.model';
-
-const ACTIVE_STATUS = 'ACTIVE';
+import { TokenPayload } from '@modules/auth/domain/models/token-payload.model';
 
 export class LoginUseCase {
   constructor(
     private readonly findAuthenticatableByEmailPort: FindAuthenticatableByEmailPort,
     private readonly compareHashPort: CompareHashPort,
-    private readonly tokenProviderPort: TokenProviderPort<AuthenticatableUser>,
+    private readonly tokenProviderPort: TokenProviderPort<TokenPayload>,
   ) {}
 
   async execute(params: LoginDto): Promise<LoginResultDto> {
@@ -20,7 +18,7 @@ export class LoginUseCase {
         params.email,
       );
 
-    if (!user || user.status !== ACTIVE_STATUS) {
+    if (!user || !user.loginCapable) {
       throw new AuthenticationError();
     }
 
@@ -40,6 +38,7 @@ export class LoginUseCase {
       email: user.email,
       role: user.role,
       status: user.status,
+      sessionVersion: user.sessionVersion,
     });
 
     return { token };

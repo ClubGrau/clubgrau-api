@@ -53,10 +53,16 @@ export function mapEmployeeReadModel(
   };
 }
 
-/** Maps the application DTO to the Mongoose persistence payload. */
+/**
+ * Maps the application DTO to the Mongoose persistence payload.
+ *
+ * `sessionVersion` is intentionally omitted so Mongo applies the schema
+ * default (`0`) on insert. Emitting a full-document `0` here would let a
+ * later create/overwrite resurrect invalidated JWTs (ADR 0008).
+ */
 export function mapToCreateDocument(
   employee: EmployeeModel.toCreate,
-): EmployeeDocument {
+): Omit<EmployeeDocument, 'sessionVersion'> {
   const { id, nif, ...rest } = employee;
 
   return {
