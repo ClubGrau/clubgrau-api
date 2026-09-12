@@ -14,6 +14,10 @@ import {
   UpdateEmployeeStatusParams,
   UpdateEmployeeStatusRepositoryPort,
 } from '@modules/employees/application/ports/outbound/update-employee-status-repository.port';
+import {
+  UpdateMainEmployeeDataParams,
+  UpdateMainEmployeeDataRepositoryPort,
+} from '@modules/employees/application/ports/outbound/update-main-employee-data-repository.port';
 import { CountActiveAdminsPort } from '@modules/employees/domain/ports/count-active-admins.port';
 import { CountNonRemovedAdminsPort } from '@modules/employees/domain/ports/count-non-removed-admins.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
@@ -43,7 +47,8 @@ export class EmployeeMongooseRepository
     UpdateEmployeeStatusRepositoryPort,
     CountNonRemovedAdminsPort,
     CountActiveAdminsPort,
-    AnonymizeEmployeeRepositoryPort
+    AnonymizeEmployeeRepositoryPort,
+    UpdateMainEmployeeDataRepositoryPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
 
@@ -80,6 +85,17 @@ export class EmployeeMongooseRepository
       { _id: params.id },
       { $set: { status: params.status, deactivateAt: params.deactivateAt } },
     );
+  }
+
+  async updateMainData(params: UpdateMainEmployeeDataParams): Promise<void> {
+    const { id, ...fields } = params;
+    const $set = Object.fromEntries(
+      Object.entries(fields).filter(([, value]) => value !== undefined),
+    );
+    const result = await this.employeeModel.updateOne({ _id: id }, { $set });
+    if (result.matchedCount === 0) {
+      throw new Error('Employee main data update matched 0 documents');
+    }
   }
 
   async countNonRemovedAdmins(): Promise<number> {
