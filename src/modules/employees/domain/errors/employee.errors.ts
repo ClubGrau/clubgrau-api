@@ -58,6 +58,12 @@ export class EmployeeLifecycleForbiddenError extends DomainError {
   }
 }
 
+export class EmployeeMainDataForbiddenError extends DomainError {
+  constructor() {
+    super('Action not allowed');
+  }
+}
+
 export class LastAdminProtectedError extends DomainError {
   constructor() {
     super('Last Admin must stay ACTIVE until another Admin exists');
