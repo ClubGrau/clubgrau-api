@@ -4,6 +4,22 @@ Identity and lifecycle of a collaborator on the Club Grau platform. This context
 
 ## Language
 
+**Edit Collaborator**:
+The product surface that corrects an existing collaborator's data in sections (main, personal, professional). It is not one write of the whole record and never includes password.
+_Avoid_: update employee, update profile, patch, save all fields at once
+
+**Main Employee Data**:
+The primary identity fields of a collaborator: full name, email, phone, and username.
+_Avoid_: profile, personal information, professional information
+
+**Update Main Employee Data**:
+The command that corrects only the Main Employee Data fields present in the request. Omitted fields stay as they are. EMPLOYEE acts on nobody. MANAGER may edit only EMPLOYEE. ADMIN may edit any role, including self. The Target must not be Removed. Status, password, role, and personal/professional fields are unchanged. Email occupancy is the same as Create, except the Target's current email is not a collision.
+_Avoid_: Edit Collaborator as this command's name, update employee, update profile, steal an INACTIVE email, require the whole section
+
+**Email occupancy**:
+An email is taken while a non-Removed collaborator holds it. Create and Update Main Employee Data refuse a taken email. Removed frees the original address.
+_Avoid_: unique username, inheriting an INACTIVE email
+
 **Deactivate**:
 Operational stop. Status becomes `INACTIVE`; identity and email remain. MANAGER may Deactivate only `EMPLOYEE`. ADMIN may Deactivate `EMPLOYEE`, `MANAGER`, and `ADMIN`, except the Last Admin.
 _Avoid_: delete, remove, excluir
@@ -21,15 +37,15 @@ Replacement of personal data with sentinels, keeping `_id`, setting terminal sta
 _Avoid_: hard delete, erase identity, GDPR erase of the id
 
 **Actor**:
-The authenticated ADMIN who executes Remove. Must be login-capable (`ACTIVE` or `VACATION`). The modal asks only for their password (not the Target’s, not `passwordConfirmation`, not the Target’s name typed out). The `id` in the request is the Target.
-_Avoid_: Target password, passwordConfirmation, any token, MANAGER acting on ADMIN, Actor must be ACTIVE
+The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data allows ADMIN on any Target and MANAGER on EMPLOYEE only.
+_Avoid_: Target password, forged actorId, Actor must be ACTIVE-only
 
 **Login-capable**:
 Status from which a collaborator may authenticate and hold a full session: `ACTIVE` or `VACATION`. `INACTIVE` and `REMOVED` are not login-capable.
 _Avoid_: isActive, enabled, not deactivated, ACTIVE-only session
 
 **Target**:
-The `INACTIVE` collaborator who is a candidate for Reactivate or Remove. May be `ADMIN`, `MANAGER`, or `EMPLOYEE` — the Target’s role does not by itself block Remove.
+The existing collaborator whose record a command addresses. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data allows `ACTIVE`, `VACATION`, and `INACTIVE`, and refuses Removed. Remove still requires `INACTIVE`.
 _Avoid_: victim, user, account
 
 **Removed**:
