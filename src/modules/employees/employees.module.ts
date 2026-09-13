@@ -4,13 +4,17 @@ import { CreateEmployeePort } from '@modules/employees/application/ports/inbound
 import { GetEmployeesPort } from '@modules/employees/application/ports/inbound/get-employees.port';
 import { RemoveEmployeePort } from '@modules/employees/application/ports/inbound/remove-employee.port';
 import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/inbound/update-employee-status.port';
+import { UpdateMainEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-main-employee-data.port';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { GetEmployeesQuery } from '@modules/employees/application/queries/get-employees.query';
 import { CreateEmployeeUsecase } from '@modules/employees/application/usecases/create-employee.usecase';
 import { RemoveEmployeeUsecase } from '@modules/employees/application/usecases/remove-employee.usecase';
 import { UpdateEmployeeStatusUsecase } from '@modules/employees/application/usecases/update-employee-status.usecase';
+import { UpdateMainEmployeeDataUsecase } from '@modules/employees/application/usecases/update-main-employee-data.usecase';
 import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
+import { EmployeeMainDataPatchService } from '@modules/employees/domain/services/employee-main-data-patch.service';
+import { EmployeeMainDataPolicy } from '@modules/employees/domain/services/employee-main-data.policy';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
@@ -19,11 +23,13 @@ import { CreateEmployeeController } from '@modules/employees/presentation/contro
 import { GetEmployeesController } from '@modules/employees/presentation/controllers/get-employees.controller';
 import { RemoveEmployeeController } from '@modules/employees/presentation/controllers/remove-employee.controller';
 import { UpdateEmployeeStatusController } from '@modules/employees/presentation/controllers/update-employee-status.controller';
+import { UpdateMainEmployeeDataController } from '@modules/employees/presentation/controllers/update-main-employee-data.controller';
 
 export type EmployeesModule = {
   createEmployeeController: CreateEmployeeController;
   getEmployeesController: GetEmployeesController;
   updateEmployeeStatusController: UpdateEmployeeStatusController;
+  updateMainEmployeeDataController: UpdateMainEmployeeDataController;
   removeEmployeeController: RemoveEmployeeController;
   createEmployee: CreateEmployeePort;
   getEmployees: GetEmployeesPort;
@@ -83,12 +89,28 @@ export function makeEmployeesModule({
   );
   const removeEmployeeController = new RemoveEmployeeController(removeEmployee);
 
+  const mainDataPatchService = new EmployeeMainDataPatchService(
+    employeePoliciesService,
+  );
+  const mainDataPolicy = new EmployeeMainDataPolicy();
+  const updateMainEmployeeData: UpdateMainEmployeeDataPort =
+    new UpdateMainEmployeeDataUsecase(
+      employeeRepository,
+      mainDataPatchService,
+      mainDataPolicy,
+      employeeRepository,
+    );
+  const updateMainEmployeeDataController = new UpdateMainEmployeeDataController(
+    updateMainEmployeeData,
+  );
+
   const requireRoles = makeRequireRoles;
 
   const router = makeEmployeeRoutes({
     createEmployeeController,
     getEmployeesController,
     updateEmployeeStatusController,
+    updateMainEmployeeDataController,
     removeEmployeeController,
     authTokenMiddleware,
     requireRoles,
@@ -98,6 +120,7 @@ export function makeEmployeesModule({
     createEmployeeController,
     getEmployeesController,
     updateEmployeeStatusController,
+    updateMainEmployeeDataController,
     removeEmployeeController,
     createEmployee,
     getEmployees,

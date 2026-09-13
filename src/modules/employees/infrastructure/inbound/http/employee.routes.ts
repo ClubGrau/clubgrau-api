@@ -3,12 +3,14 @@ import { CreateEmployeeController } from '@modules/employees/presentation/contro
 import { GetEmployeesController } from '@modules/employees/presentation/controllers/get-employees.controller';
 import { RemoveEmployeeController } from '@modules/employees/presentation/controllers/remove-employee.controller';
 import { UpdateEmployeeStatusController } from '@modules/employees/presentation/controllers/update-employee-status.controller';
+import { UpdateMainEmployeeDataController } from '@modules/employees/presentation/controllers/update-main-employee-data.controller';
 import { adaptRoute } from '@shared/infrastructure/adapters/http/express-route.adapter';
 
 export type EmployeeRoutesDependencies = {
   createEmployeeController: CreateEmployeeController;
   getEmployeesController: GetEmployeesController;
   updateEmployeeStatusController: UpdateEmployeeStatusController;
+  updateMainEmployeeDataController: UpdateMainEmployeeDataController;
   removeEmployeeController: RemoveEmployeeController;
   authTokenMiddleware: RequestHandler;
   requireRoles: (...roles: string[]) => RequestHandler;
@@ -18,6 +20,7 @@ export function makeEmployeeRoutes({
   createEmployeeController,
   getEmployeesController,
   updateEmployeeStatusController,
+  updateMainEmployeeDataController,
   removeEmployeeController,
   authTokenMiddleware,
   requireRoles,
@@ -48,6 +51,12 @@ export function makeEmployeeRoutes({
     authTokenMiddleware,
     requiredRoleEmployee,
     adaptRoute(removeEmployeeController),
+  );
+  router.patch(
+    '/employee/:id/main-data',
+    authTokenMiddleware,
+    requiredRoleEmployee,
+    adaptRoute(updateMainEmployeeDataController),
   );
 
   return router;
