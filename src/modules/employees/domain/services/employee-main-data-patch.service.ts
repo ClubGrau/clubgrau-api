@@ -38,7 +38,7 @@ export class EmployeeMainDataPatchService {
       patch.phone = target.patchPhone(changes.phone);
     }
 
-    if ('username' in changes) {
+    if (changes.username !== undefined) {
       patch.username = target.patchUsername(changes.username);
     }
 
