@@ -13,7 +13,10 @@ describe('Cors Middleware', () => {
       .get('/test_cors')
       .expect(200)
       .expect('Access-Control-Allow-Origin', '*')
-      .expect('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+      .expect(
+        'Access-Control-Allow-Methods',
+        'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      )
       .expect('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   });
 
@@ -27,7 +30,10 @@ describe('Cors Middleware', () => {
       .options('/auth')
       .expect(204)
       .expect('Access-Control-Allow-Origin', '*')
-      .expect('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+      .expect(
+        'Access-Control-Allow-Methods',
+        'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      )
       .expect('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   });
 });
