@@ -9,11 +9,11 @@ import {
   EmployeeLifecyclePolicy,
   LifecycleIntent,
 } from '@modules/employees/domain/services/employee-lifecycle.policy';
-import { Email, Name, Nif, Password, Phone } from '@shared/domain/value-object';
 import {
   UpdateEmployeeStatusDto,
   UpdateEmployeeStatusResultDto,
 } from '../dtos/update-employee-status.dto';
+import { EmployeeSnapshotMapper } from '../mappers/employee-snapshot.mapper';
 import { UpdateEmployeeStatusPort } from '../ports/inbound/update-employee-status.port';
 import { FindEmployeeByIdPort } from '../ports/outbound/find-employee-by-id.port';
 import { UpdateEmployeeStatusRepositoryPort } from '../ports/outbound/update-employee-status-repository.port';
@@ -41,8 +41,8 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
       throw new EmployeeNotFoundError();
     }
 
-    const actor = this.reconstitute(actorSnapshot);
-    const target = this.reconstitute(targetEmployeeSnapshot);
+    const actor = EmployeeSnapshotMapper.toEntity(actorSnapshot);
+    const target = EmployeeSnapshotMapper.toEntity(targetEmployeeSnapshot);
     const intent = this.mapIntent(params.status);
 
     await this.lifecyclePolicy.assertCan({ actor, target, intent });
@@ -55,22 +55,6 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
     });
 
     return { id: target.id, status: target.status };
-  }
-
-  private reconstitute(snapshot: EmployeeModel.toCreate): Employee {
-    return Employee.reconstitute({
-      id: snapshot.id,
-      name: Name.create(snapshot.name),
-      email: Email.create(snapshot.email),
-      password: Password.fromHash(snapshot.password),
-      phone: snapshot.phone ? Phone.create(snapshot.phone) : null,
-      nif: snapshot.nif ? Nif.create(snapshot.nif) : null,
-      role: snapshot.role,
-      status: snapshot.status,
-      createdAt: snapshot.createdAt,
-      deactivateAt: snapshot.deactivateAt,
-      removedAt: snapshot.removedAt ?? null,
-    });
   }
 
   private mapIntent(status: EmployeeModel.OperationalStatus): LifecycleIntent {

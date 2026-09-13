@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import { Employee } from '@modules/employees/domain/entities/Employee';
 import {
   ActorAuthenticationFailedError,
   EmployeeNotFoundError,
@@ -8,11 +7,12 @@ import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
-import { Email, Name, Nif, Password, Phone } from '@shared/domain/value-object';
+import { Password } from '@shared/domain/value-object';
 import {
   RemoveEmployeeDto,
   RemoveEmployeeResultDto,
 } from '../dtos/remove-employee.dto';
+import { EmployeeSnapshotMapper } from '../mappers/employee-snapshot.mapper';
 import { RemoveEmployeePort } from '../ports/inbound/remove-employee.port';
 import { AnonymizeEmployeeRepositoryPort } from '../ports/outbound/anonymize-employee-repository.port';
 import { FindEmployeeByIdPort } from '../ports/outbound/find-employee-by-id.port';
@@ -46,8 +46,8 @@ export class RemoveEmployeeUsecase implements RemoveEmployeePort {
       throw new EmployeeNotFoundError();
     }
 
-    const actor = this.reconstitute(actorSnapshot);
-    const target = this.reconstitute(targetSnapshot);
+    const actor = EmployeeSnapshotMapper.toEntity(actorSnapshot);
+    const target = EmployeeSnapshotMapper.toEntity(targetSnapshot);
 
     await this.lifecyclePolicy.assertCan({
       actor,
@@ -85,21 +85,5 @@ export class RemoveEmployeeUsecase implements RemoveEmployeePort {
     } catch {
       throw new ActorAuthenticationFailedError();
     }
-  }
-
-  private reconstitute(snapshot: EmployeeModel.toCreate): Employee {
-    return Employee.reconstitute({
-      id: snapshot.id,
-      name: Name.create(snapshot.name),
-      email: Email.create(snapshot.email),
-      password: Password.fromHash(snapshot.password),
-      phone: snapshot.phone ? Phone.create(snapshot.phone) : null,
-      nif: snapshot.nif ? Nif.create(snapshot.nif) : null,
-      role: snapshot.role,
-      status: snapshot.status,
-      createdAt: snapshot.createdAt,
-      deactivateAt: snapshot.deactivateAt,
-      removedAt: snapshot.removedAt ?? null,
-    });
   }
 }
