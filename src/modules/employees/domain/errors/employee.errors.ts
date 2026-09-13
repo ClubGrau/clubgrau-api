@@ -64,6 +64,12 @@ export class EmployeeMainDataForbiddenError extends DomainError {
   }
 }
 
+export class EmptyMainEmployeeDataError extends DomainError {
+  constructor() {
+    super('At least one main data field is required');
+  }
+}
+
 export class LastAdminProtectedError extends DomainError {
   constructor() {
     super('Last Admin must stay ACTIVE until another Admin exists');

@@ -317,6 +317,22 @@ describe('Employee (entity)', () => {
       expect(employee.toJSON().nif).toBeNull();
     });
 
+    describe('normalizeUsername', () => {
+      it('should return null for null input', () => {
+        expect(Employee.normalizeUsername(null)).toBeNull();
+      });
+
+      it('should return null for blank or whitespace-only input', () => {
+        expect(Employee.normalizeUsername('')).toBeNull();
+        expect(Employee.normalizeUsername('   ')).toBeNull();
+      });
+
+      it('should trim and preserve non-blank usernames', () => {
+        expect(Employee.normalizeUsername('  jdoe  ')).toBe('jdoe');
+        expect(Employee.normalizeUsername('jdoe')).toBe('jdoe');
+      });
+    });
+
     it('should change and clear the username', () => {
       const employee = Employee.create(makeValidProps());
 
@@ -361,6 +377,15 @@ describe('Employee (entity)', () => {
         makeSnapshot({ role: EmployeeModel.Role.ADMIN }),
       );
       expect(employee.role).toBe(EmployeeModel.Role.ADMIN);
+    });
+  });
+
+  describe('get email', () => {
+    it('should expose the reconstituted email value object', () => {
+      const employee = Employee.reconstitute(
+        makeSnapshot({ email: Email.create('jane@example.com') }),
+      );
+      expect(employee.email.value).toBe('jane@example.com');
     });
   });
 

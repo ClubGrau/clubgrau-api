@@ -195,6 +195,10 @@ export class Employee extends Entity<EmployeeProps> {
     return this.props.role;
   }
 
+  get email(): Email {
+    return this.props.email;
+  }
+
   get isActive(): boolean {
     return this.props.status === EmployeeModel.Status.ACTIVE;
   }
@@ -214,6 +218,12 @@ export class Employee extends Entity<EmployeeProps> {
     this.props.name = name;
   }
 
+  patchName(raw: string): string {
+    const name = Name.create(raw);
+    this.changeName(name);
+    return name.value;
+  }
+
   changeEmail(email: Email): void {
     this.props.email = email;
   }
@@ -222,8 +232,28 @@ export class Employee extends Entity<EmployeeProps> {
     this.props.phone = phone;
   }
 
+  patchPhone(raw: string): string {
+    const phone = Phone.create(raw);
+    this.changePhone(phone);
+    return phone.value;
+  }
+
+  static normalizeUsername(raw: string | null): string | null {
+    if (raw === null) {
+      return null;
+    }
+    const trimmed = raw.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+
   changeUsername(username: string | null): void {
     this.props.username = username;
+  }
+
+  patchUsername(raw: string | null): string | null {
+    const normalized = Employee.normalizeUsername(raw);
+    this.changeUsername(normalized);
+    return normalized;
   }
 
   assignNif(nif: Nif | null): void {
