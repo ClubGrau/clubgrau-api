@@ -4,7 +4,7 @@ POST http://localhost:3003/auth
 Content-Type: application/json
 
 {
-    "email": "qa.e1.p0@example.com",
+    "email": "user.grau@gmail.com",
     "password": "P@ssword123"
 }
 
