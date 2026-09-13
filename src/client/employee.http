@@ -1,4 +1,4 @@
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFiN2FmYTJiZjkyYmFlZWY0ZjUyMDBjOCIsIm5hbWUiOiJWYW4gU3Rlcm95IiwiZW1haWwiOiJ2YW4uc3Rlcm95QGV4YW1wbGUuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3NDI5NDgzLCJleHAiOjI5OTcwMjk0ODN9.2FCGLI0xoHqc9lib5jNjNrjHCpkYKkekyXhM2RkTjH8
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjcxMmMyOGQyMDVhN2JkNDg3MDYwYjVhNiIsIm5hbWUiOiJKb2huIERvZSIsImVtYWlsIjoiZ3JhdWJhcmJlcmNsdWJAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwic2Vzc2lvblZlcnNpb24iOjAsImlhdCI6MTc4OTE3MDY3OCwiZXhwIjoyOTk4NzcwNjc4fQ.UfhtfOdAd9RLqQSm0VSs8Xu2ztsLM4TBNHml53iiidw
 @employeeToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImM4ZDU2NzQ5YTY4ZDFhMDQ1OTA0N2UzZiIsIm5hbWUiOiJRQSBFbXBsb3llZSBPbmUiLCJlbWFpbCI6InFhLmUxLnAwQGV4YW1wbGUuY29tIiwicm9sZSI6IkVNUExPWUVFIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3OTYyNjYyLCJleHAiOjI5OTc1NjI2NjJ9.uH6n6cV3gFYJKuubA4B8IuZrzezKyOSEV_LkM9_7Aks
 
 ### Create employee
@@ -58,6 +58,72 @@ Authorization: Bearer {{token}}
 {
   "id": "75a8421596c6c09cff9425d6",
   "status": "INACTIVE"
+}
+
+### Update main employee data (partial patch)
+# Target vem do path param :id. Actor vem do Bearer token (adaptRoute stampa actorId).
+# Não enviar id ou actorId no body. Presença esparsa: só campos presentes são alterados.
+# status/password neste body → 400 (usar POST /employee/update-status para status).
+# username "" ou null → clear (username null). phone/name/email em branco → 400.
+PATCH http://localhost:3003/api/employee/70825d5a48dd674234be304d/main-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "MARQUIN HAIRSTYLE",
+  "email": "marquin@hairstyledograu.com"
+}
+
+### Update main employee data (clear username)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/main-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "username": null
+}
+
+### Update main employee data (blank username clears)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/main-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "username": ""
+}
+
+### Update main employee data (blank phone → 400)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/main-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "phone": ""
+}
+
+### Update main employee data (empty body → 400)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/main-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+### Update main employee data (status in body → 400)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/main-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "INACTIVE"
+}
+
+### Update main employee data (EMPLOYEE token → 403)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/main-data
+Content-Type: application/json
+Authorization: Bearer {{employeeToken}}
+
+{
+  "name": "João Silva"
 }
 
 ### Remove employee (anonymize)

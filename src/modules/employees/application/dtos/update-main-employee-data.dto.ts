@@ -37,6 +37,7 @@ export class UpdateMainEmployeeDataDto {
       this.phone = data.phone.trim();
     }
 
+    // TODO melhorar regra de propagraçao da entrada de dado.
     if (data.username !== undefined) {
       if (data.username === null) {
         this.username = null;
