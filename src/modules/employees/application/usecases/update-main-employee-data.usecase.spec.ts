@@ -144,13 +144,21 @@ const makeSut = (
 };
 
 const makeParams = (
-  overrides: Partial<UpdateMainEmployeeDataDto> = {},
-): UpdateMainEmployeeDataDto => ({
-  actorId: ACTOR_ID,
-  id: TARGET_ID,
-  name: 'Jane Smith',
-  ...overrides,
-});
+  overrides: Partial<{
+    actorId: string;
+    id: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    username?: string | null;
+  }> = {},
+): UpdateMainEmployeeDataDto =>
+  new UpdateMainEmployeeDataDto({
+    actorId: ACTOR_ID,
+    id: TARGET_ID,
+    name: 'Jane Smith',
+    ...overrides,
+  });
 
 describe('UpdateMainEmployeeDataUsecase', () => {
   afterEach(() => {
@@ -437,10 +445,12 @@ describe('UpdateMainEmployeeDataUsecase', () => {
     const { sut, updateMainDataRepositoryStub } = makeSut();
 
     await expect(
-      sut.execute({
-        actorId: ACTOR_ID,
-        id: TARGET_ID,
-      }),
+      sut.execute(
+        new UpdateMainEmployeeDataDto({
+          actorId: ACTOR_ID,
+          id: TARGET_ID,
+        }),
+      ),
     ).rejects.toBeInstanceOf(EmptyMainEmployeeDataError);
     expect(updateMainDataRepositoryStub.updateMainData).not.toHaveBeenCalled();
   });
