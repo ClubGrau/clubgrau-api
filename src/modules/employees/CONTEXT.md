@@ -16,6 +16,14 @@ _Avoid_: profile, personal information, professional information
 The command that corrects only the Main Employee Data fields present in the request. Omitted fields stay as they are. EMPLOYEE acts on nobody. MANAGER may edit only EMPLOYEE. ADMIN may edit any role, including self. The Target must not be Removed. Status, password, role, and personal/professional fields are unchanged. Email occupancy is the same as Create, except the Target's current email is not a collision.
 _Avoid_: Edit Collaborator as this command's name, update employee, update profile, steal an INACTIVE email, require the whole section
 
+**Personal Employee Data**:
+The personal profile fields of a collaborator: gender, languages, emergency contact, NIF, and address. All are optional and clearable to null. None is a login key or business identity anchor.
+_Avoid_: personal information, profile, main data
+
+**Update Personal Employee Data**:
+The command that corrects only the Personal Employee Data fields present in the request. All five fields are clearable (present + null/blank → null). EMPLOYEE acts on nobody. MANAGER may edit only EMPLOYEE. ADMIN may edit any role, including self. The Target must not be Removed. Main Data, status, password, role, and professional fields are unchanged. No occupancy check (no uniqueness constraint on personal fields).
+_Avoid_: update profile, update personal information, require all five fields, treat null as an error
+
 **Email occupancy**:
 An email is taken while a non-Removed collaborator holds it. Create and Update Main Employee Data refuse a taken email. Removed frees the original address.
 _Avoid_: unique username, inheriting an INACTIVE email
@@ -37,7 +45,7 @@ Replacement of personal data with sentinels, keeping `_id`, setting terminal sta
 _Avoid_: hard delete, erase identity, GDPR erase of the id
 
 **Actor**:
-The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data allows ADMIN on any Target and MANAGER on EMPLOYEE only.
+The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data and Update Personal Employee Data allow ADMIN on any Target and MANAGER on EMPLOYEE only.
 _Avoid_: Target password, forged actorId, Actor must be ACTIVE-only
 
 **Login-capable**:
@@ -45,7 +53,7 @@ Status from which a collaborator may authenticate and hold a full session: `ACTI
 _Avoid_: isActive, enabled, not deactivated, ACTIVE-only session
 
 **Target**:
-The existing collaborator whose record a command addresses. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data allows `ACTIVE`, `VACATION`, and `INACTIVE`, and refuses Removed. Remove still requires `INACTIVE`.
+The existing collaborator whose record a command addresses. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data and Update Personal Employee Data allow `ACTIVE`, `VACATION`, and `INACTIVE`, and refuse Removed. Remove still requires `INACTIVE`.
 _Avoid_: victim, user, account
 
 **Removed**:
