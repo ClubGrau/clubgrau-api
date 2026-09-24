@@ -259,4 +259,20 @@ export class Employee extends Entity<EmployeeProps> {
   assignNif(nif: Nif | null): void {
     this.props.nif = nif;
   }
+
+  assignGender(gender: EmployeeModel.Gender | null): void {
+    this.props.gender = gender;
+  }
+
+  assignLanguages(languages: string | null): void {
+    this.props.languages = languages;
+  }
+
+  assignAddress(address: string | null): void {
+    this.props.address = address;
+  }
+
+  assignEmergencyContact(contact: Phone | null): void {
+    this.props.emergencyContact = contact;
+  }
 }

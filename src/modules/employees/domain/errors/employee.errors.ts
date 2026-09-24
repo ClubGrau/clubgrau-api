@@ -87,3 +87,21 @@ export class EmployeeAlreadyRemovedError extends DomainError {
     super('Employee is already removed');
   }
 }
+
+export class EmployeePersonalDataForbiddenError extends DomainError {
+  constructor() {
+    super('Action not allowed');
+  }
+}
+
+export class EmptyPersonalEmployeeDataError extends DomainError {
+  constructor() {
+    super('At least one personal data field is required');
+  }
+}
+
+export class InvalidEmployeeGenderError extends DomainError {
+  constructor() {
+    super('Invalid gender');
+  }
+}

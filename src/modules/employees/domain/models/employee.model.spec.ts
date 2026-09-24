@@ -18,6 +18,29 @@ describe('EmployeeModel.Role', () => {
   });
 });
 
+describe('EmployeeModel.Gender', () => {
+  it('should expose all genders', () => {
+    expect(EmployeeModel.GENDERS).toEqual(['male', 'female', 'other']);
+  });
+
+  it('should identify valid genders', () => {
+    expect(EmployeeModel.isGender('male')).toBe(true);
+    expect(EmployeeModel.isGender('female')).toBe(true);
+    expect(EmployeeModel.isGender('other')).toBe(true);
+    expect(EmployeeModel.isGender(EmployeeModel.Gender.MALE)).toBe(true);
+    expect(EmployeeModel.isGender(EmployeeModel.Gender.FEMALE)).toBe(true);
+    expect(EmployeeModel.isGender(EmployeeModel.Gender.OTHER)).toBe(true);
+  });
+
+  it('should reject invalid genders', () => {
+    expect(EmployeeModel.isGender(null)).toBe(false);
+    expect(EmployeeModel.isGender('')).toBe(false);
+    expect(EmployeeModel.isGender('MALE')).toBe(false);
+    expect(EmployeeModel.isGender('invalid')).toBe(false);
+    expect(EmployeeModel.isGender(123)).toBe(false);
+  });
+});
+
 describe('EmployeeModel.Status', () => {
   it('should expose all statuses including REMOVED', () => {
     expect(EmployeeModel.STATUSES).toEqual([

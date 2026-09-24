@@ -317,6 +317,65 @@ describe('Employee (entity)', () => {
       expect(employee.toJSON().nif).toBeNull();
     });
 
+    describe('assign* personal mutators', () => {
+      it('should assign gender', () => {
+        const employee = Employee.create(makeValidProps());
+
+        employee.assignGender(EmployeeModel.Gender.MALE);
+
+        expect(employee.toJSON().gender).toBe('male');
+      });
+
+      it('should clear gender', () => {
+        const employee = Employee.create(makeValidProps());
+        employee.assignGender(EmployeeModel.Gender.FEMALE);
+
+        employee.assignGender(null);
+
+        expect(employee.toJSON().gender).toBeNull();
+      });
+
+      it('should assign and clear languages without trimming', () => {
+        const employee = Employee.create(makeValidProps());
+
+        employee.assignLanguages('  pt  ');
+        expect(employee.toJSON().languages).toBe('  pt  ');
+
+        employee.assignLanguages(null);
+        expect(employee.toJSON().languages).toBeNull();
+      });
+
+      it('should assign and clear address without trimming', () => {
+        const employee = Employee.create(makeValidProps());
+
+        employee.assignAddress('  Rua A  ');
+        expect(employee.toJSON().address).toBe('  Rua A  ');
+
+        employee.assignAddress(null);
+        expect(employee.toJSON().address).toBeNull();
+      });
+
+      it('should assign and clear emergency contact', () => {
+        const employee = Employee.create(makeValidProps());
+
+        employee.assignEmergencyContact(Phone.create('+351 912 345 678'));
+        expect(employee.toJSON().emergencyContact).toBe('351912345678');
+
+        employee.assignEmergencyContact(null);
+        expect(employee.toJSON().emergencyContact).toBeNull();
+      });
+
+      it('should still assign and clear the NIF', () => {
+        const employee = Employee.create(makeValidProps());
+
+        employee.assignNif(Nif.create('123456789'));
+        expect(employee.toJSON().nif).toBe('123456789');
+
+        employee.assignNif(null);
+        expect(employee.toJSON().nif).toBeNull();
+      });
+    });
+
     describe('normalizeUsername', () => {
       it('should return null for null input', () => {
         expect(Employee.normalizeUsername(null)).toBeNull();

@@ -18,6 +18,12 @@ export namespace EmployeeModel {
     REMOVED = 'REMOVED',
   }
 
+  export enum Gender {
+    MALE = 'male',
+    FEMALE = 'female',
+    OTHER = 'other',
+  }
+
   /** Subset of operational (non-terminal) statuses. */
   export type OperationalStatus =
     Status.ACTIVE | Status.INACTIVE | Status.VACATION;
@@ -34,6 +40,10 @@ export namespace EmployeeModel {
   export const OPERATIONAL_STATUSES: readonly OperationalStatus[] =
     Object.freeze([Status.ACTIVE, Status.INACTIVE, Status.VACATION]);
 
+  export const GENDERS: readonly Gender[] = Object.freeze(
+    Object.values(Gender),
+  );
+
   export function isRole(value: unknown): value is Role {
     return typeof value === 'string' && (ROLES as string[]).includes(value);
   }
@@ -49,5 +59,9 @@ export namespace EmployeeModel {
       typeof value === 'string' &&
       (OPERATIONAL_STATUSES as string[]).includes(value)
     );
+  }
+
+  export function isGender(value: unknown): value is Gender {
+    return typeof value === 'string' && (GENDERS as string[]).includes(value);
   }
 }
