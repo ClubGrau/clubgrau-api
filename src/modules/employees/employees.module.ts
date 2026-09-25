@@ -5,6 +5,7 @@ import { GetEmployeesPort } from '@modules/employees/application/ports/inbound/g
 import { RemoveEmployeePort } from '@modules/employees/application/ports/inbound/remove-employee.port';
 import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/inbound/update-employee-status.port';
 import { UpdateMainEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-main-employee-data.port';
+import { UpdatePersonalEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-personal-employee-data.port';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { GetEmployeesQuery } from '@modules/employees/application/queries/get-employees.query';
@@ -12,9 +13,12 @@ import { CreateEmployeeUsecase } from '@modules/employees/application/usecases/c
 import { RemoveEmployeeUsecase } from '@modules/employees/application/usecases/remove-employee.usecase';
 import { UpdateEmployeeStatusUsecase } from '@modules/employees/application/usecases/update-employee-status.usecase';
 import { UpdateMainEmployeeDataUsecase } from '@modules/employees/application/usecases/update-main-employee-data.usecase';
+import { UpdatePersonalEmployeeDataUsecase } from '@modules/employees/application/usecases/update-personal-employee-data.usecase';
 import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
 import { EmployeeMainDataPatchService } from '@modules/employees/domain/services/employee-main-data-patch.service';
 import { EmployeeMainDataPolicy } from '@modules/employees/domain/services/employee-main-data.policy';
+import { EmployeePersonalDataPatchService } from '@modules/employees/domain/services/employee-personal-data-patch.service';
+import { EmployeePersonalDataPolicy } from '@modules/employees/domain/services/employee-personal-data.policy';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
@@ -24,12 +28,14 @@ import { GetEmployeesController } from '@modules/employees/presentation/controll
 import { RemoveEmployeeController } from '@modules/employees/presentation/controllers/remove-employee.controller';
 import { UpdateEmployeeStatusController } from '@modules/employees/presentation/controllers/update-employee-status.controller';
 import { UpdateMainEmployeeDataController } from '@modules/employees/presentation/controllers/update-main-employee-data.controller';
+import { UpdatePersonalEmployeeDataController } from '@modules/employees/presentation/controllers/update-personal-employee-data.controller';
 
 export type EmployeesModule = {
   createEmployeeController: CreateEmployeeController;
   getEmployeesController: GetEmployeesController;
   updateEmployeeStatusController: UpdateEmployeeStatusController;
   updateMainEmployeeDataController: UpdateMainEmployeeDataController;
+  updatePersonalEmployeeDataController: UpdatePersonalEmployeeDataController;
   removeEmployeeController: RemoveEmployeeController;
   createEmployee: CreateEmployeePort;
   getEmployees: GetEmployeesPort;
@@ -104,6 +110,18 @@ export function makeEmployeesModule({
     updateMainEmployeeData,
   );
 
+  const personalDataPolicy = new EmployeePersonalDataPolicy();
+  const personalDataPatchService = new EmployeePersonalDataPatchService();
+  const updatePersonalEmployeeData: UpdatePersonalEmployeeDataPort =
+    new UpdatePersonalEmployeeDataUsecase(
+      employeeRepository,
+      personalDataPolicy,
+      personalDataPatchService,
+      employeeRepository,
+    );
+  const updatePersonalEmployeeDataController =
+    new UpdatePersonalEmployeeDataController(updatePersonalEmployeeData);
+
   const requireRoles = makeRequireRoles;
 
   const router = makeEmployeeRoutes({
@@ -111,6 +129,7 @@ export function makeEmployeesModule({
     getEmployeesController,
     updateEmployeeStatusController,
     updateMainEmployeeDataController,
+    updatePersonalEmployeeDataController,
     removeEmployeeController,
     authTokenMiddleware,
     requireRoles,
@@ -121,6 +140,7 @@ export function makeEmployeesModule({
     getEmployeesController,
     updateEmployeeStatusController,
     updateMainEmployeeDataController,
+    updatePersonalEmployeeDataController,
     removeEmployeeController,
     createEmployee,
     getEmployees,
