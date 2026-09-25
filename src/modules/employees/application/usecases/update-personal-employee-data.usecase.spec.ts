@@ -147,7 +147,6 @@ const makeParams = (
   new UpdatePersonalEmployeeDataDto({
     actorId: ACTOR_ID,
     id: TARGET_ID,
-    gender: 'male',
     ...overrides,
   });
 
@@ -192,9 +191,9 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
     const { sut, updatePersonalDataRepositoryStub, findEmployeeByIdStub } =
       makeSut(null, makeSnapshot());
 
-    await expect(sut.execute(makeParams())).rejects.toBeInstanceOf(
-      ActorAuthenticationFailedError,
-    );
+    await expect(
+      sut.execute(makeParams({ gender: 'male' })),
+    ).rejects.toBeInstanceOf(ActorAuthenticationFailedError);
     expect(findEmployeeByIdStub.findById).toHaveBeenCalledWith(ACTOR_ID);
     expect(findEmployeeByIdStub.findById).toHaveBeenCalledTimes(1);
     expect(
@@ -206,9 +205,9 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
     const { sut, updatePersonalDataRepositoryStub, findEmployeeByIdStub } =
       makeSut(makeActorSnapshot(), null);
 
-    await expect(sut.execute(makeParams())).rejects.toBeInstanceOf(
-      EmployeeNotFoundError,
-    );
+    await expect(
+      sut.execute(makeParams({ gender: 'male' })),
+    ).rejects.toBeInstanceOf(EmployeeNotFoundError);
     expect(findEmployeeByIdStub.findById).toHaveBeenNthCalledWith(1, ACTOR_ID);
     expect(findEmployeeByIdStub.findById).toHaveBeenNthCalledWith(2, TARGET_ID);
     expect(
@@ -219,7 +218,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should call findById with actorId then target id', async () => {
     const { sut, findEmployeeByIdStub } = makeSut();
 
-    await sut.execute(makeParams());
+    await sut.execute(makeParams({ gender: 'male' }));
 
     expect(findEmployeeByIdStub.findById).toHaveBeenNthCalledWith(1, ACTOR_ID);
     expect(findEmployeeByIdStub.findById).toHaveBeenNthCalledWith(2, TARGET_ID);
@@ -260,9 +259,9 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
       throw new EmployeePersonalDataForbiddenError();
     });
 
-    await expect(sut.execute(makeParams())).rejects.toBeInstanceOf(
-      EmployeePersonalDataForbiddenError,
-    );
+    await expect(
+      sut.execute(makeParams({ gender: 'male' })),
+    ).rejects.toBeInstanceOf(EmployeePersonalDataForbiddenError);
     expect(applySpy).not.toHaveBeenCalled();
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -281,9 +280,9 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
       throw new ActorAuthenticationFailedError();
     });
 
-    await expect(sut.execute(makeParams())).rejects.toBeInstanceOf(
-      ActorAuthenticationFailedError,
-    );
+    await expect(
+      sut.execute(makeParams({ gender: 'male' })),
+    ).rejects.toBeInstanceOf(ActorAuthenticationFailedError);
     expect(applySpy).not.toHaveBeenCalled();
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -302,9 +301,9 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
       throw new EmployeeAlreadyRemovedError();
     });
 
-    await expect(sut.execute(makeParams())).rejects.toBeInstanceOf(
-      EmployeeAlreadyRemovedError,
-    );
+    await expect(
+      sut.execute(makeParams({ gender: 'male' })),
+    ).rejects.toBeInstanceOf(EmployeeAlreadyRemovedError);
     expect(applySpy).not.toHaveBeenCalled();
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -370,7 +369,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should persist nif null when nif is null', async () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
-    await sut.execute(makeParams({ nif: null, gender: undefined }));
+    await sut.execute(makeParams({ nif: null }));
 
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -383,7 +382,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should persist nif as string when nif is provided', async () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
-    await sut.execute(makeParams({ nif: '123456789', gender: undefined }));
+    await sut.execute(makeParams({ nif: '123456789' }));
 
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -401,7 +400,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
     await expect(
-      sut.execute(makeParams({ nif: '00000000', gender: undefined })),
+      sut.execute(makeParams({ nif: '00000000' })),
     ).rejects.toBeInstanceOf(InvalidNifError);
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -411,9 +410,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should persist emergencyContact null when emergencyContact is null', async () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
-    await sut.execute(
-      makeParams({ emergencyContact: null, gender: undefined }),
-    );
+    await sut.execute(makeParams({ emergencyContact: null }));
 
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -429,7 +426,6 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
     await sut.execute(
       makeParams({
         emergencyContact: '+351 912 345 678',
-        gender: undefined,
       }),
     );
 
@@ -445,7 +441,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
     await expect(
-      sut.execute(makeParams({ emergencyContact: '123', gender: undefined })),
+      sut.execute(makeParams({ emergencyContact: '123' })),
     ).rejects.toBeInstanceOf(InvalidPhoneFormatError);
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -455,9 +451,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should persist languages string', async () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
-    await sut.execute(
-      makeParams({ languages: 'Português', gender: undefined }),
-    );
+    await sut.execute(makeParams({ languages: 'Português' }));
 
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -470,7 +464,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should persist languages null when languages is null', async () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
-    await sut.execute(makeParams({ languages: null, gender: undefined }));
+    await sut.execute(makeParams({ languages: null }));
 
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,
@@ -483,7 +477,7 @@ describe('UpdatePersonalEmployeeDataUsecase', () => {
   it('should persist address when address is provided', async () => {
     const { sut, updatePersonalDataRepositoryStub } = makeSut();
 
-    await sut.execute(makeParams({ address: 'Rua X', gender: undefined }));
+    await sut.execute(makeParams({ address: 'Rua X' }));
 
     expect(
       updatePersonalDataRepositoryStub.updatePersonalData,

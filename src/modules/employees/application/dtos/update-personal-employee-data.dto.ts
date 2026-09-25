@@ -27,24 +27,26 @@ export class UpdatePersonalEmployeeDataDto {
     this.actorId = data.actorId.trim();
     this.id = data.id.trim();
 
-    if (data.gender !== undefined) {
-      this.gender = data.gender;
+    // TODO melhorar regra de propagraçao da entrada de dado.
+    if ('gender' in data) {
+      this.gender = data.gender === null ? null : data.gender;
     }
 
-    if (data.languages !== undefined) {
-      this.languages = data.languages;
+    if ('languages' in data) {
+      this.languages = data.languages === null ? null : data.languages;
     }
 
-    if (data.emergencyContact !== undefined) {
-      this.emergencyContact = data.emergencyContact;
+    if ('emergencyContact' in data) {
+      this.emergencyContact =
+        data.emergencyContact === null ? null : data.emergencyContact;
     }
 
-    if (data.nif !== undefined) {
-      this.nif = data.nif;
+    if ('nif' in data) {
+      this.nif = data.nif === null ? null : data.nif;
     }
 
-    if (data.address !== undefined) {
-      this.address = data.address;
+    if ('address' in data) {
+      this.address = data.address === null ? null : data.address;
     }
   }
 }
