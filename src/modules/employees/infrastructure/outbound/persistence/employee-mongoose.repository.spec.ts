@@ -1,3 +1,4 @@
+import { EmployeeNotFoundError } from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { makeChainableMock } from '../../../../../configs/database/mongoose/testables';
 import { EmployeeMongooseRepository } from './employee-mongoose.repository';
@@ -625,6 +626,203 @@ describe('EmployeeMongooseRepository', () => {
         .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
 
       await sut.updateMainData({ id: employeeId, name: 'Jane Doe' });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('updatePersonalData', () => {
+    it('should $set only gender when only gender is provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({ id: employeeId, gender: 'male' });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { gender: 'male' } },
+      );
+      const setPayload = (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+      expect(setPayload).not.toHaveProperty('languages');
+      expect(setPayload).not.toHaveProperty('nif');
+      expect(setPayload).not.toHaveProperty('address');
+      expect(setPayload).not.toHaveProperty('name');
+      expect(setPayload).not.toHaveProperty('password');
+      expect(setPayload).not.toHaveProperty('status');
+    });
+
+    it('should omit gender from $set when gender is not provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({ id: employeeId, address: 'Lisboa' });
+
+      const setPayload = (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+      expect(setPayload).not.toHaveProperty('gender');
+    });
+
+    it('should include languages: null and address: null in $set when clearing both', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({
+        id: employeeId,
+        languages: null,
+        address: null,
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { languages: null, address: null } },
+      );
+    });
+
+    it('should persist nif: null (not 0) when clearing nif', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({ id: employeeId, nif: null });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { nif: null } },
+      );
+      const setPayload = (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+      expect(setPayload.nif).toBeNull();
+      expect(setPayload.nif).not.toBe(0);
+    });
+
+    it('should coerce a non-null nif string to Number in $set', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({ id: employeeId, nif: '123456789' });
+
+      const setPayload = (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+      expect(setPayload.nif).toBe(123456789);
+      expect(typeof setPayload.nif).toBe('number');
+    });
+
+    it('should $set only the five personal-data keys when all are provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({
+        id: employeeId,
+        gender: 'female',
+        languages: 'pt,en',
+        emergencyContact: '351912345678',
+        nif: '123456789',
+        address: 'Lisboa',
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        {
+          $set: {
+            gender: 'female',
+            languages: 'pt,en',
+            emergencyContact: '351912345678',
+            nif: 123456789,
+            address: 'Lisboa',
+          },
+        },
+      );
+      const setPayload = (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+      expect(setPayload).not.toHaveProperty('name');
+      expect(setPayload).not.toHaveProperty('email');
+      expect(setPayload).not.toHaveProperty('phone');
+      expect(setPayload).not.toHaveProperty('password');
+      expect(setPayload).not.toHaveProperty('status');
+      expect(setPayload).not.toHaveProperty('role');
+    });
+
+    it('should throw a generic Error when matchedCount is 0', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      jest.spyOn(employeeModelMock, 'updateOne').mockResolvedValueOnce({
+        matchedCount: 0,
+        modifiedCount: 0,
+      });
+
+      const error = await sut
+        .updatePersonalData({ id: employeeId, gender: 'male' })
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(EmployeeNotFoundError);
+      expect((error as Error).message).toBe(
+        'Employee personal data update matched 0 documents',
+      );
+    });
+
+    it('should resolve when matchedCount is 1 and modifiedCount is 0', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      jest.spyOn(employeeModelMock, 'updateOne').mockResolvedValueOnce({
+        matchedCount: 1,
+        modifiedCount: 0,
+      });
+
+      await expect(
+        sut.updatePersonalData({ id: employeeId, gender: 'male' }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should filter updateOne by { _id: id }', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updatePersonalData({ id: employeeId, gender: 'male' });
 
       expect(updateOneSpy).toHaveBeenCalledWith(
         { _id: employeeId },

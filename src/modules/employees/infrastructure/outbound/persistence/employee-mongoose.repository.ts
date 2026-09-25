@@ -18,6 +18,10 @@ import {
   UpdateMainEmployeeDataParams,
   UpdateMainEmployeeDataRepositoryPort,
 } from '@modules/employees/application/ports/outbound/update-main-employee-data-repository.port';
+import {
+  UpdatePersonalEmployeeDataParams,
+  UpdatePersonalEmployeeDataRepositoryPort,
+} from '@modules/employees/application/ports/outbound/update-personal-employee-data-repository.port';
 import { CountActiveAdminsPort } from '@modules/employees/domain/ports/count-active-admins.port';
 import { CountNonRemovedAdminsPort } from '@modules/employees/domain/ports/count-non-removed-admins.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
@@ -48,7 +52,8 @@ export class EmployeeMongooseRepository
     CountNonRemovedAdminsPort,
     CountActiveAdminsPort,
     AnonymizeEmployeeRepositoryPort,
-    UpdateMainEmployeeDataRepositoryPort
+    UpdateMainEmployeeDataRepositoryPort,
+    UpdatePersonalEmployeeDataRepositoryPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
 
@@ -89,12 +94,25 @@ export class EmployeeMongooseRepository
 
   async updateMainData(params: UpdateMainEmployeeDataParams): Promise<void> {
     const { id, ...fields } = params;
-    const $set = Object.fromEntries(
-      Object.entries(fields).filter(([, value]) => value !== undefined),
-    );
+    const $set = this.buildUpdateFilterEntries(fields);
     const result = await this.employeeModel.updateOne({ _id: id }, { $set });
     if (result.matchedCount === 0) {
       throw new Error('Employee main data update matched 0 documents');
+    }
+  }
+
+  async updatePersonalData(
+    params: UpdatePersonalEmployeeDataParams,
+  ): Promise<void> {
+    const { id, ...fields } = params;
+    const $set: Record<string, string | number | null> =
+      this.buildUpdateFilterEntries(fields);
+    if ('nif' in $set && $set.nif !== null) {
+      $set.nif = Number($set.nif);
+    }
+    const result = await this.employeeModel.updateOne({ _id: id }, { $set });
+    if (result.matchedCount === 0) {
+      throw new Error('Employee personal data update matched 0 documents');
     }
   }
 
@@ -180,5 +198,13 @@ export class EmployeeMongooseRepository
     }
 
     return filter;
+  }
+
+  private buildUpdateFilterEntries<
+    T extends Record<string, string | number | null>,
+  >(params: Omit<T, 'id'>): Record<string, string | number | null> {
+    return Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined),
+    );
   }
 }
