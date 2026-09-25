@@ -14,6 +14,12 @@ export class EmployeeSnapshotMapper {
       role: snapshot.role,
       status: snapshot.status,
       username: snapshot.username ?? null,
+      gender: snapshot.gender ?? null,
+      address: snapshot.address ?? null,
+      languages: snapshot.languages ?? null,
+      emergencyContact: snapshot.emergencyContact
+        ? Phone.create(snapshot.emergencyContact)
+        : null,
       createdAt: snapshot.createdAt,
       deactivateAt: snapshot.deactivateAt,
       removedAt: snapshot.removedAt ?? null,
