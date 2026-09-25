@@ -126,6 +126,66 @@ Authorization: Bearer {{employeeToken}}
   "name": "João Silva"
 }
 
+### Update personal employee data (partial patch)
+# Target vem do path param :id. Actor vem do Bearer token (adaptRoute stampa actorId).
+# Não enviar id ou actorId no body. Presença esparsa: só campos presentes são alterados.
+# Chaves desconhecidas (status, password, name, …) são ignoradas — não dão 400 sozinhas.
+# Body sem nenhum dos 5 campos pessoais → 400. gender "" → 400 (Invalid param gender).
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/personal-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "gender": "male"
+}
+
+### Update personal employee data (clear nif)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/personal-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nif": null
+}
+
+### Update personal employee data (all five fields)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/personal-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "gender": "male",
+  "languages": "Português",
+  "emergencyContact": "+351 912 345 678",
+  "nif": "123456789",
+  "address": "Rua do Grau, 10, Lisboa"
+}
+
+### Update personal employee data (empty body → 400)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/personal-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+### Update personal employee data (empty gender → 400)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/personal-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "gender": ""
+}
+
+### Update personal employee data (EMPLOYEE token → 403)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/personal-data
+Content-Type: application/json
+Authorization: Bearer {{employeeToken}}
+
+{
+  "gender": "male"
+}
+
 ### Remove employee (anonymize)
 # Actor vem do Bearer token (adaptRoute stampa actorId). Não enviar actorId no body.
 # password é a senha do Actor (step-up), não a do Target.
