@@ -5,15 +5,13 @@ import {
   InvalidEmployeeStatusError,
 } from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
-import {
-  EmployeeLifecyclePolicy,
-  LifecycleIntent,
-} from '@modules/employees/domain/services/employee-lifecycle.policy';
+import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
 import {
   UpdateEmployeeStatusDto,
   UpdateEmployeeStatusResultDto,
 } from '../dtos/update-employee-status.dto';
 import { EmployeeSnapshotMapper } from '../mappers/employee-snapshot.mapper';
+import { LifecycleIntentMapper } from '../mappers/lifecycle-intent.mapper';
 import { UpdateEmployeeStatusPort } from '../ports/inbound/update-employee-status.port';
 import { FindEmployeeByIdPort } from '../ports/outbound/find-employee-by-id.port';
 import { UpdateEmployeeStatusRepositoryPort } from '../ports/outbound/update-employee-status-repository.port';
@@ -43,7 +41,7 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
 
     const actor = EmployeeSnapshotMapper.toEntity(actorSnapshot);
     const target = EmployeeSnapshotMapper.toEntity(targetEmployeeSnapshot);
-    const intent = this.mapIntent(params.status);
+    const intent = LifecycleIntentMapper.toIntent(params.status);
 
     await this.lifecyclePolicy.assertCan({ actor, target, intent });
     this.applyTransition(target, params.status);
@@ -55,21 +53,6 @@ export class UpdateEmployeeStatusUsecase implements UpdateEmployeeStatusPort {
     });
 
     return { id: target.id, status: target.status };
-  }
-
-  private mapIntent(status: EmployeeModel.OperationalStatus): LifecycleIntent {
-    switch (status) {
-      case EmployeeModel.Status.ACTIVE:
-        return 'REACTIVATE';
-      case EmployeeModel.Status.INACTIVE:
-        return 'DEACTIVATE';
-      case EmployeeModel.Status.VACATION:
-        return 'VACATION';
-      default: {
-        const exhaustive: never = status;
-        throw new InvalidEmployeeStatusError(`Invalid status: "${exhaustive}"`);
-      }
-    }
   }
 
   private applyTransition(
