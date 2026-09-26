@@ -24,6 +24,26 @@ _Avoid_: personal information, profile, main data
 The command that corrects only the Personal Employee Data fields present in the request. All five fields are clearable (present + null/blank → null). EMPLOYEE acts on nobody. MANAGER may edit only EMPLOYEE. ADMIN may edit any role, including self. The Target must not be Removed. Main Data, status, password, role, and professional fields are unchanged. No occupancy check (no uniqueness constraint on personal fields).
 _Avoid_: update profile, update personal information, require all five fields, treat null as an error
 
+**Job Title**:
+The free-text name of the collaborator's function on the floor (e.g. Barbeiro). Optional and clearable to null. The API field is `jobTitle`. The frontend may label this Função.
+_Avoid_: role, cargo in the API, treating it as an enum, requiring a placeholder to empty the field
+
+**Role**:
+The system-access enum of a collaborator: `ADMIN`, `MANAGER`, `EMPLOYEE`. The API field is `role`. Only an ADMIN may change it; sending the Target's current role is not a change. The Last Admin cannot leave `ADMIN`. The frontend may label this Cargo.
+_Avoid_: função in the API, job title, cargo as free text, treating an unchanged role as a promotion
+
+**Employment Id**:
+The collaborator's registration number. It is planted on Create (shape still open). It does not appear on Update Professional Employee Data — the form does not send it and the command does not write it.
+_Avoid_: updating matrícula on professional save, treating it as Job Title, expecting it in the professional body
+
+**Professional Employee Data**:
+The professional fields of a collaborator that this command may correct: job title and role. Employment id belongs to the professional record but is not writable here. Status is not a professional field; it is a lifecycle action that may travel in the same save.
+_Avoid_: professional information, cargo as job title in the API, função as role in the API, patching employment id
+
+**Update Professional Employee Data**:
+The command that corrects job title and, when allowed, role, plus a status change through the existing lifecycle rules when status is present and different from the Target's current status. Sending the current status is not a lifecycle action. Only an ADMIN may change role. Last Admin cannot leave `ADMIN`. MANAGER may correct job title (and status, under the lifecycle matrix) of an EMPLOYEE. Employment id, Main Data, Personal Data, and password are unchanged. Dedicated Update Status remains for one-shot lifecycle actions and still refuses an unchanged status.
+_Avoid_: update profile, two HTTP calls for one section save, treating status as a professional field, updating matrícula, treating an echoed status as already-in-status
+
 **Email occupancy**:
 An email is taken while a non-Removed collaborator holds it. Create and Update Main Employee Data refuse a taken email. Removed frees the original address.
 _Avoid_: unique username, inheriting an INACTIVE email
@@ -45,7 +65,7 @@ Replacement of personal data with sentinels, keeping `_id`, setting terminal sta
 _Avoid_: hard delete, erase identity, GDPR erase of the id
 
 **Actor**:
-The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data and Update Personal Employee Data allow ADMIN on any Target and MANAGER on EMPLOYEE only.
+The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data, Update Personal Employee Data, and Job Title on Update Professional Employee Data allow ADMIN on any Target and MANAGER on EMPLOYEE only. Changing Role is ADMIN-only.
 _Avoid_: Target password, forged actorId, Actor must be ACTIVE-only
 
 **Login-capable**:
@@ -53,7 +73,7 @@ Status from which a collaborator may authenticate and hold a full session: `ACTI
 _Avoid_: isActive, enabled, not deactivated, ACTIVE-only session
 
 **Target**:
-The existing collaborator whose record a command addresses. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data and Update Personal Employee Data allow `ACTIVE`, `VACATION`, and `INACTIVE`, and refuse Removed. Remove still requires `INACTIVE`.
+The existing collaborator whose record a command addresses. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data, Update Personal Employee Data, and Update Professional Employee Data allow `ACTIVE`, `VACATION`, and `INACTIVE`, and refuse Removed. Changing role or job title of an `INACTIVE` Target does not Reactivate them. Remove still requires `INACTIVE`.
 _Avoid_: victim, user, account
 
 **Removed**:
@@ -61,5 +81,5 @@ Terminal state after Anonymize. Absent from the collaborators list. The `employe
 _Avoid_: deleted, hidden, archived, inactive
 
 **Last Admin**:
-The only `ADMIN` who is login-capable (`ACTIVE` or `VACATION`), or — for Remove — the only `ADMIN` who is not `REMOVED`. Cannot become `INACTIVE` while they are the last login-capable ADMIN; leftover `INACTIVE` ADMINs do not count as a second login. An ADMIN on `VACATION` still counts. May go on `VACATION` even as Last Admin. Cannot be Removed while they are the last non-`REMOVED` ADMIN.
-_Avoid_: last user, only login, must stay ACTIVE, Last Admin cannot take vacation
+The only `ADMIN` who is login-capable (`ACTIVE` or `VACATION`), or the only `ADMIN` who is not `REMOVED`. Cannot become `INACTIVE` while they are the last login-capable ADMIN; leftover `INACTIVE` ADMINs do not count as a second login. An ADMIN on `VACATION` still counts. May go on `VACATION` even as Last Admin. Cannot be Removed while they are the last non-`REMOVED` ADMIN. Cannot leave the `ADMIN` role while they are the last login-capable ADMIN or the last non-`REMOVED` ADMIN.
+_Avoid_: last user, only login, must stay ACTIVE, Last Admin cannot take vacation, using ACTIVE-only count when leaving ADMIN

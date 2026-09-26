@@ -90,7 +90,8 @@ src/modules/employees/
 │   ├── ports/
 │   │   ├── find-employee-by-email.port.ts
 │   │   ├── count-non-removed-admins.port.ts
-│   │   └── count-active-admins.port.ts
+│   │   ├── count-active-admins.port.ts
+│   │   └── count-login-capable-admins.port.ts
 │   ├── errors/
 │   │   └── employee.errors.ts
 │   └── services/
@@ -105,7 +106,11 @@ src/modules/employees/
 │       ├── employee-personal-data.policy.ts
 │       ├── employee-personal-data.policy.spec.ts
 │       ├── employee-personal-data-patch.service.ts
-│       └── employee-personal-data-patch.service.spec.ts
+│       ├── employee-personal-data-patch.service.spec.ts
+│       ├── employee-professional-data.policy.ts
+│       ├── employee-professional-data.policy.spec.ts
+│       ├── employee-professional-data-patch.service.ts
+│       └── employee-professional-data-patch.service.spec.ts
 │
 ├── application/
 │   ├── dtos/
@@ -210,7 +215,7 @@ Behavior:
 
 - `activate()` / `deactivate()` / `putOnVacation()` — used by `UpdateEmployeeStatusUsecase`
 - `anonymize()` — used by `RemoveEmployeeUsecase` (sentinel name/email, `status=REMOVED`, `removedAt=now`)
-- `changePassword` (accepts `Password.fromHash` for the random secret), `changeRole`, `changeName`, `changeEmail`, `changePhone`, `assignNif`
+- `changePassword` (accepts `Password.fromHash` for the random secret), `changeRole`, `changeJobTitle(string | null)` (assigns the value as given, no trim; `null` clears; does not touch `employmentId`), `changeName`, `changeEmail`, `changePhone`, `assignNif`
 - `assignGender`, `assignLanguages`, `assignAddress`, `assignEmergencyContact` — used by `EmployeePersonalDataPatchService` (sparse personal patch)
 - Convenience getter `isActive` → `status === ACTIVE` (not persisted)
 
@@ -252,7 +257,9 @@ function isGender(value: unknown): value is Gender
 | `EmployeePersonalDataForbiddenError` | Actor role/intent outside the personal-data matrix |
 | `EmptyPersonalEmployeeDataError` | Use case called with no Personal Data keys (HTTP gate should prevent) |
 | `InvalidEmployeeGenderError` | Gender present but not in `EmployeeModel.Gender` (including `""`) |
-| `LastAdminProtectedError` | Last `ACTIVE` ADMIN leaving `ACTIVE`, or last non-`REMOVED` ADMIN being Removed |
+| `EmployeeProfessionalDataForbiddenError` | Actor role outside the professional-data matrix, or a non-ADMIN Role delta |
+| `EmptyProfessionalEmployeeDataError` | Class defined here; the resolver (slice 2) throws it when no professional keys are present |
+| `LastAdminProtectedError` | Last `ACTIVE` ADMIN leaving `ACTIVE`, last non-`REMOVED` ADMIN being Removed, or last login-capable / last non-`REMOVED` ADMIN leaving the `ADMIN` role |
 | `EmployeeAlreadyRemovedError` | Target already `REMOVED` |
 | `EmployeeNotInactiveError` | Remove-only — target is not `INACTIVE` |
 
@@ -308,6 +315,31 @@ Entity helpers: `patchName`, `patchPhone`, `patchUsername` (blank/null username 
 ### `EmployeePersonalDataPatchService`
 
 Applies sparse Personal Data changes on a reconstituted `Employee`. No occupancy port. Returns a persist patch (`gender` / `languages` / `emergencyContact` / `nif` / `address` only for present keys). `gender`, `languages`, `address`, `emergencyContact`, and `nif` may be cleared with `null`. Validates gender via `EmployeeModel.isGender`, phone via `Phone.create`, NIF via `Nif.create`.
+
+### `EmployeeProfessionalDataPolicy`
+
+`assertCan({ actor, target, roleChange })` is async. Constructor: `CountLoginCapableAdminsPort & CountNonRemovedAdminsPort` (not `CountActiveAdminsPort`). `roleChange` arrives ready from the use case (`true` only when body `role` is present and different from `target.role`). This class does not inspect a patch object. Status stays on `EmployeeLifecyclePolicy`.
+
+Order, stop at the first throw:
+
+1. Actor must be login-capable (`ACTIVE` or `VACATION`); otherwise `ActorAuthenticationFailedError`
+2. Target `REMOVED` → `EmployeeAlreadyRemovedError`
+3. Matrix: Actor `EMPLOYEE` → `EmployeeProfessionalDataForbiddenError`; Actor `MANAGER` only if `target.role === EMPLOYEE` and `actor.id !== target.id`; Actor `ADMIN` on any target including self
+4. If `roleChange`: Actor who is not `ADMIN` → `EmployeeProfessionalDataForbiddenError` and no counts; if the target **is** `ADMIN` (leaving `ADMIN`): `countLoginCapableAdmins() === 1` → `LastAdminProtectedError` (do not call `countNonRemovedAdmins`); else `countNonRemovedAdmins() === 1` → `LastAdminProtectedError`
+
+Promotion to `ADMIN`, `MANAGER` → `EMPLOYEE`, an echoed Role (`roleChange: false`), and Job Title-only never call the counts. Target `INACTIVE` or `VACATION` is allowed after step 2. Last Admin of Role reuses `LastAdminProtectedError`.
+
+### `EmployeeProfessionalDataPatchService`
+
+Synchronous. No constructor ports. No occupancy. Status is not a field. `apply(target, changes)` returns a persist patch of `jobTitle` and/or `role` only.
+
+| Field | Rule |
+|-------|------|
+| `jobTitle` present | Blank / whitespace → `null`. `target.changeJobTitle(value)`. Always included on the persist patch, even when the string equals the current value |
+| `role` present and equal to `target.role` | No-op. `changeRole` is not called. `role` stays off the persist patch |
+| `role` present and different | `target.changeRole(value)`. `role` is included. A non-enum throws `InvalidEmployeeRoleError` and leaves the entity role unchanged |
+
+`{}` returns `{}` and writes nothing. This service does not throw `EmptyProfessionalEmployeeDataError`.
 
 ---
 
@@ -1097,6 +1129,9 @@ Never shortcut by calling the repository from the controller.
 | Main-data patch + email occupancy | `domain/services/employee-main-data-patch.service.ts` |
 | Personal-data matrix (Actor / Target) | `domain/services/employee-personal-data.policy.ts` |
 | Personal-data patch (gender / phone / NIF) | `domain/services/employee-personal-data-patch.service.ts` |
+| Professional-data matrix (Actor / Target / Role delta / Last Admin) | `domain/services/employee-professional-data.policy.ts` |
+| Professional-data patch (jobTitle / role) | `domain/services/employee-professional-data-patch.service.ts` |
+| Login-capable admin count port | `domain/ports/count-login-capable-admins.port.ts` |
 | Personal-data change resolver | `application/services/personal-employee-data-changes.resolver.ts` |
 | Create orchestration (command) | `application/usecases/create-employee.usecase.ts` |
 | Update-status orchestration (command) | `application/usecases/update-employee-status.usecase.ts` |
