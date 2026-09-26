@@ -6,6 +6,7 @@ import { RemoveEmployeePort } from '@modules/employees/application/ports/inbound
 import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/inbound/update-employee-status.port';
 import { UpdateMainEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-main-employee-data.port';
 import { UpdatePersonalEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-personal-employee-data.port';
+import { UpdateProfessionalEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-professional-employee-data.port';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { GetEmployeesQuery } from '@modules/employees/application/queries/get-employees.query';
@@ -14,11 +15,14 @@ import { RemoveEmployeeUsecase } from '@modules/employees/application/usecases/r
 import { UpdateEmployeeStatusUsecase } from '@modules/employees/application/usecases/update-employee-status.usecase';
 import { UpdateMainEmployeeDataUsecase } from '@modules/employees/application/usecases/update-main-employee-data.usecase';
 import { UpdatePersonalEmployeeDataUsecase } from '@modules/employees/application/usecases/update-personal-employee-data.usecase';
+import { UpdateProfessionalEmployeeDataUsecase } from '@modules/employees/application/usecases/update-professional-employee-data.usecase';
 import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
 import { EmployeeMainDataPatchService } from '@modules/employees/domain/services/employee-main-data-patch.service';
 import { EmployeeMainDataPolicy } from '@modules/employees/domain/services/employee-main-data.policy';
 import { EmployeePersonalDataPatchService } from '@modules/employees/domain/services/employee-personal-data-patch.service';
 import { EmployeePersonalDataPolicy } from '@modules/employees/domain/services/employee-personal-data.policy';
+import { EmployeeProfessionalDataPatchService } from '@modules/employees/domain/services/employee-professional-data-patch.service';
+import { EmployeeProfessionalDataPolicy } from '@modules/employees/domain/services/employee-professional-data.policy';
 import { EmployeePoliciesService } from '@modules/employees/domain/services/employee-policies.service';
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
@@ -29,6 +33,7 @@ import { RemoveEmployeeController } from '@modules/employees/presentation/contro
 import { UpdateEmployeeStatusController } from '@modules/employees/presentation/controllers/update-employee-status.controller';
 import { UpdateMainEmployeeDataController } from '@modules/employees/presentation/controllers/update-main-employee-data.controller';
 import { UpdatePersonalEmployeeDataController } from '@modules/employees/presentation/controllers/update-personal-employee-data.controller';
+import { UpdateProfessionalEmployeeDataController } from '@modules/employees/presentation/controllers/update-professional-employee-data.controller';
 
 export type EmployeesModule = {
   createEmployeeController: CreateEmployeeController;
@@ -36,6 +41,7 @@ export type EmployeesModule = {
   updateEmployeeStatusController: UpdateEmployeeStatusController;
   updateMainEmployeeDataController: UpdateMainEmployeeDataController;
   updatePersonalEmployeeDataController: UpdatePersonalEmployeeDataController;
+  updateProfessionalEmployeeDataController: UpdateProfessionalEmployeeDataController;
   removeEmployeeController: RemoveEmployeeController;
   createEmployee: CreateEmployeePort;
   getEmployees: GetEmployeesPort;
@@ -122,6 +128,24 @@ export function makeEmployeesModule({
   const updatePersonalEmployeeDataController =
     new UpdatePersonalEmployeeDataController(updatePersonalEmployeeData);
 
+  const professionalDataPolicy = new EmployeeProfessionalDataPolicy(
+    employeeRepository,
+  );
+  const professionalDataPatchService =
+    new EmployeeProfessionalDataPatchService();
+  const updateProfessionalEmployeeData: UpdateProfessionalEmployeeDataPort =
+    new UpdateProfessionalEmployeeDataUsecase(
+      employeeRepository,
+      professionalDataPolicy,
+      professionalDataPatchService,
+      lifecyclePolicy,
+      employeeRepository,
+    );
+  const updateProfessionalEmployeeDataController =
+    new UpdateProfessionalEmployeeDataController(
+      updateProfessionalEmployeeData,
+    );
+
   const requireRoles = makeRequireRoles;
 
   const router = makeEmployeeRoutes({
@@ -130,6 +154,7 @@ export function makeEmployeesModule({
     updateEmployeeStatusController,
     updateMainEmployeeDataController,
     updatePersonalEmployeeDataController,
+    updateProfessionalEmployeeDataController,
     removeEmployeeController,
     authTokenMiddleware,
     requireRoles,
@@ -141,6 +166,7 @@ export function makeEmployeesModule({
     updateEmployeeStatusController,
     updateMainEmployeeDataController,
     updatePersonalEmployeeDataController,
+    updateProfessionalEmployeeDataController,
     removeEmployeeController,
     createEmployee,
     getEmployees,

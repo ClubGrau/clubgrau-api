@@ -186,6 +186,41 @@ Authorization: Bearer {{employeeToken}}
   "gender": "male"
 }
 
+### Update professional employee data (job title)
+# Target vem do path param :id. Actor vem do Bearer token (adaptRoute stampa actorId).
+# Não enviar id ou actorId no body. Presença esparsa: só jobTitle / role / status presentes são alterados.
+# password no body → 400. employmentId é ignorado e não conta como campo.
+# role / status presentes e null, "" ou só whitespace → 400.
+# role / status ecoados (iguais ao atual) → 200 no-op. Delta de status reutiliza o lifecycle.
+# POST /employee/update-status permanece inalterado (already-in-status continua 400).
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/professional-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "jobTitle": "Barbeiro"
+}
+
+### Update professional employee data (clear job title)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/professional-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "jobTitle": null
+}
+
+### Update professional employee data (job title + role + status)
+PATCH http://localhost:3003/api/employee/75a8421596c6c09cff9425d6/professional-data
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "jobTitle": "Barbeiro",
+  "role": "EMPLOYEE",
+  "status": "ACTIVE"
+}
+
 ### Remove employee (anonymize)
 # Actor vem do Bearer token (adaptRoute stampa actorId). Não enviar actorId no body.
 # password é a senha do Actor (step-up), não a do Target.
