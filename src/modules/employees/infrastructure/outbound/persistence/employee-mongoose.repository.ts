@@ -22,7 +22,12 @@ import {
   UpdatePersonalEmployeeDataParams,
   UpdatePersonalEmployeeDataRepositoryPort,
 } from '@modules/employees/application/ports/outbound/update-personal-employee-data-repository.port';
+import {
+  UpdateProfessionalEmployeeDataParams,
+  UpdateProfessionalEmployeeDataRepositoryPort,
+} from '@modules/employees/application/ports/outbound/update-professional-employee-data-repository.port';
 import { CountActiveAdminsPort } from '@modules/employees/domain/ports/count-active-admins.port';
+import { CountLoginCapableAdminsPort } from '@modules/employees/domain/ports/count-login-capable-admins.port';
 import { CountNonRemovedAdminsPort } from '@modules/employees/domain/ports/count-non-removed-admins.port';
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
@@ -51,9 +56,11 @@ export class EmployeeMongooseRepository
     UpdateEmployeeStatusRepositoryPort,
     CountNonRemovedAdminsPort,
     CountActiveAdminsPort,
+    CountLoginCapableAdminsPort,
     AnonymizeEmployeeRepositoryPort,
     UpdateMainEmployeeDataRepositoryPort,
-    UpdatePersonalEmployeeDataRepositoryPort
+    UpdatePersonalEmployeeDataRepositoryPort,
+    UpdateProfessionalEmployeeDataRepositoryPort
 {
   constructor(private readonly employeeModel: EmployeeMongooseModel) {}
 
@@ -128,6 +135,30 @@ export class EmployeeMongooseRepository
       role: EmployeeModel.Role.ADMIN,
       status: EmployeeModel.Status.ACTIVE,
     });
+  }
+
+  async countLoginCapableAdmins(): Promise<number> {
+    return this.employeeModel.countDocuments({
+      role: EmployeeModel.Role.ADMIN,
+      status: {
+        $in: [EmployeeModel.Status.ACTIVE, EmployeeModel.Status.VACATION],
+      },
+    });
+  }
+
+  async updateProfessionalData(
+    params: UpdateProfessionalEmployeeDataParams,
+  ): Promise<void> {
+    const { id, ...fields } = params;
+    const filteredFields = fields as Omit<
+      UpdateProfessionalEmployeeDataParams,
+      'deactivateAt'
+    >;
+    const $set = this.buildUpdateFilterEntries(filteredFields);
+    const result = await this.employeeModel.updateOne({ _id: id }, { $set });
+    if (result.matchedCount === 0) {
+      throw new Error('Employee professional data update matched 0 documents');
+    }
   }
 
   async anonymize(params: AnonymizeEmployeeParams): Promise<void> {
