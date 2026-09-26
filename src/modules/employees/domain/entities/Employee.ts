@@ -214,6 +214,10 @@ export class Employee extends Entity<EmployeeProps> {
     this.props.role = role;
   }
 
+  changeJobTitle(jobTitle: string | null): void {
+    this.props.jobTitle = jobTitle;
+  }
+
   changeName(name: Name): void {
     this.props.name = name;
   }

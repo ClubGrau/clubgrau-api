@@ -287,6 +287,31 @@ describe('Employee (entity)', () => {
       ).toThrow(InvalidEmployeeRoleError);
     });
 
+    it('should change the job title', () => {
+      const employee = Employee.create(makeValidProps());
+
+      employee.changeJobTitle('Barbeiro');
+
+      expect(employee.toJSON().jobTitle).toBe('Barbeiro');
+    });
+
+    it('should clear the job title', () => {
+      const employee = Employee.create(makeValidProps());
+      employee.changeJobTitle('Barbeiro');
+
+      employee.changeJobTitle(null);
+
+      expect(employee.toJSON().jobTitle).toBeNull();
+    });
+
+    it('should not trim job title on change', () => {
+      const employee = Employee.create(makeValidProps());
+
+      employee.changeJobTitle('  Barbeiro  ');
+
+      expect(employee.toJSON().jobTitle).toBe('  Barbeiro  ');
+    });
+
     it('should change name and email', () => {
       const employee = Employee.create(makeValidProps());
 

@@ -105,3 +105,15 @@ export class InvalidEmployeeGenderError extends DomainError {
     super('Invalid gender');
   }
 }
+
+export class EmployeeProfessionalDataForbiddenError extends DomainError {
+  constructor() {
+    super('Action not allowed');
+  }
+}
+
+export class EmptyProfessionalEmployeeDataError extends DomainError {
+  constructor() {
+    super('At least one professional data field is required');
+  }
+}
