@@ -20,6 +20,7 @@ export class EmployeeSnapshotMapper {
       emergencyContact: snapshot.emergencyContact
         ? Phone.create(snapshot.emergencyContact)
         : null,
+      jobTitle: snapshot.jobTitle ?? null,
       createdAt: snapshot.createdAt,
       deactivateAt: snapshot.deactivateAt,
       removedAt: snapshot.removedAt ?? null,
