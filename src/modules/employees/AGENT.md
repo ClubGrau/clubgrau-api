@@ -1,6 +1,6 @@
 # Employees Module — Agent Guide
 
-> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status + Part 4 Remove + Part 5 Update Main Data + Part 6 Update Personal Data).
+> Living **contract** of the employees hexagon (Part 1 Create + Part 2 Get Employees + Part 3 Update Status + Part 4 Remove + Part 5 Update Main Data + Part 6 Update Personal Data + Part 7 Update Professional Data).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).  
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
@@ -45,12 +45,13 @@ After a meaningful change, update the relevant section(s) in place.
 | Remove employee (anonymize) | Done | `POST /api/employee/remove` |
 | Update main employee data (command) | Done | `PATCH /api/employee/:id/main-data` |
 | Update personal employee data (command) | Done | `PATCH /api/employee/:id/personal-data` |
+| Update professional employee data (command) | Done | `PATCH /api/employee/:id/professional-data` |
 | Email uniqueness policy | Done | `EmployeePoliciesService.ensureEmailIsAvailable` |
 | Password confirmation | Done | `CreateEmployeeUsecase` |
 | Password hashing | Done | `EncrypterPort` → `BcryptAdapter` (injected from `app.ts`) |
 | Mongo persistence | Done | `EmployeeMongooseRepository` |
-| Auth token on employee routes | Done | `authTokenMiddleware` on `GET` / `POST /employee` / `POST /employee/update-status` / `POST /employee/remove` / `PATCH /employee/:id/main-data` / `PATCH /employee/:id/personal-data` |
-| Role gate on create/list/main/personal patch | Done | `requireRoles('ADMIN', 'MANAGER')` on `GET /employees`, `POST /employee`, `PATCH /employee/:id/main-data`, and `PATCH /employee/:id/personal-data` — `EMPLOYEE` → 403 |
+| Auth token on employee routes | Done | `authTokenMiddleware` on `GET` / `POST /employee` / `POST /employee/update-status` / `POST /employee/remove` / `PATCH /employee/:id/main-data` / `PATCH /employee/:id/personal-data` / `PATCH /employee/:id/professional-data` |
+| Role gate on create/list/main/personal/professional patch | Done | `requireRoles('ADMIN', 'MANAGER')` on `GET /employees`, `POST /employee`, `PATCH /employee/:id/main-data`, `PATCH /employee/:id/personal-data`, and `PATCH /employee/:id/professional-data` — `EMPLOYEE` → 403 |
 | Module HTTP ownership | Done | `infrastructure/inbound/http/employee.routes.ts` |
 | Composition root wiring | Done | `employees.module.ts` + `app.ts` |
 
@@ -58,14 +59,14 @@ After a meaningful change, update the relevant section(s) in place.
 
 | Side | Location | Example |
 |------|----------|---------|
-| Command (write) | `application/usecases/` | `CreateEmployeeUsecase`, `UpdateEmployeeStatusUsecase`, `RemoveEmployeeUsecase`, `UpdateMainEmployeeDataUsecase`, `UpdatePersonalEmployeeDataUsecase` |
+| Command (write) | `application/usecases/` | `CreateEmployeeUsecase`, `UpdateEmployeeStatusUsecase`, `RemoveEmployeeUsecase`, `UpdateMainEmployeeDataUsecase`, `UpdatePersonalEmployeeDataUsecase`, `UpdateProfessionalEmployeeDataUsecase` |
 | Query (read) | `application/queries/` | `GetEmployeesQuery` |
 
 Queries do **not** call `Employee.create`, policies, or encrypter. They use a dedicated read model DTO (no `password`) and `FindEmployeesPort`.
 
 ### Future work
 
-- Get employee by id / professional section (personal fields are patchable via `PATCH …/personal-data`; no get-by-id yet)
+- Get employee by id (own query). Personal fields are patchable via `PATCH …/personal-data`; professional fields via `PATCH …/professional-data`
 - Cross-module events / integration beyond this hexagon
 - `emergencyContact` may become an `EmergencyContact` VO (name + kinship + phone) if the form grows
 - `username` may be dropped if auth stays email-based
@@ -121,9 +122,11 @@ src/modules/employees/
 │   │   ├── update-employee-status.dto.ts
 │   │   ├── update-main-employee-data.dto.ts
 │   │   ├── update-personal-employee-data.dto.ts
+│   │   ├── update-professional-employee-data.dto.ts
 │   │   └── remove-employee.dto.ts
 │   ├── services/
-│   │   └── personal-employee-data-changes.resolver.ts
+│   │   ├── personal-employee-data-changes.resolver.ts
+│   │   └── professional-employee-data-changes.resolver.ts
 │   ├── ports/
 │   │   ├── inbound/
 │   │   │   ├── create-employee.port.ts
@@ -131,6 +134,7 @@ src/modules/employees/
 │   │   │   ├── update-employee-status.port.ts
 │   │   │   ├── update-main-employee-data.port.ts
 │   │   │   ├── update-personal-employee-data.port.ts
+│   │   │   ├── update-professional-employee-data.port.ts
 │   │   │   └── remove-employee.port.ts
 │   │   └── outbound/
 │   │       ├── create-employee-repository.port.ts
@@ -139,6 +143,7 @@ src/modules/employees/
 │   │       ├── update-employee-status-repository.port.ts
 │   │       ├── update-main-employee-data-repository.port.ts
 │   │       ├── update-personal-employee-data-repository.port.ts
+│   │       ├── update-professional-employee-data-repository.port.ts
 │   │       └── anonymize-employee-repository.port.ts
 │   ├── usecases/
 │   │   ├── create-employee.usecase.ts
@@ -150,7 +155,9 @@ src/modules/employees/
 │   │   ├── update-main-employee-data.usecase.ts
 │   │   ├── update-main-employee-data.usecase.spec.ts
 │   │   ├── update-personal-employee-data.usecase.ts
-│   │   └── update-personal-employee-data.usecase.spec.ts
+│   │   ├── update-personal-employee-data.usecase.spec.ts
+│   │   ├── update-professional-employee-data.usecase.ts
+│   │   └── update-professional-employee-data.usecase.spec.ts
 │   └── queries/
 │       ├── get-employees.query.ts
 │       └── get-employees.query.spec.ts
@@ -162,6 +169,7 @@ src/modules/employees/
 │   │   ├── update-employee-status.request.ts  # body bruto (id/status); actorId do adaptRoute
 │   │   ├── update-main-employee-data.request.ts  # body bruto + path :id; actorId do adaptRoute
 │   │   ├── update-personal-employee-data.request.ts  # body bruto + path :id; nif string|number|null
+│   │   ├── update-professional-employee-data.request.ts  # body bruto + path :id; password recusado; employmentId ignorado
 │   │   └── remove-employee.request.ts         # body bruto (id/password); actorId do adaptRoute
 │   └── controllers/
 │       ├── create-employee.controller.ts
@@ -174,6 +182,8 @@ src/modules/employees/
 │       ├── update-main-employee-data.controller.spec.ts
 │       ├── update-personal-employee-data.controller.ts
 │       ├── update-personal-employee-data.controller.spec.ts
+│       ├── update-professional-employee-data.controller.ts
+│       ├── update-professional-employee-data.controller.spec.ts
 │       ├── remove-employee.controller.ts
 │       └── remove-employee.controller.spec.ts
 │
@@ -258,7 +268,7 @@ function isGender(value: unknown): value is Gender
 | `EmptyPersonalEmployeeDataError` | Use case called with no Personal Data keys (HTTP gate should prevent) |
 | `InvalidEmployeeGenderError` | Gender present but not in `EmployeeModel.Gender` (including `""`) |
 | `EmployeeProfessionalDataForbiddenError` | Actor role outside the professional-data matrix, or a non-ADMIN Role delta |
-| `EmptyProfessionalEmployeeDataError` | Class defined here; the resolver (slice 2) throws it when no professional keys are present |
+| `EmptyProfessionalEmployeeDataError` | Use case called with no professional keys (HTTP gate should prevent) |
 | `LastAdminProtectedError` | Last `ACTIVE` ADMIN leaving `ACTIVE`, last non-`REMOVED` ADMIN being Removed, or last login-capable / last non-`REMOVED` ADMIN leaving the `ADMIN` role |
 | `EmployeeAlreadyRemovedError` | Target already `REMOVED` |
 | `EmployeeNotInactiveError` | Remove-only — target is not `INACTIVE` |
@@ -729,6 +739,67 @@ No encrypter. No email occupancy.
 
 ---
 
+## Application: Update Professional Employee Data (command)
+
+Partial patch of `jobTitle`, `role`, and operational `status`. Sparse presence: only keys present in the HTTP body are forwarded. `employmentId` is not a field of this command. Echoed `role` or `status` (equal to the current value) is a no-op and does not persist. A Status **delta** reuses `EmployeeLifecyclePolicy` and `Employee` transition methods; this use case never calls `UpdateEmployeeStatusUsecase` or `updateStatus`.
+
+### Ports
+
+```ts
+interface UpdateProfessionalEmployeeDataPort {
+  execute(params: UpdateProfessionalEmployeeDataDto): Promise<UpdateProfessionalEmployeeDataResultDto>;
+}
+
+interface UpdateProfessionalEmployeeDataRepositoryPort {
+  updateProfessionalData(params: {
+    id: string;
+    jobTitle?: string | null;
+    role?: EmployeeModel.Role;
+    status?: EmployeeModel.Status;
+    deactivateAt?: Date | null;
+  }): Promise<void>;
+}
+```
+
+(`FindEmployeeByIdPort` is reused for Actor and Target lookups. `EmployeeProfessionalDataPolicy` receives the repository because it already implements `CountLoginCapableAdminsPort` and `CountNonRemovedAdminsPort`. `countActiveAdmins` is not used here and stays on the lifecycle policy.)
+
+### DTOs
+
+```ts
+interface UpdateProfessionalEmployeeDataDto {
+  actorId: string;          // stampado pelo adaptRoute; nunca do body
+  id: string;               // path param :id (adaptRoute mescla params após body)
+  jobTitle?: string | null; // presente + null / blank → clear
+  role?: string;            // string | undefined only — never null (blank recusado no controller)
+  status?: string;          // string | undefined only — never null (blank recusado no controller)
+}
+
+interface UpdateProfessionalEmployeeDataResultDto {
+  id: string;
+}
+```
+
+### Use case flow (`UpdateProfessionalEmployeeDataUsecase`)
+
+1. `actorId` empty/blank → `ActorAuthenticationFailedError`
+2. `FindEmployeeByIdPort.findById(actorId)` — miss → `ActorAuthenticationFailedError`
+3. `FindEmployeeByIdPort.findById(id)` — miss → `EmployeeNotFoundError`
+4. `EmployeeSnapshotMapper.toEntity` for Actor and Target
+5. `resolveProfessionalEmployeeDataChanges` — no keys → `EmptyProfessionalEmployeeDataError`
+6. `role` present and not an enum → `InvalidEmployeeRoleError`; `roleChange` is true only when the validated role differs from `target.role`
+7. `status` present and not operational (`REMOVED` included) → `InvalidEmployeeStatusError`; `statusChange` is true only when it differs from `target.status`
+8. `EmployeeProfessionalDataPolicy.assertCan({ actor, target, roleChange })`
+9. If `statusChange`: `LifecycleIntentMapper.toIntent` then `EmployeeLifecyclePolicy.assertCan` — refusal throws before any write
+10. `EmployeeProfessionalDataPatchService.apply` for `jobTitle` / `role` only
+11. If `statusChange`: `activate` / `deactivate` / `putOnVacation` on the Target (never `REMOVED`)
+12. Persist patch empty (echo of role and/or status, no job-title change) → return `{ id }` without calling the repository
+13. Otherwise `UpdateProfessionalEmployeeDataRepositoryPort.updateProfessionalData({ id, ...patch })` — `$set` of changed keys only (`jobTitle`, `role`, and on a status delta `status` + `deactivateAt`)
+14. Return `{ id }`
+
+Role-delta refusal or lifecycle refusal happens before persist — no partial write. `employmentId` and `password` are never written.
+
+---
+
 ## Presentation & HTTP
 
 ### Controllers
@@ -878,6 +949,43 @@ Authorization: Bearer <actor token>
 
 Do not send `id` or `actorId` in the body. Unlike main-data, `status` / `password` in the body are **ignored** (not rejected).
 
+`UpdateProfessionalEmployeeDataController` extends `BaseController`:
+
+- Target `id` from path param (`adaptRoute` merges `req.params` after body — path wins over forged body `id`)
+- `actorId` from JWT stamp — never from body. Do not require `actorId` as a missing-param
+- `'password' in request` (any value, including `null`) → `400` `InvalidParamError('password')`; port is not called
+- Command keys are only `jobTitle` / `role` / `status` (`'field' in request`). `id`, `actorId`, `actorRole`, `employmentId`, Main, Personal, and unknown keys (`name`, `email`, `gender`, `foo`) are ignored and do not count as a field
+- None of the three present (empty body, unknown-only, or only `employmentId`) → `400` `MissingParamError('no professional-data fields')`
+- `role` / `status` present and `null` / `""` / whitespace-only → `400` `InvalidParamError` for that field; not forwarded
+- `jobTitle` present and `null` / `""` / whitespace-only → forward `null` (clear). Any other string is forwarded unchanged (no trim)
+- `role` / `status` non-empty string forwarded as-is; enum check stays in the use case / domain
+- Omit keys that were not in the request
+- Success → `200` + `{ data: { id } }` via `ok(...)`
+- `EmployeeAlreadyActiveError` / `EmployeeAlreadyInactiveError` / `EmployeeAlreadyOnVacationError` are **not** mapped to `400` on this controller (echo is a `200` no-op). If they leak, they fall through to `500`. Dedicated `POST /api/employee/update-status` keeps already-in-status as `400`
+
+| Domain error | HTTP |
+|--------------|------|
+| `ActorAuthenticationFailedError` | `401` `unauthorized` |
+| `EmployeeProfessionalDataForbiddenError` | `403` `forbidden` |
+| `EmployeeLifecycleForbiddenError` | `403` `forbidden` |
+| `LastAdminProtectedError` | `409` `conflict` |
+| `EmployeeAlreadyRemovedError` | `409` `conflict` |
+| `EmployeeNotFoundError` | `400` `badRequest` |
+| `EmptyProfessionalEmployeeDataError` | `400` `badRequest` |
+| `InvalidEmployeeRoleError` | `400` `badRequest` |
+| `InvalidEmployeeStatusError` | `400` `badRequest` |
+| anything else | `500` `serverError` |
+
+HTTP professional-data contract example:
+
+```http
+PATCH /api/employee/507f1f77bcf86cd799439011/professional-data
+Authorization: Bearer <actor token>
+{ "jobTitle": "Barbeiro", "role": "EMPLOYEE", "status": "ACTIVE" }
+```
+
+Do not send `id` or `actorId` in the body. Status **deltas** still go through `EmployeeLifecyclePolicy`. `POST /api/employee/update-status` is unchanged.
+
 ### Routes
 
 ```ts
@@ -888,6 +996,7 @@ router.post('/employee/update-status', authTokenMiddleware, adaptRoute(updateEmp
 router.post('/employee/remove', authTokenMiddleware, adaptRoute(removeEmployeeController));
 router.patch('/employee/:id/main-data', authTokenMiddleware, requireRoles('ADMIN', 'MANAGER'), adaptRoute(updateMainEmployeeDataController));
 router.patch('/employee/:id/personal-data', authTokenMiddleware, requireRoles('ADMIN', 'MANAGER'), adaptRoute(updatePersonalEmployeeDataController));
+router.patch('/employee/:id/professional-data', authTokenMiddleware, requireRoles('ADMIN', 'MANAGER'), adaptRoute(updateProfessionalEmployeeDataController));
 ```
 
 Mounted in `app.ts` as:
@@ -899,9 +1008,10 @@ POST  /api/employee/update-status
 POST  /api/employee/remove
 PATCH /api/employee/:id/main-data
 PATCH /api/employee/:id/personal-data
+PATCH /api/employee/:id/professional-data
 ```
 
-All require `Authorization` (Bearer token). `GET /employees`, `POST /employee`, `PATCH /employee/:id/main-data`, and `PATCH /employee/:id/personal-data` require role `ADMIN` or `MANAGER` (`EMPLOYEE` → 403). `update-status` and `remove` keep domain-level authorization via `EmployeeLifecyclePolicy`; main-data via `EmployeeMainDataPolicy`; personal-data via `EmployeePersonalDataPolicy`. `adaptRoute` stamps `actorId` and, when present, `actorRole` from the JWT. Manual samples: `src/client/employee.http`.
+All require `Authorization` (Bearer token). `GET /employees`, `POST /employee`, `PATCH /employee/:id/main-data`, `PATCH /employee/:id/personal-data`, and `PATCH /employee/:id/professional-data` require role `ADMIN` or `MANAGER` (`EMPLOYEE` → 403). `update-status` and `remove` keep domain-level authorization via `EmployeeLifecyclePolicy`; main-data via `EmployeeMainDataPolicy`; personal-data via `EmployeePersonalDataPolicy`; professional-data via `EmployeeProfessionalDataPolicy` (a Status delta also calls `EmployeeLifecyclePolicy`). `adaptRoute` stamps `actorId` and, when present, `actorRole` from the JWT. Manual samples: `src/client/employee.http`.
 
 ### Request → response sequences
 
@@ -1007,6 +1117,27 @@ Client
   → 200 { data: { id } }
 ```
 
+**Update professional data**
+
+```text
+Client
+  → employee.routes + authTokenMiddleware + requireRoles('ADMIN', 'MANAGER') + adaptRoute (stamps actorId; merges :id)
+  → UpdateProfessionalEmployeeDataController.handle
+  → UpdateProfessionalEmployeeDataPort.execute
+  → UpdateProfessionalEmployeeDataUsecase
+      → FindEmployeeByIdPort.findById (actor) — miss → ActorAuthenticationFailedError
+      → FindEmployeeByIdPort.findById (target) — miss → EmployeeNotFoundError
+      → EmployeeSnapshotMapper.toEntity (actor + target)
+      → resolveProfessionalEmployeeDataChanges
+      → EmployeeProfessionalDataPolicy.assertCan
+      → on status delta: EmployeeLifecyclePolicy.assertCan (never updateStatus)
+      → EmployeeProfessionalDataPatchService.apply
+      → activate / deactivate / putOnVacation when status changed
+      → skip persist when the patch is empty (echo)
+      → UpdateProfessionalEmployeeDataRepositoryPort.updateProfessionalData ($set changed keys only)
+  → 200 { data: { id } }
+```
+
 ---
 
 ## Persistence
@@ -1068,7 +1199,7 @@ Composition order today:
 5. `GetEmployeesQuery(repository)`
 6. `CreateEmployeeController(createEmployee)`
 7. `GetEmployeesController(getEmployees)`
-8. `EmployeeLifecyclePolicy(repository)` — one instance shared by update-status and remove
+8. `EmployeeLifecyclePolicy(repository)` — one instance shared by update-status, remove, and professional-data
 9. `UpdateEmployeeStatusUsecase(repository, repository, lifecyclePolicy)`
 10. `UpdateEmployeeStatusController(updateEmployeeStatus)`
 11. `RemoveEmployeeUsecase(repository, compareHash, encrypter, lifecyclePolicy, repository)`
@@ -1081,9 +1212,13 @@ Composition order today:
 18. `EmployeePersonalDataPatchService()` (no ports)
 19. `UpdatePersonalEmployeeDataUsecase(repository, personalDataPolicy, personalDataPatchService, repository)`
 20. `UpdatePersonalEmployeeDataController(updatePersonalEmployeeData)`
-21. `makeEmployeeRoutes({ ..., updateMainEmployeeDataController, updatePersonalEmployeeDataController, ... })`
+21. `EmployeeProfessionalDataPolicy(repository)` — same repository instance (`countLoginCapableAdmins` + `countNonRemovedAdmins`); not a second `EmployeeLifecyclePolicy`; `CountActiveAdminsPort` is not passed as a distinct object
+22. `EmployeeProfessionalDataPatchService()` (no ports)
+23. `UpdateProfessionalEmployeeDataUsecase(repository, professionalDataPolicy, professionalDataPatchService, lifecyclePolicy, repository)` — the **same** `lifecyclePolicy` already built for update-status and remove
+24. `UpdateProfessionalEmployeeDataController(updateProfessionalEmployeeData)`
+25. `makeEmployeeRoutes({ ..., updateMainEmployeeDataController, updatePersonalEmployeeDataController, updateProfessionalEmployeeDataController, ... })`
 
-Returns `{ createEmployeeController, getEmployeesController, updateEmployeeStatusController, updateMainEmployeeDataController, updatePersonalEmployeeDataController, removeEmployeeController, createEmployee, getEmployees, router }`.
+Returns `{ createEmployeeController, getEmployeesController, updateEmployeeStatusController, updateMainEmployeeDataController, updatePersonalEmployeeDataController, updateProfessionalEmployeeDataController, removeEmployeeController, createEmployee, getEmployees, router }`.
 
 **Rule:** when adding a use case or query, wire it in this file; do not construct repositories inside controllers or use cases.
 
@@ -1116,6 +1251,12 @@ Never shortcut by calling the repository from the controller.
 8. **Self-service personal data** — not in this command. A future `UpdateOwnPersonalDataUsecase` should use a **new** policy, not a change to `EmployeePersonalDataPolicy`.
 9. **`languages` shape** — stays `string | null` on create and personal patch (not an array).
 10. **`emergencyContact` shape** — stays a single phone string validated by `Phone.create` only (no rich VO yet).
+11. **Lifecycle Actor stays `ACTIVE`-only** — a `VACATION` Actor may patch Job Title (and Role, when the professional matrix allows). A Status **delta** still goes through `EmployeeLifecyclePolicy` as-is → `401`. This command does not widen the lifecycle Actor to login-capable.
+12. **Deactivate Last Admin** — still `countActiveAdmins` inside `EmployeeLifecyclePolicy`. Professional Role protection uses `countLoginCapableAdmins` / `countNonRemovedAdmins`. `countActiveAdmins` is not widened.
+13. **Leftover JWT after Role / Status change** — this PATCH does not revoke Session Tokens. Residual JWT stays in the Auth hexagon.
+14. **`employmentId`** — not written by this command (ignored on the HTTP body; not a persist field).
+15. **Get-by-id** — still a follow-up query of its own.
+16. **Vue Save echo** — the client may always send current `role` + `status`. This PATCH treats equality as a no-op (`200`, no write unless another field changed). Already-in-status stays `400` only on `POST /api/employee/update-status`.
 
 ---
 
@@ -1148,12 +1289,16 @@ Never shortcut by calling the repository from the controller.
 | Remove (anonymize) orchestration | `application/usecases/remove-employee.usecase.ts` |
 | Update main-data orchestration | `application/usecases/update-main-employee-data.usecase.ts` |
 | Update personal-data orchestration | `application/usecases/update-personal-employee-data.usecase.ts` |
+| Professional-data change resolver | `application/services/professional-employee-data-changes.resolver.ts` |
+| Update professional-data orchestration | `application/usecases/update-professional-employee-data.usecase.ts` |
 | Remove HTTP request shape (raw body) | `presentation/http/remove-employee.request.ts` |
 | Remove HTTP mapping / status | `presentation/controllers/remove-employee.controller.ts` |
 | Main-data HTTP request shape (raw body + path) | `presentation/http/update-main-employee-data.request.ts` |
 | Main-data HTTP mapping / status | `presentation/controllers/update-main-employee-data.controller.ts` |
 | Personal-data HTTP request shape (raw body + path) | `presentation/http/update-personal-employee-data.request.ts` |
 | Personal-data HTTP mapping / status | `presentation/controllers/update-personal-employee-data.controller.ts` |
+| Professional-data HTTP request shape (raw body + path) | `presentation/http/update-professional-employee-data.request.ts` |
+| Professional-data HTTP mapping / status | `presentation/controllers/update-professional-employee-data.controller.ts` |
 | Routes | `infrastructure/inbound/http/employee.routes.ts` |
 | Mongo I/O | `infrastructure/outbound/persistence/employee-mongoose.repository.ts` |
 | Document ↔ DTO mapping | `infrastructure/outbound/persistence/employee.mapper.ts` |
