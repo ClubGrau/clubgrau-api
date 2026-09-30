@@ -27,6 +27,8 @@ import { EmployeePoliciesService } from '@modules/employees/domain/services/empl
 import { makeEmployeeRoutes } from '@modules/employees/infrastructure/inbound/http/employee.routes';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
 import { EmployeeMongooseRepository } from '@modules/employees/infrastructure/outbound/persistence/employee-mongoose.repository';
+import { EmploymentIdCounter } from '@modules/employees/infrastructure/outbound/persistence/employment-id-counter.mongoose';
+import { EmploymentIdCounterSchema } from '@modules/employees/infrastructure/outbound/persistence/employment-id-counter.schema';
 import { CreateEmployeeController } from '@modules/employees/presentation/controllers/create-employee.controller';
 import { GetEmployeesController } from '@modules/employees/presentation/controllers/get-employees.controller';
 import { RemoveEmployeeController } from '@modules/employees/presentation/controllers/remove-employee.controller';
@@ -64,15 +66,24 @@ export function makeEmployeesModule({
   makeRequireRoles,
 }: EmployeesModuleDeps): EmployeesModule {
   const employeeModel = connection.model('Employee', EmployeeSchema);
+  const counterModel = connection.model(
+    'EmploymentIdCounter',
+    EmploymentIdCounterSchema,
+  );
   const employeeRepository = new EmployeeMongooseRepository(employeeModel);
   const employeePoliciesService = new EmployeePoliciesService(
     employeeRepository,
+  );
+  const employmentIdCounter = new EmploymentIdCounter(
+    employeeModel,
+    counterModel,
   );
 
   const createEmployee: CreateEmployeePort = new CreateEmployeeUsecase(
     employeePoliciesService,
     encrypter,
     employeeRepository,
+    employmentIdCounter,
   );
   const getEmployees: GetEmployeesPort = new GetEmployeesQuery(
     employeeRepository,

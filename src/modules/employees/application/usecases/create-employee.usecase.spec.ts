@@ -16,7 +16,10 @@ import {
 import { FindEmployeeByEmailPort } from '@modules/employees/domain/ports/find-employee-by-email.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
 import { CreateEmployeeDto } from '../dtos/create-employee.dto';
+import { AllocateEmploymentIdPort } from '../ports/outbound/allocate-employment-id.port';
 import { CreateEmployeeRepositoryPort } from '../ports/outbound/create-employee-repository.port';
+
+const ALLOCATED_EMPLOYMENT_ID = '42';
 
 const makeStubs = () => ({
   employeePoliciesServiceStub: new EmployeePoliciesService({
@@ -28,6 +31,9 @@ const makeStubs = () => ({
   createEmployeeRepositoryStub: {
     create: jest.fn().mockResolvedValue({ id: 'valid_employee_id' }),
   } satisfies CreateEmployeeRepositoryPort,
+  allocateEmploymentIdStub: {
+    allocate: jest.fn().mockResolvedValue(ALLOCATED_EMPLOYMENT_ID),
+  } satisfies AllocateEmploymentIdPort,
 });
 
 const makeSut = (): SutTypes => {
@@ -35,17 +41,20 @@ const makeSut = (): SutTypes => {
     employeePoliciesServiceStub,
     encrypterStub,
     createEmployeeRepositoryStub,
+    allocateEmploymentIdStub,
   } = makeStubs();
   const sut = new CreateEmployeeUsecase(
     employeePoliciesServiceStub,
     encrypterStub,
     createEmployeeRepositoryStub,
+    allocateEmploymentIdStub,
   );
   return {
     sut,
     employeePoliciesServiceStub,
     encrypterStub,
     createEmployeeRepositoryStub,
+    allocateEmploymentIdStub,
   };
 };
 
@@ -65,6 +74,7 @@ type SutTypes = {
   employeePoliciesServiceStub: EmployeePoliciesService;
   encrypterStub: EncrypterPort;
   createEmployeeRepositoryStub: CreateEmployeeRepositoryPort;
+  allocateEmploymentIdStub: AllocateEmploymentIdPort;
 };
 
 describe('HireEmployeeUsecase', () => {
@@ -85,7 +95,7 @@ describe('HireEmployeeUsecase', () => {
   });
 
   it('should return an error if password and passwordConfirmation do not match', async () => {
-    const { sut } = makeSut();
+    const { sut, allocateEmploymentIdStub } = makeSut();
     const params = makeValidParams({
       password: 'P@ssword123',
       passwordConfirmation: 'P@ssword456',
@@ -96,10 +106,11 @@ describe('HireEmployeeUsecase', () => {
     await expect(execute).rejects.toThrow(
       'Password and passwordConfirmation do not match',
     );
+    expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
   });
 
   it('should not create an employee when passwords do not match', async () => {
-    const { sut } = makeSut();
+    const { sut, allocateEmploymentIdStub } = makeSut();
     const createSpy = jest.spyOn(Employee, 'create');
     const params = makeValidParams({
       password: 'P@ssword123',
@@ -110,6 +121,7 @@ describe('HireEmployeeUsecase', () => {
       PasswordNotMatchError,
     );
     expect(createSpy).not.toHaveBeenCalled();
+    expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
   });
 
   it('should call EmployeePoliciesService.ensureEmailIsAvailable with correct email', async () => {
@@ -127,7 +139,8 @@ describe('HireEmployeeUsecase', () => {
   });
 
   it('should propagate EmployeeAlreadyExistsError from the policy', async () => {
-    const { sut, employeePoliciesServiceStub } = makeSut();
+    const { sut, employeePoliciesServiceStub, allocateEmploymentIdStub } =
+      makeSut();
     jest
       .spyOn(employeePoliciesServiceStub, 'ensureEmailIsAvailable')
       .mockRejectedValueOnce(new EmployeeAlreadyExistsError());
@@ -135,10 +148,12 @@ describe('HireEmployeeUsecase', () => {
     const execute = () => sut.execute(makeValidParams());
 
     await expect(execute).rejects.toBeInstanceOf(EmployeeAlreadyExistsError);
+    expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
   });
 
   it('should propagate EmployeeInactiveError from the policy', async () => {
-    const { sut, employeePoliciesServiceStub } = makeSut();
+    const { sut, employeePoliciesServiceStub, allocateEmploymentIdStub } =
+      makeSut();
     jest
       .spyOn(employeePoliciesServiceStub, 'ensureEmailIsAvailable')
       .mockRejectedValueOnce(new EmployeeInactiveError());
@@ -146,6 +161,7 @@ describe('HireEmployeeUsecase', () => {
     const execute = () => sut.execute(makeValidParams());
 
     await expect(execute).rejects.toBeInstanceOf(EmployeeInactiveError);
+    expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
   });
 
   it('should call Encrypter with correct plan password', async () => {
@@ -157,19 +173,22 @@ describe('HireEmployeeUsecase', () => {
   });
 
   it('should throw if encrypter throws', async () => {
-    const { sut, encrypterStub } = makeSut();
+    const { sut, encrypterStub, allocateEmploymentIdStub } = makeSut();
     const params = makeValidParams();
     jest
       .spyOn(encrypterStub, 'encrypt')
       .mockRejectedValueOnce(new Error('Encryption error'));
     await expect(sut.execute(params)).rejects.toThrow('Encryption error');
+    expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
   });
 
   it('should call CreateEmployeeRepository with correct params', async () => {
-    const { sut, createEmployeeRepositoryStub } = makeSut();
+    const { sut, createEmployeeRepositoryStub, allocateEmploymentIdStub } =
+      makeSut();
     const params = makeValidParams();
     const createSpy = jest.spyOn(createEmployeeRepositoryStub, 'create');
     await sut.execute(params);
+    expect(allocateEmploymentIdStub.allocate).toHaveBeenCalledTimes(1);
     expect(createSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         id: expect.any(String),
@@ -185,7 +204,7 @@ describe('HireEmployeeUsecase', () => {
         address: null,
         languages: null,
         emergencyContact: null,
-        employmentId: null,
+        employmentId: ALLOCATED_EMPLOYMENT_ID,
         jobTitle: null,
         deactivateAt: null,
         createdAt: expect.any(Date),
@@ -194,12 +213,14 @@ describe('HireEmployeeUsecase', () => {
   });
 
   it('should throw if createEmployeeRepository throws', async () => {
-    const { sut, createEmployeeRepositoryStub } = makeSut();
+    const { sut, createEmployeeRepositoryStub, allocateEmploymentIdStub } =
+      makeSut();
     const params = makeValidParams();
     jest
       .spyOn(createEmployeeRepositoryStub, 'create')
       .mockRejectedValueOnce(new Error('Repository error'));
     await expect(sut.execute(params)).rejects.toThrow('Repository error');
+    expect(allocateEmploymentIdStub.allocate).toHaveBeenCalledTimes(1);
   });
 
   it('should return employee id on success', async () => {
@@ -234,7 +255,6 @@ describe('HireEmployeeUsecase', () => {
         address: undefined,
         languages: undefined,
         emergencyContact: undefined,
-        employmentId: undefined,
         jobTitle: undefined,
       });
     });
@@ -256,8 +276,9 @@ describe('HireEmployeeUsecase', () => {
     });
 
     it('should forward optional profile fields to Employee.create', async () => {
-      const { sut } = makeSut();
+      const { sut, createEmployeeRepositoryStub } = makeSut();
       const createSpy = jest.spyOn(Employee, 'create');
+      const repositorySpy = jest.spyOn(createEmployeeRepositoryStub, 'create');
 
       await sut.execute(
         makeValidParams({
@@ -278,9 +299,26 @@ describe('HireEmployeeUsecase', () => {
           address: 'Rua do Grau, 10',
           languages: 'pt,en',
           emergencyContact: '+351 910 000 000',
-          employmentId: 'HR-001',
           jobTitle: 'Barber',
         }),
+      );
+      expect(createSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ employmentId: 'HR-001' }),
+      );
+      expect(repositorySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'jdoe',
+          gender: 'male',
+          address: 'Rua do Grau, 10',
+          languages: 'pt,en',
+          emergencyContact: '351910000000',
+          employmentId: ALLOCATED_EMPLOYMENT_ID,
+          jobTitle: 'Barber',
+          password: 'encrypted-password',
+        }),
+      );
+      expect(repositorySpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ employmentId: 'HR-001' }),
       );
     });
 
@@ -324,18 +362,20 @@ describe('HireEmployeeUsecase', () => {
     });
 
     it('should propagate an error for an invalid email', async () => {
-      const { sut } = makeSut();
+      const { sut, allocateEmploymentIdStub } = makeSut();
       const execute = () =>
         sut.execute(makeValidParams({ email: 'not-an-email' }));
 
       await expect(execute).rejects.toBeInstanceOf(InvalidEmailError);
+      expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
     });
 
     it('should propagate an error for an invalid phone', async () => {
-      const { sut } = makeSut();
+      const { sut, allocateEmploymentIdStub } = makeSut();
       const execute = () => sut.execute(makeValidParams({ phone: '123' }));
 
       await expect(execute).rejects.toBeInstanceOf(InvalidPhoneFormatError);
+      expect(allocateEmploymentIdStub.allocate).not.toHaveBeenCalled();
     });
 
     it('should propagate an error for an invalid emergency contact', async () => {

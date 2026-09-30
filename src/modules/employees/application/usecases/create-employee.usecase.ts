@@ -8,6 +8,7 @@ import {
   CreateEmployeeResultDto,
 } from '../dtos/create-employee.dto';
 import { CreateEmployeePort } from '../ports/inbound/create-employee.port';
+import { AllocateEmploymentIdPort } from '../ports/outbound/allocate-employment-id.port';
 import { CreateEmployeeRepositoryPort } from '../ports/outbound/create-employee-repository.port';
 
 export class CreateEmployeeUsecase implements CreateEmployeePort {
@@ -15,6 +16,7 @@ export class CreateEmployeeUsecase implements CreateEmployeePort {
     private readonly employeePoliciesService: EmployeePoliciesService,
     private readonly encrypter: EncrypterPort,
     private readonly createEmployeeRepository: CreateEmployeeRepositoryPort,
+    private readonly allocateEmploymentId: AllocateEmploymentIdPort,
   ) {}
 
   async execute(params: CreateEmployeeDto): Promise<CreateEmployeeResultDto> {
@@ -36,7 +38,6 @@ export class CreateEmployeeUsecase implements CreateEmployeePort {
       address: params.address,
       languages: params.languages,
       emergencyContact: params.emergencyContact,
-      employmentId: params.employmentId,
       jobTitle: params.jobTitle,
     }).toJSON();
 
@@ -45,9 +46,11 @@ export class CreateEmployeeUsecase implements CreateEmployeePort {
     );
 
     const encryptedPassword = await this.encrypter.encrypt(password);
+    const employmentId = await this.allocateEmploymentId.allocate();
     const employeeToCreate: EmployeeModel.toCreate = {
       ...candidateEmployee,
       password: encryptedPassword,
+      employmentId,
     };
 
     const { id } = await this.createEmployeeRepository.create(employeeToCreate);
