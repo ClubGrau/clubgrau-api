@@ -33,8 +33,8 @@ The system-access enum of a collaborator: `ADMIN`, `MANAGER`, `EMPLOYEE`. The AP
 _Avoid_: função in the API, job title, cargo as free text, treating an unchanged role as a promotion
 
 **Employment Id**:
-The collaborator's registration number. It is planted on Create (shape still open). It does not appear on Update Professional Employee Data — the form does not send it and the command does not write it.
-_Avoid_: updating matrícula on professional save, treating it as Job Title, expecting it in the professional body
+The collaborator's registration number (`employmentId`). Create issues it: a positive integer from 1, no leading zeros, stored as a digit string. The client does not supply it; a value sent on Create is ignored. Issued numbers are unique and are not reused, including after Remove. A gap may remain when issuance succeeds and the employee insert does not. No later command rewrites it. Update Professional Employee Data does not write it. Remove keeps it.
+_Avoid_: client-supplied matrícula, updating matrícula on professional save, treating it as Job Title, reusing a number after Remove, backfilling legacy values
 
 **Professional Employee Data**:
 The professional fields of a collaborator that this command may correct: job title and role. Employment id belongs to the professional record but is not writable here. Status is not a professional field; it is a lifecycle action that may travel in the same save.

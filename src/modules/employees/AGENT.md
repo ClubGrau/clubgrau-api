@@ -137,6 +137,7 @@ src/modules/employees/
 │   │   │   ├── update-professional-employee-data.port.ts
 │   │   │   └── remove-employee.port.ts
 │   │   └── outbound/
+│   │       ├── allocate-employment-id.port.ts
 │   │       ├── create-employee-repository.port.ts
 │   │       ├── find-employees.port.ts
 │   │       ├── find-employee-by-id.port.ts
@@ -164,7 +165,7 @@ src/modules/employees/
 │
 ├── presentation/
 │   ├── http/
-│   │   ├── create-employee.request.ts         # body bruto (nif string|number; status ignorado)
+│   │   ├── create-employee.request.ts         # body bruto (nif string|number; status e employmentId ignorados)
 │   │   ├── get-employees.request.ts  # query string bruta (pré-validação)
 │   │   ├── update-employee-status.request.ts  # body bruto (id/status); actorId do adaptRoute
 │   │   ├── update-main-employee-data.request.ts  # body bruto + path :id; actorId do adaptRoute
@@ -194,7 +195,10 @@ src/modules/employees/
         ├── employee.schema.ts
         ├── employee.mapper.ts        # mapEmployeeDocument + mapEmployeeReadModel
         ├── employee-mongoose.repository.ts
-        └── employee-mongoose.repository.spec.ts
+        ├── employee-mongoose.repository.spec.ts
+        ├── employment-id-counter.schema.ts
+        ├── employment-id-counter.mongoose.ts
+        └── employment-id-counter.mongoose.spec.ts
 ```
 
 Related outside the module:
@@ -218,7 +222,7 @@ Glossary: [`CONTEXT.md`](./CONTEXT.md). Map: [`CONTEXT-MAP.md`](../../../CONTEXT
 
 Factory methods:
 
-- `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `status=ACTIVE`, `createdAt=now`, `deactivateAt=null`. Optional profile: `username`, `gender`, `address`, `languages`, `employmentId`, `jobTitle` (primitives) and `emergencyContact` (`Phone.create` if present, same as `phone`).
+- `Employee.create(CreateEmployeeProps)` — new employee; validates role; builds VOs; defaults `status=ACTIVE`, `createdAt=now`, `deactivateAt=null`. Optional profile: `username`, `gender`, `address`, `languages`, `employmentId`, `jobTitle` (primitives) and `emergencyContact` (`Phone.create` if present, same as `phone`). The Create command writes the issued digit string on the insert snapshot and does not read a client number.
 - `Employee.reconstitute(ReconstituteEmployeeProps)` — rebuild from persistence (already-validated VOs + id). Profile fields default to `null` when omitted.
 
 Behavior:
@@ -385,7 +389,6 @@ interface CreateEmployeeDto {
   address?: string | null;
   languages?: string | null;
   emergencyContact?: string | null;
-  employmentId?: string | null;
   jobTitle?: string | null;
 }
 
@@ -397,13 +400,14 @@ interface CreateEmployeeResultDto {
 ### Use case flow (`CreateEmployeeUsecase`)
 
 1. Reject if `password !== passwordConfirmation` → `PasswordNotMatchError`
-2. `Employee.create(...)` then `.toJSON()` (VO validation happens here)
+2. `Employee.create(...)` then `.toJSON()` (VO validation happens here; no client number)
 3. `employeePoliciesService.ensureEmailIsAvailable(email)`
 4. Encrypt password via `EncrypterPort`
-5. Persist via `CreateEmployeeRepositoryPort.create`
-6. Return `{ id }`
+5. `allocate()` via `AllocateEmploymentIdPort`
+6. Persist the snapshot with the issued digit string via `CreateEmployeeRepositoryPort.create`
+7. Return `{ id }`
 
-Optional `phone` and `emergencyContact` are validated by `Phone.create` inside `Employee.create` (omit/`null` → `null`). Profile primitives persist as-is (omit → `null`).
+A body `employmentId` is discarded by the controller and never reaches `execute`. Optional `phone` and `emergencyContact` are validated by `Phone.create` inside `Employee.create` (omit/`null` → `null`). Other profile primitives persist as-is (omit → `null`).
 
 ---
 
@@ -810,9 +814,9 @@ Role-delta refusal or lifecycle refusal happens before persist — no partial wr
 - Missing field → `400` + `MissingParamError`
 - Success → `201` + `{ id }` via `created(...)`
 - Unexpected errors → `serverError(...)`
-- Raw HTTP body: `CreateEmployeeRequest`. `nif` may arrive as string (`"123456789"`) and is converted with `Number(...)` (absent → `null`). `status` on the body is ignored (domain always creates `ACTIVE`).
+- Raw HTTP body: `CreateEmployeeRequest`. `nif` may arrive as string (`"123456789"`) and is converted with `Number(...)` (absent → `null`). `status` and `employmentId` on the body are ignored (domain always creates `ACTIVE`; the use case writes the issued digit string).
 
-`role` / `phone` / `nif` / profile fields are passed through when present; domain validates role and VOs.
+`role` / `phone` / `nif` / the other profile fields are passed through when present; domain validates role and VOs.
 
 `GetEmployeesController` extends `BaseController`:
 
@@ -1195,7 +1199,7 @@ Composition order today:
 1. `connection.model('Employee', EmployeeSchema)`
 2. `EmployeeMongooseRepository`
 3. `EmployeePoliciesService(repository)`
-4. `CreateEmployeeUsecase(policies, encrypter, repository)`
+4. `EmploymentIdCounter(employeeModel, counterModel)` then `CreateEmployeeUsecase(policies, encrypter, repository, employmentIdCounter)`
 5. `GetEmployeesQuery(repository)`
 6. `CreateEmployeeController(createEmployee)`
 7. `GetEmployeesController(getEmployees)`
@@ -1254,7 +1258,7 @@ Never shortcut by calling the repository from the controller.
 11. **Lifecycle Actor stays `ACTIVE`-only** — a `VACATION` Actor may patch Job Title (and Role, when the professional matrix allows). A Status **delta** still goes through `EmployeeLifecyclePolicy` as-is → `401`. This command does not widen the lifecycle Actor to login-capable.
 12. **Deactivate Last Admin** — still `countActiveAdmins` inside `EmployeeLifecyclePolicy`. Professional Role protection uses `countLoginCapableAdmins` / `countNonRemovedAdmins`. `countActiveAdmins` is not widened.
 13. **Leftover JWT after Role / Status change** — this PATCH does not revoke Session Tokens. Residual JWT stays in the Auth hexagon.
-14. **`employmentId`** — not written by this command (ignored on the HTTP body; not a persist field).
+14. **`employmentId`** — not written by this command (ignored on the HTTP body; not a persist field). Create now issues the digit string. Legacy non-numeric values and `null` remain. There is no backfill and no unique index.
 15. **Get-by-id** — still a follow-up query of its own.
 16. **Vue Save echo** — the client may always send current `role` + `status`. This PATCH treats equality as a no-op (`200`, no write unless another field changed). Already-in-status stays `400` only on `POST /api/employee/update-status`.
 

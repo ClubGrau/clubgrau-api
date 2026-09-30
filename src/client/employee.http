@@ -4,6 +4,7 @@
 ### Create employee
 # Requer role ADMIN ou MANAGER (requireRoles). EMPLOYEE → 403.
 # status no body é ignorado — o domínio força ACTIVE.
+# employmentId no body é ignorado; o servidor grava a string de dígitos emitida.
 # passwordConfirmation continua obrigatório (frontend pode repetir password).
 POST http://localhost:3003/api/employee
 Content-Type: application/json
