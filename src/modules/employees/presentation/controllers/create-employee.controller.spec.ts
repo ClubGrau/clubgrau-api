@@ -98,7 +98,6 @@ describe('CreateEmployeeController', () => {
       address: null,
       languages: null,
       emergencyContact: null,
-      employmentId: null,
       jobTitle: null,
     });
   });
@@ -148,9 +147,11 @@ describe('CreateEmployeeController', () => {
         address: 'Rua do Grau, 10',
         languages: 'pt,en',
         emergencyContact: '+351 910 000 000',
-        employmentId: 'HR-001',
         jobTitle: 'Barber',
       }),
+    );
+    expect(createEmployeeSpy).toHaveBeenCalledWith(
+      expect.not.objectContaining({ employmentId: expect.anything() }),
     );
   });
 
@@ -176,7 +177,6 @@ describe('CreateEmployeeController', () => {
       address: null,
       languages: null,
       emergencyContact: null,
-      employmentId: null,
       jobTitle: null,
     });
   });
@@ -204,14 +204,34 @@ describe('CreateEmployeeController', () => {
       address: null,
       languages: null,
       emergencyContact: null,
-      employmentId: null,
       jobTitle: null,
     });
   });
 
-  it('should return 201 if employee is created successfully', async () => {
-    const { sut } = makeSut();
+  it('should ignore employmentId from the request and return 201', async () => {
+    const { sut, createEmployeeStub } = makeSut();
+    const createEmployeeSpy = jest.spyOn(createEmployeeStub, 'execute');
+    const response = await sut.handle(
+      makeValidRequest({ employmentId: 'HR-001' }),
+    );
+
+    expect(createEmployeeSpy).toHaveBeenCalledWith(
+      expect.not.objectContaining({ employmentId: expect.anything() }),
+    );
+    expect(response.statusCode).toBe(201);
+    expect(response.body).toEqual({
+      data: { id: 'valid_employee_id' },
+    });
+  });
+
+  it('should return 201 when employmentId is absent', async () => {
+    const { sut, createEmployeeStub } = makeSut();
+    const createEmployeeSpy = jest.spyOn(createEmployeeStub, 'execute');
     const response = await sut.handle(makeValidRequest());
+
+    expect(createEmployeeSpy).toHaveBeenCalledWith(
+      expect.not.objectContaining({ employmentId: expect.anything() }),
+    );
     expect(response.statusCode).toBe(201);
     expect(response.body).toEqual({
       data: { id: 'valid_employee_id' },

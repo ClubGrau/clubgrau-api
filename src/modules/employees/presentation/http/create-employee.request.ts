@@ -1,7 +1,7 @@
 /**
  * Request HTTP da criação de employee (body bruto).
  * nif pode chegar como string do frontend; a conversão para number
- * e o descarte de `status` acontecem no controller.
+ * e o descarte de `status` e `employmentId` acontecem no controller.
  */
 export type CreateEmployeeRequest = {
   name?: string;

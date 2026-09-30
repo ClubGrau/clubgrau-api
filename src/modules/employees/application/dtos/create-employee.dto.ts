@@ -14,7 +14,6 @@ export interface CreateEmployeeDto {
   address?: string | null;
   languages?: string | null;
   emergencyContact?: string | null;
-  employmentId?: string | null;
   jobTitle?: string | null;
 }
 

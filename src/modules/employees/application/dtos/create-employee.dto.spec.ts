@@ -48,7 +48,6 @@ describe('CreateEmployeeDto', () => {
       address: 'Rua do Grau, 10',
       languages: 'pt,en',
       emergencyContact: '+351 910 000 000',
-      employmentId: 'HR-001',
       jobTitle: 'Barber',
     };
 
@@ -57,7 +56,6 @@ describe('CreateEmployeeDto', () => {
     expect(dto.address).toBe('Rua do Grau, 10');
     expect(dto.languages).toBe('pt,en');
     expect(dto.emergencyContact).toBe('+351 910 000 000');
-    expect(dto.employmentId).toBe('HR-001');
     expect(dto.jobTitle).toBe('Barber');
   });
 });

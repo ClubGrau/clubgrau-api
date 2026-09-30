@@ -57,7 +57,6 @@ export class CreateEmployeeController extends BaseController<
         address: request.address ?? null,
         languages: request.languages ?? null,
         emergencyContact: request.emergencyContact ?? null,
-        employmentId: request.employmentId ?? null,
         jobTitle: request.jobTitle ?? null,
       });
 

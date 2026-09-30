@@ -287,7 +287,6 @@ describe('HireEmployeeUsecase', () => {
           address: 'Rua do Grau, 10',
           languages: 'pt,en',
           emergencyContact: '+351 910 000 000',
-          employmentId: 'HR-001',
           jobTitle: 'Barber',
         }),
       );
@@ -302,9 +301,6 @@ describe('HireEmployeeUsecase', () => {
           jobTitle: 'Barber',
         }),
       );
-      expect(createSpy).not.toHaveBeenCalledWith(
-        expect.objectContaining({ employmentId: 'HR-001' }),
-      );
       expect(repositorySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           username: 'jdoe',
@@ -316,9 +312,6 @@ describe('HireEmployeeUsecase', () => {
           jobTitle: 'Barber',
           password: 'encrypted-password',
         }),
-      );
-      expect(repositorySpy).not.toHaveBeenCalledWith(
-        expect.objectContaining({ employmentId: 'HR-001' }),
       );
     });
 
