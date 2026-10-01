@@ -141,8 +141,10 @@ src/modules/employees/
 │   │       ├── create-employee-repository.port.ts
 │   │       ├── find-employees.port.ts
 │   │       ├── find-employee-by-id.port.ts
+│   │       ├── find-own-employee.port.ts
 │   │       ├── update-employee-status-repository.port.ts
 │   │       ├── update-main-employee-data-repository.port.ts
+│   │       ├── update-own-employee-data-repository.port.ts
 │   │       ├── update-personal-employee-data-repository.port.ts
 │   │       ├── update-professional-employee-data-repository.port.ts
 │   │       └── anonymize-employee-repository.port.ts
@@ -1169,6 +1171,8 @@ Client
 - `AnonymizeEmployeeRepositoryPort` → `anonymize` (`updateOne` + `$set` of sentinel fields + hash + `REMOVED` + `removedAt` only)
 - `UpdateMainEmployeeDataRepositoryPort` → `updateMainData` (`updateOne` + `$set` of present Main Data keys only; `username: null` persists)
 - `UpdatePersonalEmployeeDataRepositoryPort` → `updatePersonalData` (`updateOne` + `$set` of present Personal Data keys only; `nif` string in the patch → `Number` in `$set`; `null` clears)
+- `UpdateOwnEmployeeDataRepositoryPort` → `updateOwnData` (`updateOne` + `$set` of present own-data keys only; `username: null` and personal `null` clears persist; `nif` string → `Number`; `nif: null` stays `null`; no `email`; 0-match throws `Error`)
+- `FindOwnEmployeePort` → `findOwnEmployee` (lean + `mapEmployeeReadModel`; no status filter; no `password`; miss → `null`)
 - `UpdateProfessionalEmployeeDataRepositoryPort` → `updateProfessionalData` (`updateOne` + `$set` of present keys only; `jobTitle: null` and `deactivateAt: null` persist; 0-match throws `Error`)
 
 `findAll` sorts by `{ createdAt: -1, _id: -1 }` for stable pages.
