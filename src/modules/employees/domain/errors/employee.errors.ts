@@ -100,6 +100,12 @@ export class EmptyPersonalEmployeeDataError extends DomainError {
   }
 }
 
+export class EmptyOwnEmployeeDataError extends DomainError {
+  constructor() {
+    super('At least one own employee data field is required');
+  }
+}
+
 export class InvalidEmployeeGenderError extends DomainError {
   constructor() {
     super('Invalid gender');
