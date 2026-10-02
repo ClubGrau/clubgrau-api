@@ -17,8 +17,8 @@ The query that returns the Actor's collaborator read model (same shape as a list
 _Avoid_: get employee by id, list, putting personal fields in the Session Token
 
 **Update Own Employee Data**:
-The command that corrects the Actor's own name, phone, username, and Personal Employee Data in one sparse PATCH. Username and Personal Employee Data clear to null when present and blank. Name and phone do not. Email, password, status, role, job title, and employment id are not written. Any login-capable role may call it, only on self.
-_Avoid_: Update Own Personal Data, Update Main Employee Data, Edit Collaborator, requiring email, path :id, operator matrix, treating blank username as a missing required field
+The command that corrects the Actor's own name, phone, username, and Personal Employee Data in one sparse PATCH. Username and Personal Employee Data clear to null when present and blank. Name and phone do not. Email, password, status, role, job title, and employment id are not written. Any login-capable role may call it, only on self. A successful save that includes `name` reissues the Session Token (same `sessionVersion`); the Front replaces the stored token.
+_Avoid_: Update Own Personal Data, Update Main Employee Data, Edit Collaborator, requiring email, path :id, operator matrix, treating blank username as a missing required field, Refresh Token, `remember`
 
 **Main Employee Data**:
 The primary identity fields of a collaborator: full name, email, phone, and username.

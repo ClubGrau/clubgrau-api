@@ -1,7 +1,8 @@
 # PRD: Update Own Employee Data
 
 **Product Requirements Document**
-**Date:** 30/09/2026 | **Status:** Design ready | **Version:** 1.0
+**Date:** 30/09/2026 | **Status:** Design ready | **Version:** 1.1  
+**Revision:** 01/10/2026 — a successful save that includes `name` reissues the Session Token ([ADR 0001](../adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md)).
 
 **Glossary:** [`src/modules/employees/CONTEXT.md`](../../src/modules/employees/CONTEXT.md)
 **Design:** [`docs/design-docs/update-own-employee-data-v1.md`](../design-docs/update-own-employee-data-v1.md)
@@ -29,7 +30,8 @@ List cannot hydrate this card. `GET /api/employees` is `ADMIN` | `MANAGER`. The 
 - Email on this write — including ADMIN self. Email stays on `PATCH /api/employee/:id/main-data`
 - Professional fields, `status`, `password`, `employmentId`
 - Get employee by id of **another** collaborator
-- Revoking or reissuing the Session Token when `name` changes
+- Revoking the previous Session Token, or changing `sessionVersion`, when `name` changes
+- A Refresh Token, or a `remember` flag on Login (next PRD)
 - Authenticated change-password (Auth)
 - Fetching the card at application boot — the Front lazy-loads when the card is needed
 
@@ -112,9 +114,11 @@ Email, `role`, `status`, `jobTitle`, and `employmentId` on GET are for **display
 
 ### Rule 2.8 — PATCH success returns the same read model
 
-`200` on PATCH returns the Actor's read model **after** the write (same shape as GET). The Front updates the lazy cache without a second GET.
+`200` on PATCH returns the Actor's read model **after** the write (same shape as GET) in `data`. The Front updates the lazy cache without a second GET.
 
-This command does not revoke or reissue a Session Token. `name` (and other claims) on an existing JWT may stay stale until the next login. Same class of Auth gap as email change on Update Main Employee Data.
+When that successful body **included** `name`, the same `200` also carries `token`: a new Session Token. Auth builds it from the collaborator after the write (`id`, `name`, `email`, `role`, `status`, `sessionVersion`). `sessionVersion` stays as it is. The previous token stays valid until it expires. The Front replaces the stored token. A save that does not include `name` omits `token`. GET never returns `token`.
+
+Sending the same `name` again still reissues. A later retry can finish a reissue that failed after the write. This is not a Refresh Token. Login remains the path that checks the password. Email change on Update Main Employee Data still does not reissue.
 
 ---
 
@@ -148,7 +152,7 @@ Content-Type: application/json
 
 Do not send `id` or `actorId` in the body. The adapter overwrites any forged `actorId` with the JWT id. A body `id` is ignored; there is no path Target.
 
-Success (GET and PATCH): `200` with `{ data: <GetEmployeesItemDto> }` of the Actor (no `password`).
+Success: `200` with `{ data: <GetEmployeesItemDto> }` of the Actor (no `password`). When the PATCH body included `name` and the write succeeded, the body is `{ data, token }`. GET and a PATCH without `name` have no `token`.
 
 Route: `authTokenMiddleware` + `adaptRoute`. No role allowlist.
 
@@ -169,7 +173,7 @@ Unknown keys, including `email` / `password` / `status` / `role` / `jobTitle` / 
 
 **List / Edit Collaborator:** unchanged. `GET /api/employees` stays `ADMIN` | `MANAGER`. Operator PATCHes stay on `/api/employee/:id/…`.
 
-**Auth:** login stays email + password. This feature does not change JWT claims, `sessionVersion`, or middleware live-status checks.
+**Auth:** login stays email + password. This feature reissues a Session Token only after a successful own-data save that included `name`. It does not increment `sessionVersion` and does not change the middleware live-status check.
 
 ---
 
@@ -182,6 +186,7 @@ Unknown keys, including `email` / `password` / `status` / `role` / `jobTitle` / 
 5. **As any login-capable collaborator:** I want a failed NIF validation to write nothing (name and personal stay as they were).
 6. **As any login-capable collaborator:** I want the save response to refresh the card cache without a second GET.
 7. **As an operator:** I want Edit Collaborator matrices unchanged so an EMPLOYEE token still cannot PATCH another person's `/main-data` or `/personal-data`.
+8. **As any login-capable collaborator:** I want a successful name save to hand me a Session Token that already carries the new name, so the header matches without another login.
 
 ---
 
@@ -200,7 +205,9 @@ Unknown keys, including `email` / `password` / `status` / `role` / `jobTitle` / 
 - **Forged `actorId`:** adapter overwrites from the JWT.
 - **`password` / `status` / `role` in the body:** ignored; never written.
 - **EMPLOYEE calling `PATCH /api/employee/:id/main-data`:** still `403` (unchanged). This PRD does not open those routes.
-- **Stale JWT `name` after a successful name PATCH:** token is not reissued here.
+- **Successful PATCH that includes `name`:** `200` is `{ data, token }`. The new token's `name` is the stored name. `sessionVersion` is unchanged. The previous token still authenticates until it expires.
+- **Successful PATCH that omits `name`:** `200` is `{ data }` only.
+- **Reissue fails after the `$set`:** `500` or `401`. The name write is not rolled back. A later PATCH that includes `name` again reissues.
 
 ---
 
@@ -228,14 +235,16 @@ Unknown keys, including `email` / `password` / `status` / `role` / `jobTitle` / 
 
 **Why leftover `INACTIVE` JWT is `401` on GET too.** Who cannot authenticate does not use the card. `VACATION` remains a full session, as in login.
 
-**Why JWT is not reissued.** Same Auth sibling as Deactivate and email change. This command must not pretend to own sessions.
+**Why the Session Token is reissued on `name`.** The header reads the name captured at Login. The card already returns the new name in `data`. Reissue makes the stored token match, including after a reload. Auth issues it. This command still does not generate JWTs.
+
+**Why there is no Refresh Token here.** The current Session Token is still valid. Reissue calls the same `generateToken` as Login, with the live claims and the same `sessionVersion`. A Refresh Token is the next PRD (`remember` on Login). Incrementing `sessionVersion` would kill the session; Password Reset already owns that.
 
 ---
 
 ## 7. Open decisions
 
 - **Design Doc** — hexagon seams, reuse of patch services vs a dedicated own-data patch, repository `$set` vs composing existing outbound ports. Out of this PRD.
-- **Session after name change** — leftover JWT may keep the old `name` claim until re-login. Auth hexagon.
+- **Session after name change** — **resolved.** Successful PATCH that includes `name` reissues the Session Token. Same `sessionVersion`. No Refresh Token. [ADR 0001](../adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md). Spec slice 5.
 - **Live status on `authTokenMiddleware`** — still a known Auth sibling. This feature refuses non-login-capable Actors in the employees domain.
 - **Get employee by id (other Target)** — still a follow-up query of its own. Get Own Employee does not replace it.
 - **`languages` / `emergencyContact` shape** — unchanged (`string | null`; phone-only emergency contact).
@@ -265,5 +274,7 @@ The Personal Data PRD open decision “future `UpdateOwnPersonalDataUsecase`” 
 - [ ] `PATCH /api/employee/:id/main-data` and `…/personal-data` still refuse `EMPLOYEE` and refuse `MANAGER` + self.
 - [ ] Body cannot spoof `actorId`; there is no Target `:id`.
 - [ ] Persistence writes only present writable keys (no email, no password, no status, no role, no jobTitle, no employmentId).
-- [ ] PATCH `200` body is the same read model as GET (post-write).
-- [ ] Session Token is not reissued on success.
+- [ ] PATCH `200` `data` is the same read model as GET (post-write).
+- [ ] PATCH that includes `name` and succeeds → `200` `{ data, token }`. The token `name` is the stored name. `sessionVersion` is unchanged.
+- [ ] PATCH that omits `name` → `200` `{ data }` and no `token`.
+- [ ] GET never returns `token`.

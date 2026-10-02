@@ -4,7 +4,7 @@
 **Date:** 01/10/2026  
 **PRD:** [`docs/prd/update-own-employee-data-v1.md`](../prd/update-own-employee-data-v1.md)  
 **Glossary:** [`src/modules/employees/CONTEXT.md`](../../src/modules/employees/CONTEXT.md)  
-**ADRs:** none for v1 (class boundaries; reversible without a migration)  
+**ADRs:** [`0001`](../adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md) — reissue the Session Token when a successful save includes `name`. Class boundaries of the card itself stay reversible without a migration.  
 **Siblings:** [`update-main-employee-data-v1`](./update-main-employee-data-v1.md) · [`update-personal-employee-data-v1`](./update-personal-employee-data-v1.md) · [`update-professional-employee-data-v1`](./update-professional-employee-data-v1.md)  
 **Constitution:** [`AGENTS.md`](../../AGENTS.md) · hexagon: [`employees/AGENT.md`](../../src/modules/employees/AGENT.md)
 
@@ -40,6 +40,7 @@ The PRD already defines **what** must happen. The employees hexagon today does *
 - Persist with one `updateOwnData` `$set` of the keys the patch service returned. Copy the personal `nif` number coercion. Never `toJSON()`. Never call `updateMainData` or `updatePersonalData`.
 - Read model is `GetEmployeesItemDto` via `mapEmployeeReadModel` (`FindOwnEmployeePort`). PATCH returns that model **after** the write. No `password`.
 - HTTP codes the frontend can branch on: `400` / `401` / `500`. There is no `403` and no `409` on these two routes.
+- A successful PATCH that included `name` also returns `token` (a new Session Token, same `sessionVersion`). Auth issues it. The employees use case does not.
 - Prerequisite: `UpdateMainEmployeeDataController` forwards blank `username` as `null`.
 
 ### Non-goals v1
@@ -48,7 +49,9 @@ The PRD already defines **what** must happen. The employees hexagon today does *
 - Email on this write, including ADMIN self. Occupancy does not run.
 - Professional fields, `status`, `password`, `employmentId`.
 - Get employee by id of **another** collaborator.
-- Revoking or reissuing the Session Token when `name` changes.
+- Revoking the previous Session Token, or incrementing `sessionVersion`, when `name` changes.
+- A Refresh Token, or a `remember` flag on Login (next PRD).
+- Reissuing on email change (Update Main Employee Data) or on Role / Status change.
 - Authenticated change-password (Auth).
 - Fetching the card at application boot.
 - A new read-model type. The list item DTO is the card payload.
@@ -152,6 +155,18 @@ The controller empty check runs before `execute`. A leftover JWT with `PATCH {}`
 
 **Chosen: A.** Same recorte as the Main and Personal controllers: an empty body does not open the use case. `401` applies to GET, and to PATCH that carries at least one writable key when the Actor is missing or not login-capable. `{ "name": "" }` is also `400` in the controller (`InvalidParamError`), before `execute`, including for an `INACTIVE` Actor.
 
+### Session Token after `name`
+
+The header reads `name` from the token issued at Login. `data.name` on the PATCH is already the stored name. The token claim stays old until something issues a new JWT.
+
+| | A — Reissue on successful PATCH that included `name` | B — Front copies `data.name` into its store | C — Refresh Token |
+|--|--|--|--|
+| After reload | Token `name` matches | Old claim returns if the Front decodes the JWT again | New access token, plus a second long-lived credential |
+| Who issues | Auth, same `generateToken` as Login, same `sessionVersion` | Nobody | A new Auth flow (`remember`) |
+| Previous token | Stays valid until expiry | Stays valid | Depends on rotation |
+
+**Chosen: A.** Trigger is "`name` was in the DTO and `execute` resolved", including when the stored name did not change. A retry can reissue after the write landed and the token call failed. Auth reads the collaborator again and signs live claims. Employees application does not import Auth domain. No new route. No `sessionVersion` increment. Refresh Token stays the next PRD.
+
 ### Slice cut
 
 | | A — Five own slices; Main username fix inside own HTTP | B — Main username fix is a prerequisite; then five slices | C — Four slices; query merged into HTTP |
@@ -160,7 +175,7 @@ The controller empty check runs before `execute`. A leftover JWT with `PATCH {}`
 | Query | Own slice, before routes | Same | Controller and query in one slice |
 | Persistence | `updateOwnData` and `FindOwnEmployeePort` together | Same | Same |
 
-**Chosen: B.**
+**Chosen: B.** Reissue is slice 5, after HTTP. It does not fold into slice 4.
 
 ---
 
@@ -181,6 +196,10 @@ employees persistence             → updateOwnData one $set (nif number coercio
                                     + FindOwnEmployeePort via mapEmployeeReadModel
 employees HTTP                    → GET + PATCH /employee/me
                                     + authTokenMiddleware only
+                                    + PATCH with name → { data, token }
+auth                              → ReissueSessionTokenUseCase
+                                    same generateToken, same sessionVersion
+app.ts                            → passes the reissue port into employees
 ```
 
 ```mermaid
@@ -240,7 +259,7 @@ Do **not** put login-capable checks in Vue only. Do **not** call the repository 
 | Main HTTP `username` | controller `400` on blank | blank → `null`, per the existing Main HTTP spec |
 | Operator PATCH routes | `requireRoles('ADMIN', 'MANAGER')` | **unchanged** |
 | `adaptRoute` | stamps `actorId` | unchanged |
-| Session after `name` change | leftover JWT | leftover JWT (Auth sibling) |
+| Session after `name` change | leftover JWT until next Login | successful PATCH that included `name` returns `token`; same `sessionVersion` |
 
 ---
 
@@ -470,7 +489,7 @@ router.patch(
 
 `/employee/:id/main-data` does not capture `/employee/me`. Still register the literal `me` paths and do not add a Target parameter later to “match the other PATCHes”.
 
-Success (GET and PATCH): `200` `{ data: GetEmployeesItemDto }` via `ok(readModel)`.
+Success: `200` `{ data: GetEmployeesItemDto }` via `ok(readModel)`. Slice 5 adds `token` beside `data` only when the successful PATCH included `name`. GET and a PATCH without `name` stay `ok(readModel)`.
 
 | Situation | HTTP |
 |-----------|------|
@@ -540,6 +559,7 @@ Do **not** `$unset`. Do **not** write `email`, `password`, `status`, `role`, `jo
 4. `GetOwnEmployeeQuery(findOwnEmployee, ownDataPolicy)`.
 5. `UpdateOwnEmployeeDataController`, `GetOwnEmployeeController`.
 6. `makeEmployeeRoutes` + `GET` / `PATCH /employee/me` with `authTokenMiddleware` only.
+7. Slice 5: `ReissueOwnSessionTokenPort` into `UpdateOwnEmployeeDataController`. `app.ts` adapts Auth's `ReissueSessionTokenUseCase`. Employees code does not import Auth domain.
 
 The repository is both `UpdateOwnEmployeeDataRepositoryPort` and `FindOwnEmployeePort`. Do not construct it inside the controller, use case, or query. Do not construct a second personal patch service.
 
@@ -578,7 +598,13 @@ PATCH /api/employee/me
           → any throw → no $set
       → updateOwnData one $set
       → findOwnEmployee → null → 500
-  → 200 { data: GetEmployeesItemDto } | 400 | 401 | 500
+  → name was not in the DTO
+      → 200 { data: GetEmployeesItemDto }
+  → name was in the DTO
+      → ReissueSessionTokenUseCase (live claims, same sessionVersion)
+      → 200 { data, token } | reissue auth failure → 401 | reissue unexpected → 500
+      → the $set is not rolled back
+  → 400 | 401 | 500
 ```
 
 ---
@@ -598,9 +624,10 @@ Implement **one slice at a time**, in this order. Do not skip. Do not pull later
 | **1 — Persistence** | `01-persistence.md` | `UpdateOwnEmployeeDataRepositoryPort` + `updateOwnData` + spec (one `$set`; `username: null` persists; non-null `nif` stored as number; `matchedCount` guard; no `email`). `FindOwnEmployeePort.findOwnEmployee` + spec (`mapEmployeeReadModel`; `null` when missing; no status filter; no `password`). | Use case, query, routes. | Implement slice 1 following `01-persistence.md`. Do not call `updateMainData` or `updatePersonalData`. Do not write `toJSON()`. No schema migration. |
 | **2 — Use case** | `02-usecase.md` | DTO + inbound port + `resolveOwnEmployeeDataChanges` + `UpdateOwnEmployeeDataUsecase` + spec. Policy, then resolver, then patch, then one `$set`, then re-read. Returns `GetEmployeesItemDto`. Invalid `nif` with `name` does not call `updateOwnData`. | Controller, route, query, `AGENT.md`. | Implement slice 2 following `02-usecase.md`. Never `Employee.create`. Do not return `{ id }`. Re-read `null` is unexpected `500`, not `401`. |
 | **3 — Query** | `03-query.md` | `GetOwnEmployeePort` + `GetOwnEmployeeQuery` + spec. Read port + `assertCan(status)`. Miss and not-login-capable → `ActorAuthenticationFailedError`. | Controller, route. Does not wait on slice 2. | Implement slice 3 following `03-query.md`. Do not call `findById`. Do not reconstitute. Do not return `password`. |
-| **4 — HTTP + contract** | `04-http-and-contract.md` | Both requests + controllers (sparse presence; clearable blanks → `null`; `name` / `phone` blank → `InvalidParamError`; ignored keys) + `GET` and `PATCH /employee/me` with `authTokenMiddleware` only + module + `employee.http` + living `AGENT.md`. | Get-by-id of another collaborator, JWT reissue, operator route changes. | Implement slice 4 following `04-http-and-contract.md`. Map `ActorAuthenticationFailedError` → `401`. Map empty / invalid param / VO errors → `400`. Do not add `requireRoles`. Do not trust body `actorId`. Leave operator PATCHes unchanged. |
+| **4 — HTTP + contract** | `04-http-and-contract.md` | Both requests + controllers (sparse presence; clearable blanks → `null`; `name` / `phone` blank → `InvalidParamError`; ignored keys) + `GET` and `PATCH /employee/me` with `authTokenMiddleware` only + module + `employee.http` + living `AGENT.md`. | Get-by-id of another collaborator, JWT reissue (slice 5), operator route changes. | Implement slice 4 following `04-http-and-contract.md`. Map `ActorAuthenticationFailedError` → `401`. Map empty / invalid param / VO errors → `400`. Do not add `requireRoles`. Do not trust body `actorId`. Leave operator PATCHes unchanged. Do not return `token`. |
+| **5 — Reissue Session Token** | `05-reissue-session-token.md` | Auth `ReissueSessionTokenUseCase` (no password, no `sessionVersion` increment). Employees port. Controller returns `{ data, token }` only when the successful DTO included `name`. `app.ts` wires the port. | Refresh Token, `remember`, a new route, revocation, email/role/status reissue. | Implement slice 5 following `05-reissue-session-token.md`. Do not generate the JWT inside the employees use case. Do not increment `sessionVersion`. Do not add a route. |
 
-**Dependencies:** P is independent and lands first. `1` does not need `2`. `2` needs `0` + `1`. `3` needs `0` + the read port from `1`, not `2`. `4` needs `2` + `3`. Do not merge `2` and `4`. Do not merge `3` and `4`.
+**Dependencies:** P is independent and lands first. `1` does not need `2`. `2` needs `0` + `1`. `3` needs `0` + the read port from `1`, not `2`. `4` needs `2` + `3`. `5` needs `4`. Do not merge `2` and `4`. Do not merge `3` and `4`. Do not merge `4` and `5`.
 
 ---
 
@@ -616,6 +643,7 @@ To be created as **Tarefa** on Grau System Board (`KAN`), column **Prioritized**
 | 2 — Use case | TBD | `docs/specs/update-own-employee-data/02-usecase.md` |
 | 3 — Query | TBD | `docs/specs/update-own-employee-data/03-query.md` |
 | 4 — HTTP + contract | TBD | `docs/specs/update-own-employee-data/04-http-and-contract.md` |
+| 5 — Reissue Session Token | TBD | `docs/specs/update-own-employee-data/05-reissue-session-token.md` |
 
 ---
 
@@ -630,8 +658,8 @@ Product rules live in the PRD. These were **shape** decisions:
 - **Blank `username` clears, and the Main controller is wrong** — the HTTP spec, the entity, and persistence already clear. The controller treats `username` as required. Fix that controller before the Profile Card copies it. `name` and `phone` stay `400`.
 - **One resolver over eight keys** — composing the Main and Personal resolvers names the wrong empty error as soon as only one section is present. Ignored keys, including `email`, are not fields to correct.
 - **`{}` is `400` before `execute`** — including a leftover `INACTIVE` JWT. `401` is for GET and for a PATCH that actually carries a writable key. `{ "name": "" }` is the same controller-first `400`.
-- **Five slices plus a prerequisite** — the username fix does not import own-data types. The query does not wait on the use case. Persistence keeps the write and the read port together.
-- **No ADR** — none of these choices need a migration or a public contract the PRD does not already state.
+- **Five slices plus a prerequisite, then reissue** — the username fix does not import own-data types. The query does not wait on the use case. Persistence keeps the write and the read port together. Slice 4 does not issue a token. Slice 5 does, after the write.
+- **ADR 0001** — reissue is a second issuer of the Session Token. Password Reset ADR 0004 stays: the email link still does not log in, and complete still kills old tokens via `sessionVersion`. Reissue does not.
 
 ---
 
@@ -646,7 +674,8 @@ Product rules live in the PRD. These were **shape** decisions:
 | Username | Clear; fix Main HTTP | `400` like today's Main controller | A small behavior fix on an already-shipped route, required by its own spec |
 | Empty body | Own resolver + `EmptyOwnEmployeeDataError`; controller `MissingParamError` | Compose the two resolvers | One more error class |
 | `INACTIVE` + `{}` | Always `400` | Actor-first `401` | A dead session with an empty body gets validation, not `401` |
-| Slices | Prerequisite + five | Fold the query into HTTP; bury the username fix in slice 4 | Slice 3 ships a query with no route until slice 4 |
+| Slices | Prerequisite + five, then reissue | Fold the query into HTTP; bury the username fix in slice 4; bury reissue in slice 4 | Slice 3 ships a query with no route until slice 4. Slice 4 ships `{ data }` until slice 5 |
+| Session Token | Reissue when the successful DTO included `name`; same `sessionVersion` | Copy `data.name` in the Front only; Refresh Token; `$inc sessionVersion` | Previous token stays valid until expiry. A same-name PATCH still reissues |
 
 ---
 
@@ -656,7 +685,7 @@ They do **not** block slice P or slice 0.
 
 | # | Question | Who | Default if unanswered |
 |---|----------|-----|------------------------|
-| 1 | When to reissue the Session Token after `name` changes? | Auth sibling | Do not implement here; JWT `name` may stay stale until the next login. Document in `AGENT.md` slice 4 |
+| 1 | When to reissue the Session Token after `name` changes? | **Resolved** — [ADR 0001](../adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md) | Slice 5. Successful PATCH that included `name` returns `token`. Same `sessionVersion`. No Refresh Token |
 | 2 | When does `authTokenMiddleware` reject a leftover `INACTIVE` / `REMOVED` JWT? | Auth sibling | This feature still enforces login-capable in the employees domain |
 | 3 | Get employee by id of another collaborator? | Product / query follow-up | `GET /employee/me` does not replace it |
 | 4 | `languages` / `emergencyContact` shape? | Product | Unchanged: `string \| null`; emergency contact is a phone string |
@@ -686,6 +715,8 @@ Mirrors PRD §8 at the HTTP boundary (slice 4 closes these; earlier slices prove
 - [ ] `PATCH /api/employee/:id/main-data` and `…/personal-data` still refuse `EMPLOYEE` and refuse `MANAGER` + self.
 - [ ] Body cannot spoof `actorId`; there is no Target `:id`.
 - [ ] Persistence writes only present writable keys (no email, no password, no status, no role, no jobTitle, no employmentId). Non-null `nif` is stored as a number.
-- [ ] PATCH `200` body is the same read model as GET (post-write).
-- [ ] Session Token is not reissued on success.
+- [ ] PATCH `200` `data` is the same read model as GET (post-write).
+- [ ] PATCH that includes `name` and succeeds → `200` `{ data, token }`. Token `name` is the stored name. `sessionVersion` is unchanged. Slice 5.
+- [ ] PATCH that omits `name` → `200` `{ data }` and no `token`.
+- [ ] GET never returns `token`.
 - [ ] `PATCH /api/employee/:id/main-data` with `{ "username": "" }` → `200`; username `null`. Blank `name` / `email` / `phone` on that route stay `400`.

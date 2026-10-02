@@ -198,7 +198,7 @@ Default snapshot: Actor `EMPLOYEE` (or any role) `ACTIVE`, with name, phone, use
 - HTTP presence, `nif` number → string, blank `name` / `phone` → `InvalidParamError` (controller)
 - `GET /employee/me`
 - `requireRoles`
-- Session Token reissue
+- Session Token reissue (slice 5; this use case still returns only `GetEmployeesItemDto`)
 - Prerequisite Main username controller fix
 
 ## Acceptance criteria

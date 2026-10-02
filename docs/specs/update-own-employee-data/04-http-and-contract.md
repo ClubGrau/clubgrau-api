@@ -5,7 +5,7 @@
 > Depends on: [`02-usecase.md`](./02-usecase.md) and [`03-query.md`](./03-query.md).  
 > Design §9.2 / §11 / §12 / §17.  
 > Jira: TBD.  
-> Next: none.
+> Next: [`05-reissue-session-token.md`](./05-reissue-session-token.md).
 
 ## Responsibility (this spec only)
 
@@ -31,7 +31,7 @@ Follow the constitution **new command** and **new query** playbooks for presenta
 | Living `AGENT.md` | Yes |
 | Operator PATCH routes | **No** — leave `requireRoles('ADMIN', 'MANAGER')` as they are |
 | Get-by-id of another collaborator | **No** |
-| JWT reissue | **No** — document only |
+| JWT reissue | **No** — slice 5. This slice returns `{ data }` only |
 | `UpdateMainEmployeeDataController` | **No** |
 
 **Prompt sketch for the agent:**
@@ -246,8 +246,8 @@ Update in place — not a changelog dump:
 - HTTP: both routes with `authTokenMiddleware` only; error table (`400` / `401` / `500`, no `403`, no `409`); presence and clear rules; sequences from design §12
 - Persistence: repository implements `updateOwnData` and `findOwnEmployee`; non-null `nif` → `Number` inside `$set`; read model is `mapEmployeeReadModel`
 - Wiring list: policy, own patch service (existing personal instance), use case, query, both controllers
-- Open decisions (design §17, do not implement):
-  - Session Token `name` may stay stale until the next login (Auth sibling)
+- Open decisions (design §17):
+  - Session Token `name` — **decided** in [ADR 0001](../../adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md). Slice 5 ships it. Until then, record it as not shipped: the JWT `name` may stay stale and the `200` body is `{ data }` only
   - `authTokenMiddleware` may still accept a leftover `INACTIVE` / `REMOVED` JWT; this feature enforces login-capable in the employees domain
   - `GET /employee/me` does not replace get-by-id of another collaborator
   - `languages` / `emergencyContact` stay `string | null`
@@ -332,7 +332,7 @@ Stub the inbound port. Do not test Express middleware here (`authTokenMiddleware
 - Get employee by id of another collaborator
 - Edit Collaborator matrices and `requireRoles` changes
 - Email occupancy
-- Revoking or reissuing the Session Token
+- Reissuing the Session Token (slice 5)
 - Authenticated change-password
 - Fetching the card at application boot
 - Changing `UpdateMainEmployeeDataController` (prerequisite P)
@@ -358,7 +358,7 @@ Stub the inbound port. Do not test Express middleware here (`authTokenMiddleware
 - [ ] Body cannot spoof `actorId`; there is no Target `:id`
 - [ ] Persistence writes only present writable keys. Non-null `nif` is stored as a number
 - [ ] PATCH `200` body is the same read model as GET
-- [ ] Session Token is not reissued on success
+- [ ] Session Token is not reissued on success (slice 5 adds `token`)
 - [ ] `AGENT.md` lists the command and the query; `employee.http` has Profile Card samples
 
 ## Reference map

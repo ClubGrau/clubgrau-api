@@ -1120,7 +1120,7 @@ Authorization: Bearer <Actor token>
 - `username`, `gender`, `languages`, `emergencyContact`, `address`: `null` / `""` / whitespace → `null`; any other string forwarded as-is (no trim on `languages` / `address` / `gender`)
 - `nif` number (including `0`) → `String(value)` before the blank check; `null` / `""` / whitespace → `null`; other strings unchanged
 - `gender: "invalid"` is forwarded; `InvalidEmployeeGenderError` stays that class on `400` (not rewritten as `InvalidParamError`)
-- Success → `200` + `{ data: GetEmployeesItemDto }` via `ok(...)` — same read model as GET
+- Success → `200` + `{ data: GetEmployeesItemDto }` via `ok(...)` — same read model as GET. `{ data, token }` when the body included `name` is open decision 17 (not shipped)
 
 | Error | HTTP |
 |-------|------|
@@ -1460,7 +1460,7 @@ Never shortcut by calling the repository from the controller.
 14. **`employmentId`** — not written by this command (ignored on the HTTP body; not a persist field). Create now issues the digit string. Legacy non-numeric values and `null` remain. There is no backfill and no unique index.
 15. **Get-by-id** — still a follow-up query of its own.
 16. **Vue Save echo** — the client may always send current `role` + `status`. This PATCH treats equality as a no-op (`200`, no write unless another field changed). Already-in-status stays `400` only on `POST /api/employee/update-status`.
-17. **Session Token `name` after own-data** — `PATCH /employee/me` does not reissue the JWT. The token `name` may stay stale until the next login (Auth sibling).
+17. **Session Token `name` after own-data** — **decided, not shipped** ([ADR 0001](../../../docs/adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md), spec slice 5). A successful `PATCH /employee/me` that includes `name` reissues the Session Token (same `sessionVersion`, no Refresh Token). Until that slice lands, the `200` body is `{ data }` only and the JWT `name` may stay stale.
 18. **Leftover `INACTIVE` / `REMOVED` JWT** — `authTokenMiddleware` may still accept it. Login-capable for the Profile Card is enforced in the employees domain (`EmployeeOwnDataPolicy` → `401` once a writable key is present, or on GET). An empty own-data body is still `400` before `execute`.
 19. **Username uniqueness** — still absent. Own-data clears or sets `username` without an occupancy check.
 
