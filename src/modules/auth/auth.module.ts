@@ -5,6 +5,7 @@ import { LoginPort } from '@modules/auth/application/ports/inbound/login.port';
 import { RequestPasswordResetPort } from '@modules/auth/application/ports/inbound/request-password-reset.port';
 import { CompletePasswordResetUsecase } from '@modules/auth/application/usecases/complete-password-reset.usecase';
 import { LoginUseCase } from '@modules/auth/application/usecases/login.usecase';
+import { ReissueSessionTokenUseCase } from '@modules/auth/application/usecases/reissue-session-token.usecase';
 import { RequestPasswordResetUsecase } from '@modules/auth/application/usecases/request-password-reset.usecase';
 import {
   AuthTokenMiddleware,
@@ -20,10 +21,12 @@ import { PasswordResetTokenMongooseRepository } from '@modules/auth/infrastructu
 import { PasswordResetTokenSchema } from '@modules/auth/infrastructure/outbound/persistence/password-reset-token.schema';
 import { HmacResetTokenHasher } from '@modules/auth/infrastructure/outbound/crypto/hmac-reset-token-hasher';
 import { CryptoRawResetTokenGenerator } from '@modules/auth/infrastructure/outbound/crypto/crypto-raw-reset-token.generator';
+import { ReissueOwnSessionTokenAdapter } from '@modules/auth/infrastructure/outbound/reissue-own-session-token.adapter';
 import { JwtTokenAdapter } from '@modules/auth/infrastructure/outbound/token/jwt-token.adapter';
 import { AuthController } from '@modules/auth/presentation/controllers/auth.controller';
 import { CompletePasswordResetController } from '@modules/auth/presentation/controllers/complete-password-reset.controller';
 import { RequestPasswordResetController } from '@modules/auth/presentation/controllers/request-password-reset.controller';
+import { ReissueOwnSessionTokenPort } from '@modules/employees/application/ports/outbound/reissue-own-session-token.port';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
 import { EncrypterPort } from '@shared/application/ports/encrypter.port';
@@ -34,6 +37,7 @@ export type AuthModule = {
   requestPasswordResetController: RequestPasswordResetController;
   completePasswordResetController: CompletePasswordResetController;
   login: LoginPort;
+  reissueOwnSessionToken: ReissueOwnSessionTokenPort;
   requestPasswordReset: RequestPasswordResetPort;
   completePasswordReset: CompletePasswordResetPort;
   authTokenMiddleware: AuthTokenMiddleware;
@@ -47,6 +51,7 @@ type AuthModuleDeps = {
   encrypter: EncrypterPort;
   mailer: MailerPort;
   frontendPublicOrigin: string;
+  reissueAuthenticationFailedError: () => Error;
 };
 
 export function makeAuthModule({
@@ -55,6 +60,7 @@ export function makeAuthModule({
   encrypter,
   mailer,
   frontendPublicOrigin,
+  reissueAuthenticationFailedError,
 }: AuthModuleDeps): AuthModule {
   const employeeModel = connection.model('Employee', EmployeeSchema);
   const employeeAuthAdapter = new EmployeeAuthAdapter(employeeModel);
@@ -75,6 +81,16 @@ export function makeAuthModule({
     compareHash,
     jwtTokenAdapter,
   );
+
+  const reissueSessionToken = new ReissueSessionTokenUseCase(
+    employeeAuthAdapter,
+    jwtTokenAdapter,
+  );
+  const reissueOwnSessionToken: ReissueOwnSessionTokenPort =
+    new ReissueOwnSessionTokenAdapter(
+      reissueSessionToken,
+      reissueAuthenticationFailedError,
+    );
 
   const requestPasswordReset: RequestPasswordResetPort =
     new RequestPasswordResetUsecase(
@@ -114,6 +130,7 @@ export function makeAuthModule({
     requestPasswordResetController,
     completePasswordResetController,
     login,
+    reissueOwnSessionToken,
     requestPasswordReset,
     completePasswordReset,
     authTokenMiddleware,

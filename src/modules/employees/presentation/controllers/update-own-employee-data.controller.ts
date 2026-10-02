@@ -4,6 +4,7 @@ import {
 } from '@modules/employees/application/dtos/update-own-employee-data.dto';
 import { GetEmployeesItemDto } from '@modules/employees/application/dtos/get-employees.dto';
 import { UpdateOwnEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-own-employee-data.port';
+import { ReissueOwnSessionTokenPort } from '@modules/employees/application/ports/outbound/reissue-own-session-token.port';
 import {
   ActorAuthenticationFailedError,
   EmptyOwnEmployeeDataError,
@@ -39,21 +40,24 @@ const OWN_DATA_FIELDS = [
   'address',
 ] as const;
 
+type UpdateOwnEmployeeDataSuccessBody =
+  | HttpSuccessBody<GetEmployeesItemDto>
+  | (HttpSuccessBody<GetEmployeesItemDto> & { token: string });
+
 export class UpdateOwnEmployeeDataController extends BaseController<
   UpdateOwnEmployeeDataRequest,
-  HttpErrorBody | HttpSuccessBody<GetEmployeesItemDto>
+  HttpErrorBody | UpdateOwnEmployeeDataSuccessBody
 > {
   constructor(
     private readonly updateOwnEmployeeData: UpdateOwnEmployeeDataPort,
+    private readonly reissueOwnSessionToken: ReissueOwnSessionTokenPort,
   ) {
     super();
   }
 
   async handle(
     request: UpdateOwnEmployeeDataRequest,
-  ): Promise<
-    HttpResponse<HttpErrorBody | HttpSuccessBody<GetEmployeesItemDto>>
-  > {
+  ): Promise<HttpResponse<HttpErrorBody | UpdateOwnEmployeeDataSuccessBody>> {
     try {
       const dto = this.normalizeDto(request);
       if (dto instanceof Error) {
@@ -62,7 +66,21 @@ export class UpdateOwnEmployeeDataController extends BaseController<
 
       const readModel = await this.updateOwnEmployeeData.execute(dto);
 
-      return ok(readModel);
+      if (!dto.name) {
+        return ok(readModel);
+      }
+
+      const { token } = await this.reissueOwnSessionToken.execute(
+        dto.actorId ?? '',
+      );
+
+      return {
+        statusCode: 200,
+        body: {
+          data: readModel,
+          token,
+        },
+      };
     } catch (error) {
       if (error instanceof ActorAuthenticationFailedError) {
         return unauthorized(error);

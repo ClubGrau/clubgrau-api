@@ -1,6 +1,7 @@
 import { GetEmployeesItemDto } from '@modules/employees/application/dtos/get-employees.dto';
 import { UpdateOwnEmployeeDataDto } from '@modules/employees/application/dtos/update-own-employee-data.dto';
 import { UpdateOwnEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-own-employee-data.port';
+import { ReissueOwnSessionTokenPort } from '@modules/employees/application/ports/outbound/reissue-own-session-token.port';
 import {
   ActorAuthenticationFailedError,
   EmptyOwnEmployeeDataError,
@@ -73,17 +74,24 @@ const makeStubs = () => ({
   updateOwnEmployeeDataStub: {
     execute: jest.fn().mockResolvedValue(makeReadModel()),
   } satisfies UpdateOwnEmployeeDataPort,
+  reissueOwnSessionTokenStub: {
+    execute: jest.fn().mockResolvedValue({ token: 'new_token' }),
+  } satisfies ReissueOwnSessionTokenPort,
 });
 
 const makeSut = (): SutTypes => {
-  const { updateOwnEmployeeDataStub } = makeStubs();
-  const sut = new UpdateOwnEmployeeDataController(updateOwnEmployeeDataStub);
-  return { sut, updateOwnEmployeeDataStub };
+  const { updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } = makeStubs();
+  const sut = new UpdateOwnEmployeeDataController(
+    updateOwnEmployeeDataStub,
+    reissueOwnSessionTokenStub,
+  );
+  return { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub };
 };
 
 type SutTypes = {
   sut: UpdateOwnEmployeeDataController;
   updateOwnEmployeeDataStub: UpdateOwnEmployeeDataPort;
+  reissueOwnSessionTokenStub: ReissueOwnSessionTokenPort;
 };
 
 describe('UpdateOwnEmployeeDataController', () => {
@@ -109,7 +117,8 @@ describe('UpdateOwnEmployeeDataController', () => {
   ] as const)(
     'should return 400 when request has %s and not call port',
     async (_label, request) => {
-      const { sut, updateOwnEmployeeDataStub } = makeSut();
+      const { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } =
+        makeSut();
       const executeSpy = jest.spyOn(updateOwnEmployeeDataStub, 'execute');
 
       const response = await sut.handle(
@@ -121,6 +130,7 @@ describe('UpdateOwnEmployeeDataController', () => {
         error: new MissingParamError('no own-employee-data fields').message,
       });
       expect(executeSpy).not.toHaveBeenCalled();
+      expect(reissueOwnSessionTokenStub.execute).not.toHaveBeenCalled();
     },
   );
 
@@ -131,7 +141,8 @@ describe('UpdateOwnEmployeeDataController', () => {
   ])(
     'should return 400 when name is %s and not call port',
     async (_label, name) => {
-      const { sut, updateOwnEmployeeDataStub } = makeSut();
+      const { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } =
+        makeSut();
       const executeSpy = jest.spyOn(updateOwnEmployeeDataStub, 'execute');
 
       const response = await sut.handle({
@@ -144,6 +155,7 @@ describe('UpdateOwnEmployeeDataController', () => {
         error: new InvalidParamError('name').message,
       });
       expect(executeSpy).not.toHaveBeenCalled();
+      expect(reissueOwnSessionTokenStub.execute).not.toHaveBeenCalled();
     },
   );
 
@@ -418,7 +430,8 @@ describe('UpdateOwnEmployeeDataController', () => {
   });
 
   it('should return 401 if port throws ActorAuthenticationFailedError', async () => {
-    const { sut, updateOwnEmployeeDataStub } = makeSut();
+    const { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } =
+      makeSut();
     jest
       .spyOn(updateOwnEmployeeDataStub, 'execute')
       .mockRejectedValue(new ActorAuthenticationFailedError());
@@ -430,6 +443,7 @@ describe('UpdateOwnEmployeeDataController', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.body).toEqual({ error: 'Authentication failed' });
+    expect(reissueOwnSessionTokenStub.execute).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -442,7 +456,8 @@ describe('UpdateOwnEmployeeDataController', () => {
     ['InvalidNifError', new InvalidNifError('Invalid NIF check digit: "0"')],
     ['InvalidEmployeeGenderError', new InvalidEmployeeGenderError()],
   ] as const)('should return 400 if port throws %s', async (_label, error) => {
-    const { sut, updateOwnEmployeeDataStub } = makeSut();
+    const { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } =
+      makeSut();
     jest.spyOn(updateOwnEmployeeDataStub, 'execute').mockRejectedValue(error);
 
     const response = await sut.handle({
@@ -452,10 +467,12 @@ describe('UpdateOwnEmployeeDataController', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.body).toEqual({ error: error.message });
+    expect(reissueOwnSessionTokenStub.execute).not.toHaveBeenCalled();
   });
 
   it('should return 500 if port throws an unexpected error', async () => {
-    const { sut, updateOwnEmployeeDataStub } = makeSut();
+    const { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } =
+      makeSut();
     jest
       .spyOn(updateOwnEmployeeDataStub, 'execute')
       .mockRejectedValue(new Error('UpdateOwnEmployeeDataPort error'));
@@ -469,10 +486,11 @@ describe('UpdateOwnEmployeeDataController', () => {
     expect(response.body).toEqual({
       error: 'UpdateOwnEmployeeDataPort error',
     });
+    expect(reissueOwnSessionTokenStub.execute).not.toHaveBeenCalled();
   });
 
-  it('should return 200 with the read model from the port', async () => {
-    const { sut } = makeSut();
+  it('should return 200 with the read model and not reissue when name is absent', async () => {
+    const { sut, reissueOwnSessionTokenStub } = makeSut();
     const readModel = makeReadModel();
 
     const response = await sut.handle({
@@ -482,6 +500,80 @@ describe('UpdateOwnEmployeeDataController', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual({ data: readModel });
+    expect(response.body).not.toHaveProperty('token');
     expect(response.body).not.toEqual({ data: { id: readModel.id } });
+    expect(reissueOwnSessionTokenStub.execute).not.toHaveBeenCalled();
+  });
+
+  it('should return 200 with data and token when name is present', async () => {
+    const { sut, reissueOwnSessionTokenStub } = makeSut();
+    const readModel = makeReadModel();
+    const reissueSpy = jest.spyOn(reissueOwnSessionTokenStub, 'execute');
+
+    const response = await sut.handle({
+      actorId: ACTOR_ID,
+      name: 'João Silva',
+    });
+
+    expect(reissueSpy).toHaveBeenCalledTimes(1);
+    expect(reissueSpy).toHaveBeenCalledWith(ACTOR_ID);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({ data: readModel, token: 'new_token' });
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ token: 'new_token' }),
+      }),
+    );
+  });
+
+  it('should reissue once when name and phone are both present', async () => {
+    const { sut, reissueOwnSessionTokenStub } = makeSut();
+    const reissueSpy = jest.spyOn(reissueOwnSessionTokenStub, 'execute');
+
+    const response = await sut.handle({
+      actorId: ACTOR_ID,
+      name: 'João Silva',
+      phone: '+351 912 345 678',
+    });
+
+    expect(reissueSpy).toHaveBeenCalledTimes(1);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      data: makeReadModel(),
+      token: 'new_token',
+    });
+  });
+
+  it('should return 401 when reissue throws ActorAuthenticationFailedError after the write', async () => {
+    const { sut, updateOwnEmployeeDataStub, reissueOwnSessionTokenStub } =
+      makeSut();
+    const executeSpy = jest.spyOn(updateOwnEmployeeDataStub, 'execute');
+    jest
+      .spyOn(reissueOwnSessionTokenStub, 'execute')
+      .mockRejectedValueOnce(new ActorAuthenticationFailedError());
+
+    const response = await sut.handle({
+      actorId: ACTOR_ID,
+      name: 'João Silva',
+    });
+
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toEqual({ error: 'Authentication failed' });
+  });
+
+  it('should return 500 when reissue throws an unexpected error', async () => {
+    const { sut, reissueOwnSessionTokenStub } = makeSut();
+    jest
+      .spyOn(reissueOwnSessionTokenStub, 'execute')
+      .mockRejectedValueOnce(new Error('reissue failed'));
+
+    const response = await sut.handle({
+      actorId: ACTOR_ID,
+      name: 'João Silva',
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toEqual({ error: 'reissue failed' });
   });
 });

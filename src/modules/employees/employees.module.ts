@@ -7,6 +7,7 @@ import { RemoveEmployeePort } from '@modules/employees/application/ports/inbound
 import { UpdateEmployeeStatusPort } from '@modules/employees/application/ports/inbound/update-employee-status.port';
 import { UpdateMainEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-main-employee-data.port';
 import { UpdateOwnEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-own-employee-data.port';
+import { ReissueOwnSessionTokenPort } from '@modules/employees/application/ports/outbound/reissue-own-session-token.port';
 import { UpdatePersonalEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-personal-employee-data.port';
 import { UpdateProfessionalEmployeeDataPort } from '@modules/employees/application/ports/inbound/update-professional-employee-data.port';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
@@ -20,6 +21,7 @@ import { UpdateMainEmployeeDataUsecase } from '@modules/employees/application/us
 import { UpdateOwnEmployeeDataUsecase } from '@modules/employees/application/usecases/update-own-employee-data.usecase';
 import { UpdatePersonalEmployeeDataUsecase } from '@modules/employees/application/usecases/update-personal-employee-data.usecase';
 import { UpdateProfessionalEmployeeDataUsecase } from '@modules/employees/application/usecases/update-professional-employee-data.usecase';
+import { ActorAuthenticationFailedError } from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeLifecyclePolicy } from '@modules/employees/domain/services/employee-lifecycle.policy';
 import { EmployeeMainDataPatchService } from '@modules/employees/domain/services/employee-main-data-patch.service';
 import { EmployeeMainDataPolicy } from '@modules/employees/domain/services/employee-main-data.policy';
@@ -60,12 +62,17 @@ export type EmployeesModule = {
   router: Router;
 };
 
+export function makeActorAuthenticationFailedError(): ActorAuthenticationFailedError {
+  return new ActorAuthenticationFailedError();
+}
+
 type EmployeesModuleDeps = {
   connection: Connection;
   encrypter: EncrypterPort;
   compareHash: CompareHashPort;
   authTokenMiddleware: RequestHandler;
   makeRequireRoles: (...roles: string[]) => RequestHandler;
+  reissueOwnSessionToken: ReissueOwnSessionTokenPort;
 };
 
 export function makeEmployeesModule({
@@ -74,6 +81,7 @@ export function makeEmployeesModule({
   compareHash,
   authTokenMiddleware,
   makeRequireRoles,
+  reissueOwnSessionToken,
 }: EmployeesModuleDeps): EmployeesModule {
   const employeeModel = connection.model('Employee', EmployeeSchema);
   const counterModel = connection.model(
@@ -167,6 +175,7 @@ export function makeEmployeesModule({
   );
   const updateOwnEmployeeDataController = new UpdateOwnEmployeeDataController(
     updateOwnEmployeeData,
+    reissueOwnSessionToken,
   );
   const getOwnEmployeeController = new GetOwnEmployeeController(getOwnEmployee);
 
