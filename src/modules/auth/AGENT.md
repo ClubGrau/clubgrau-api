@@ -44,7 +44,7 @@ After a meaningful change, update the relevant section(s) in place.
 | Request password reset (command) | Done | `POST /auth/password-reset` |
 | Complete password reset (command) | Done | `POST /auth/password-reset/complete` |
 | Session Token on employee/customer routes | Done | `authTokenMiddleware` (`sessionVersion` check after decode) |
-| Reissue Session Token (command) | Done | No route. `reissueSessionToken` on `makeAuthModule`, called from the Profile Card wiring in `app.ts` |
+| Reissue Session Token (command) | Done | No route. `reissueOwnSessionToken` on `makeAuthModule` (`ReissueOwnSessionTokenAdapter`), injected into employees by `app.ts` |
 | Role gate (employees create/list) | Done | `requireRoles` (`makeRequireRoles`) |
 | Module HTTP ownership | Done | `infrastructure/inbound/http/auth.routes.ts` |
 | Composition root wiring | Done | `auth.module.ts` + `app.ts` |
@@ -152,6 +152,8 @@ src/modules/auth/
         │   ├── hmac-reset-token-hasher.ts
         │   ├── hmac-reset-token-hasher.spec.ts
         │   └── crypto-raw-reset-token.generator.ts
+        ├── reissue-own-session-token.adapter.ts
+        ├── reissue-own-session-token.adapter.spec.ts
         └── token/
             ├── jwt-token.adapter.ts
             └── jwt-token.adapter.spec.ts
@@ -295,7 +297,7 @@ Outbound: `FindAuthenticatableByIdPort`, `TokenProviderPort`. Not `CompareHashPo
 3. `generateToken` with `{ id, name, email, role, status, sessionVersion }` copied from the loaded user (not from the incoming JWT). No `passwordHash`. No `loginCapable`
 4. Return `{ token }`
 
-`app.ts` maps `AuthenticationError` to employees `ActorAuthenticationFailedError`. The previous Session Token stays valid until it expires.
+`ReissueOwnSessionTokenAdapter` maps `AuthenticationError` to the employees failure injected as `reissueAuthenticationFailedError` (`makeActorAuthenticationFailedError`). Any other throw stays unexpected. The previous Session Token stays valid until it expires. Auth does not import the employees domain error.
 
 ---
 
@@ -513,7 +515,7 @@ Repository stores the hash it is given — it never calls the hasher.
 
 ## Wiring (`auth.module.ts`)
 
-Factory: `makeAuthModule({ connection, compareHash, encrypter, mailer, frontendPublicOrigin })`.
+Factory: `makeAuthModule({ connection, compareHash, encrypter, mailer, frontendPublicOrigin, reissueAuthenticationFailedError })`.
 
 `app.ts` passes the same `BcryptAdapter` as `compareHash` and `encrypter`, plus `ResendMailerAdapter` and `envs.frontendPublicOrigin`.
 
@@ -524,13 +526,13 @@ Composition order today:
 3. `connection.model('PasswordResetToken', PasswordResetTokenSchema)` + repository
 4. `HmacResetTokenHasher` + `CryptoRawResetTokenGenerator`
 5. `LoginUseCase(adapter, compareHash, jwt)`
-6. `ReissueSessionTokenUseCase(adapter, jwt)` — same adapter and JWT adapter as Login; no controller; no route
+6. `ReissueSessionTokenUseCase(adapter, jwt)` then `ReissueOwnSessionTokenAdapter(useCase, reissueAuthenticationFailedError)` — no controller; no route
 7. `RequestPasswordResetUsecase(adapter, repo, repo, hasher, generator, mailer, frontendPublicOrigin)`
 8. `CompletePasswordResetUsecase(repo, adapter, repo, adapter, encrypter, hasher)`
 9. Controllers + `makeAuthRoutes`
 10. `makeAuthTokenMiddleware(jwtTokenAdapter, employeeAuthAdapter)`
 
-Returns `{ authController, requestPasswordResetController, completePasswordResetController, login, reissueSessionToken, requestPasswordReset, completePasswordReset, authTokenMiddleware, makeRequireRoles, router }`.
+Returns `{ authController, requestPasswordResetController, completePasswordResetController, login, reissueOwnSessionToken, requestPasswordReset, completePasswordReset, authTokenMiddleware, makeRequireRoles, router }`.
 
 **Rule:** when adding a use case, wire it in this file; do not construct repositories inside controllers or use cases.
 
@@ -631,6 +633,7 @@ Do not duplicate ADR essays; link [`docs/adr/password-reset/`](../../../docs/adr
 | Auth errors | `domain/errors/auth.errors.ts` |
 | Login orchestration | `application/usecases/login.usecase.ts` |
 | Reissue Session Token orchestration | `application/usecases/reissue-session-token.usecase.ts` |
+| Reissue ACL for employees | `infrastructure/outbound/reissue-own-session-token.adapter.ts` |
 | Request orchestration | `application/usecases/request-password-reset.usecase.ts` |
 | Complete orchestration | `application/usecases/complete-password-reset.usecase.ts` |
 | Login HTTP | `presentation/controllers/auth.controller.ts` |

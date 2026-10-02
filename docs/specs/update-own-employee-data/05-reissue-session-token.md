@@ -27,7 +27,7 @@ The employees use case does not generate a JWT. Auth does, with the same `genera
 | `ReissueSessionTokenUseCase` + inbound port + spec | Yes — auth |
 | `ReissueOwnSessionTokenPort` | Yes — employees outbound port (interface only) |
 | `UpdateOwnEmployeeDataController` calls the port after `execute` when `name` was in the DTO | Yes |
-| `app.ts` translates Auth `AuthenticationError` and injects the port | Yes |
+| `app.ts` passes Auth `reissueOwnSessionToken` into employees | Yes |
 | `employee.http` comment on the name sample | Yes |
 | Living `AGENT.md` (employees + auth) and auth `CONTEXT.md` if the glossary line is still the old one | Yes |
 | New HTTP route | **No** |
@@ -40,7 +40,7 @@ The employees use case does not generate a JWT. Auth does, with the same `genera
 
 > Implement slice 5 of Update Own Employee Data following [`docs/specs/update-own-employee-data/05-reissue-session-token.md`](./05-reissue-session-token.md).  
 > Auth `ReissueSessionTokenUseCase` loads the authenticatable and calls `generateToken` with live claims and the same `sessionVersion`. No password check. No `$inc`.  
-> The Profile Card controller returns `{ data, token }` only when the successful DTO included `name`. Wire the port in `app.ts`. Do not import Auth domain from the employees hexagon. Do not add a route.
+> The Profile Card controller returns `{ data, token }` only when the successful DTO included `name`. `app.ts` injects Auth `reissueOwnSessionToken`. Do not import Auth domain from the employees hexagon. Do not add a route.
 
 ## Auth command
 
@@ -69,11 +69,11 @@ export interface ReissueOwnSessionTokenPort {
 }
 ```
 
-Declared under employees `application/ports/outbound/`. No adapter class inside the employees hexagon. `app.ts` passes an object that calls `auth.reissueSessionToken.execute({ actorId })`.
+Declared under employees `application/ports/outbound/`. No adapter class inside the employees hexagon. Auth implements the port with `ReissueOwnSessionTokenAdapter`, wired in `auth.module.ts`. `app.ts` passes `auth.reissueOwnSessionToken` and supplies `makeActorAuthenticationFailedError` as `reissueAuthenticationFailedError`.
 
-`app.ts` maps Auth `AuthenticationError` to `ActorAuthenticationFailedError` before it reaches the employees controller. Any other throw stays an unexpected error. `makeEmployeesModule` gains `reissueOwnSessionToken: ReissueOwnSessionTokenPort` and passes it into `UpdateOwnEmployeeDataController`.
+The adapter maps Auth `AuthenticationError` to `ActorAuthenticationFailedError` before it reaches the employees controller. Any other throw stays an unexpected error. `makeEmployeesModule` receives `reissueOwnSessionToken: ReissueOwnSessionTokenPort` and passes it into `UpdateOwnEmployeeDataController`.
 
-The employees tree does not import `@modules/auth/domain`.
+The employees tree does not import `@modules/auth`. Auth does not import the employees domain error; the composition root passes the factory.
 
 ## Controller
 
@@ -121,11 +121,12 @@ Employees `CONTEXT.md` **Update Own Employee Data**: one sentence that a success
 | `src/modules/auth/application/dtos/reissue-session-token.dto.ts` | Create input; reuse `LoginResultDto` as output |
 | `src/modules/auth/application/ports/inbound/reissue-session-token.port.ts` | Create |
 | `src/modules/auth/application/usecases/reissue-session-token.usecase.ts` + `*.spec.ts` | Create |
-| `src/modules/auth/auth.module.ts` | Construct the use case; return it |
+| `src/modules/auth/auth.module.ts` | Construct the use case and `ReissueOwnSessionTokenAdapter`; return `reissueOwnSessionToken` |
 | `src/modules/employees/application/ports/outbound/reissue-own-session-token.port.ts` | Create |
 | `presentation/controllers/update-own-employee-data.controller.ts` + spec | Call the port; extend the success body |
-| `employees.module.ts` | Accept the port; pass it to the controller |
-| `src/app.ts` | Adapt Auth errors; inject the port |
+| `src/modules/auth/infrastructure/outbound/reissue-own-session-token.adapter.ts` + spec | Create; map `AuthenticationError` |
+| `employees.module.ts` | Accept the port; pass it to the controller; export `makeActorAuthenticationFailedError` |
+| `src/app.ts` | Pass `auth.reissueOwnSessionToken` and the employees failure factory |
 | `src/client/employee.http` | Comment on the `name` sample |
 | `employees/AGENT.md`, `auth/AGENT.md`, both `CONTEXT.md` | Living contract |
 
@@ -160,7 +161,7 @@ Employees `CONTEXT.md` **Update Own Employee Data**: one sentence that a success
 - [ ] Employees use case return type unchanged
 - [ ] Controller calls reissue only after `execute` resolves and only when `name` was in the DTO
 - [ ] `{ data, token }` on that path; `{ data }` otherwise; GET unchanged
-- [ ] `app.ts` maps `AuthenticationError` → `ActorAuthenticationFailedError`
+- [ ] `ReissueOwnSessionTokenAdapter` maps `AuthenticationError` → `ActorAuthenticationFailedError`
 - [ ] Employees sources do not import Auth domain
 - [ ] `employee.http` comments the `name` sample
 - [ ] Both `AGENT.md` files and both glossaries match ADR 0001

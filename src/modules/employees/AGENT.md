@@ -155,6 +155,7 @@ src/modules/employees/
 │   │       ├── update-employee-status-repository.port.ts
 │   │       ├── update-main-employee-data-repository.port.ts
 │   │       ├── update-own-employee-data-repository.port.ts
+│   │       ├── reissue-own-session-token.port.ts
 │   │       ├── update-personal-employee-data-repository.port.ts
 │   │       ├── update-professional-employee-data-repository.port.ts
 │   │       └── anonymize-employee-repository.port.ts
@@ -890,6 +891,16 @@ interface UpdateOwnEmployeeDataPort {
 
 Outbound: `FindEmployeeByIdPort` (Actor snapshot), `UpdateOwnEmployeeDataRepositoryPort.updateOwnData`, `FindOwnEmployeePort.findOwnEmployee` (re-read).
 
+The use case still returns only `GetEmployeesItemDto`. It does not receive `ReissueOwnSessionTokenPort`. The controller does:
+
+```ts
+interface ReissueOwnSessionTokenPort {
+  execute(actorId: string): Promise<{ token: string }>;
+}
+```
+
+Interface only. No adapter class in this hexagon. Auth's `ReissueOwnSessionTokenAdapter` implements this port; `app.ts` injects `auth.reissueOwnSessionToken`. `AuthenticationError` is translated inside that adapter, using `makeActorAuthenticationFailedError` from this module. This hexagon does not import `@modules/auth`.
+
 ### Use case flow (`UpdateOwnEmployeeDataUsecase`)
 
 1. Blank `actorId` → `ActorAuthenticationFailedError`
@@ -1120,7 +1131,9 @@ Authorization: Bearer <Actor token>
 - `username`, `gender`, `languages`, `emergencyContact`, `address`: `null` / `""` / whitespace → `null`; any other string forwarded as-is (no trim on `languages` / `address` / `gender`)
 - `nif` number (including `0`) → `String(value)` before the blank check; `null` / `""` / whitespace → `null`; other strings unchanged
 - `gender: "invalid"` is forwarded; `InvalidEmployeeGenderError` stays that class on `400` (not rewritten as `InvalidParamError`)
-- Success → `200` + `{ data: GetEmployeesItemDto }` via `ok(...)` — same read model as GET. `{ data, token }` when the body included `name` is open decision 17 (not shipped)
+- Success without `name` in the DTO → `200` + `{ data: GetEmployeesItemDto }` via `ok(...)` — same read model as GET, no `token` key. GET `/employee/me` stays `{ data }` with no `token`
+- Success with `name` in the DTO (including when the stored name is unchanged) → after `execute` resolves, `ReissueOwnSessionTokenPort.execute(actorId)` then `200` `{ data, token }`. `token` is a sibling of `data`, not a field of the read model. This path does not use `ok(...)`
+- Reissue `ActorAuthenticationFailedError` → `401`. Any other reissue throw → `500`. The `$set` is not rolled back. A PATCH that omitted `name` does not call the reissue port
 
 | Error | HTTP |
 |-------|------|
@@ -1331,7 +1344,11 @@ PATCH /api/employee/me
           → any throw → no $set
       → updateOwnData one $set
       → findOwnEmployee → null → 500
-  → 200 { data: GetEmployeesItemDto } | 400 | 401 | 500
+  → name absent from the DTO → 200 { data: GetEmployeesItemDto }
+  → name present → ReissueOwnSessionTokenPort.execute(actorId)
+      → 200 { data, token }
+      → ActorAuthenticationFailedError → 401 (write already committed)
+      → other throw → 500 (write already committed)
 ```
 
 ---
@@ -1384,9 +1401,9 @@ When adding fields: update **schema → mapper → entity props / create props �
 
 ## Wiring (`employees.module.ts`)
 
-Factory: `makeEmployeesModule({ connection, encrypter, compareHash, authTokenMiddleware, makeRequireRoles })`.
+Factory: `makeEmployeesModule({ connection, encrypter, compareHash, authTokenMiddleware, makeRequireRoles, reissueOwnSessionToken })`.
 
-`app.ts` passes the same `BcryptAdapter` instance as `encrypter` and `compareHash`.
+`app.ts` passes the same `BcryptAdapter` instance as `encrypter` and `compareHash`, and `auth.reissueOwnSessionToken`. That adapter maps Auth `AuthenticationError` to `ActorAuthenticationFailedError` (`makeActorAuthenticationFailedError`). Any other throw stays unexpected.
 
 Composition order today:
 
@@ -1414,7 +1431,7 @@ Composition order today:
 22. `EmployeeOwnDataPatchService(personalDataPatchService)` — the personal patch instance already built; no second personal patch; no occupancy port
 23. `UpdateOwnEmployeeDataUsecase(repository, ownDataPolicy, ownDataPatchService, repository, repository)` — same repository for find-by-id, `updateOwnData`, and `findOwnEmployee`
 24. `GetOwnEmployeeQuery(repository, ownDataPolicy)`
-25. `UpdateOwnEmployeeDataController(updateOwnEmployeeData)` and `GetOwnEmployeeController(getOwnEmployee)`
+25. `UpdateOwnEmployeeDataController(updateOwnEmployeeData, reissueOwnSessionToken)` and `GetOwnEmployeeController(getOwnEmployee)` — the own-data use case does not receive the reissue port
 26. `EmployeeProfessionalDataPolicy(repository)` — same repository instance (`countLoginCapableAdmins` + `countNonRemovedAdmins`); not a second `EmployeeLifecyclePolicy`; `CountActiveAdminsPort` is not passed as a distinct object
 27. `EmployeeProfessionalDataPatchService()` (no ports)
 28. `UpdateProfessionalEmployeeDataUsecase(repository, professionalDataPolicy, professionalDataPatchService, lifecyclePolicy, repository)` — the **same** `lifecyclePolicy` already built for update-status and remove
@@ -1460,7 +1477,7 @@ Never shortcut by calling the repository from the controller.
 14. **`employmentId`** — not written by this command (ignored on the HTTP body; not a persist field). Create now issues the digit string. Legacy non-numeric values and `null` remain. There is no backfill and no unique index.
 15. **Get-by-id** — still a follow-up query of its own.
 16. **Vue Save echo** — the client may always send current `role` + `status`. This PATCH treats equality as a no-op (`200`, no write unless another field changed). Already-in-status stays `400` only on `POST /api/employee/update-status`.
-17. **Session Token `name` after own-data** — **decided, not shipped** ([ADR 0001](../../../docs/adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md), spec slice 5). A successful `PATCH /employee/me` that includes `name` reissues the Session Token (same `sessionVersion`, no Refresh Token). Until that slice lands, the `200` body is `{ data }` only and the JWT `name` may stay stale.
+17. **Session Token `name` after own-data** — **shipped** ([ADR 0001](../../../docs/adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md)). A successful `PATCH /employee/me` whose DTO included `name` reissues the Session Token (same `sessionVersion`; the previous token stays valid until it expires). The `200` body is `{ data, token }`. A save that omits `name`, and GET, stay `{ data }` with no `token`. This is not a Refresh Token.
 18. **Leftover `INACTIVE` / `REMOVED` JWT** — `authTokenMiddleware` may still accept it. Login-capable for the Profile Card is enforced in the employees domain (`EmployeeOwnDataPolicy` → `401` once a writable key is present, or on GET). An empty own-data body is still `400` before `execute`.
 19. **Username uniqueness** — still absent. Own-data clears or sets `username` without an occupancy check.
 
@@ -1502,6 +1519,7 @@ Never shortcut by calling the repository from the controller.
 | Update professional-data orchestration | `application/usecases/update-professional-employee-data.usecase.ts` |
 | Get own employee orchestration (query) | `application/queries/get-own-employee.query.ts` |
 | Update own-data orchestration | `application/usecases/update-own-employee-data.usecase.ts` |
+| Reissue own Session Token (interface only) | `application/ports/outbound/reissue-own-session-token.port.ts` |
 | Remove HTTP request shape (raw body) | `presentation/http/remove-employee.request.ts` |
 | Remove HTTP mapping / status | `presentation/controllers/remove-employee.controller.ts` |
 | Main-data HTTP request shape (raw body + path) | `presentation/http/update-main-employee-data.request.ts` |
