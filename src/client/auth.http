@@ -1,3 +1,7 @@
+@token = {{login.response.body.data.token}}
+@reissuedToken = {{reissueOnName.response.body.token}}
+
+# @name login
 # Login ACTIVE — 200 { data: { token } }
 # VACATION também é loginCapable → 200. INACTIVE / REMOVED / unknown / senha errada → 401 opaco.
 POST http://localhost:3003/auth
@@ -5,6 +9,15 @@ Content-Type: application/json
 
 {
     "email": "user.grau@gmail.com",
+    "password": "P@ssword123"
+}
+
+###
+POST https://clubgrau-api.onrender.com/auth
+Content-Type: application/json
+
+{
+    "email": "graubarberclub@gmail.com",
     "password": "P@ssword123"
 }
 
@@ -42,4 +55,60 @@ Content-Type: application/json
   "token": "<raw token from the email link>",
   "password": "P@ssword123",
   "passwordConfirmation": "P@ssword123"
+}
+
+###
+
+# Reissue Session Token — não há rota pública.
+# O gatilho é PATCH /api/employee/me com a chave name (valor novo ou igual ao gravado).
+# 200 { data, token }: token é irmão de data. sessionVersion não sobe.
+# O Bearer anterior continua válido até expirar. Não é Refresh Token.
+# Sem name no body, o 200 é { data } e não existe chave token.
+# GET /api/employee/me nunca traz token.
+# Correr primeiro o pedido login. {{token}} é o Bearer dessa resposta.
+
+# PATCH com name — 200 { data, token }
+# A claim name do token novo é data.name (já normalizado: trim e espaços colapsados).
+# id, email, role, status e sessionVersion copiam o utilizador gravado, não o JWT de entrada.
+# @name reissueOnName
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "name": "Usuario do Grau 1"
+}
+
+###
+
+# Token anterior ainda autoriza. data.name é o nome acabado de gravar.
+GET http://localhost:3003/api/employee/me
+Authorization: Bearer {{token}}
+
+###
+
+# Token reemitido autoriza o mesmo perfil.
+GET http://localhost:3003/api/employee/me
+Authorization: Bearer {{reissuedToken}}
+
+###
+
+# Eco do name já gravado — 200 ainda com token. sessionVersion não sobe.
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{reissuedToken}}
+
+{
+    "name": "Usuario do Grau"
+}
+
+###
+
+# Sem a chave name — 200 { data }, sem chave token. name do perfil não muda.
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "phone": "+351 912 345 678"
 }

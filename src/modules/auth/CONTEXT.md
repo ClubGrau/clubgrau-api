@@ -13,5 +13,5 @@ One-time secret sent in the email link. Stored as a hash with a 30-minute expiry
 _Avoid_: JWT, session, access token, magic link that logs in
 
 **Session Token**:
-JWT issued only by Login after email + new (or existing) password succeed. Used as `Authorization` on authenticated routes.
-_Avoid_: Reset Token, definitive token as a third kind of credential
+JWT issued by Login after email + password succeed, and reissued after a successful Update Own Employee Data that included `name`. Reissue keeps the same `sessionVersion`. It is not a Refresh Token. Used as `Authorization` on authenticated routes.
+_Avoid_: Reset Token, Refresh Token, `remember`, definitive token as a third kind of credential

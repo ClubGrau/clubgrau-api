@@ -3,7 +3,10 @@ import { Connection } from 'mongoose';
 import envs from '@configs/envs';
 import { makeAuthModule } from '@modules/auth/auth.module';
 import { makeCustomersModule } from '@modules/customers/customers.module';
-import { makeEmployeesModule } from '@modules/employees/employees.module';
+import {
+  makeActorAuthenticationFailedError,
+  makeEmployeesModule,
+} from '@modules/employees/employees.module';
 import { BcryptAdapter } from '@shared/infrastructure/adapters/bcrypt/bcrypt.adapter';
 import { ResendMailerAdapter } from '@shared/infrastructure/adapters/resend/resend-mailer.adapter';
 import middlewares from '@shared/infrastructure/adapters/http/middlewares';
@@ -25,6 +28,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     encrypter: bcryptAdapter,
     mailer: mailerAdapter,
     frontendPublicOrigin: envs.frontendPublicOrigin ?? '',
+    reissueAuthenticationFailedError: makeActorAuthenticationFailedError,
   });
 
   const employees = makeEmployeesModule({
@@ -33,6 +37,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     compareHash: bcryptAdapter,
     authTokenMiddleware: auth.authTokenMiddleware,
     makeRequireRoles: auth.makeRequireRoles,
+    reissueOwnSessionToken: auth.reissueOwnSessionToken,
   });
 
   const customers = makeCustomersModule({

@@ -2,6 +2,7 @@ import { CreateEmployeeResultDto } from '@modules/employees/application/dtos/cre
 import {
   FindEmployeesParams,
   FindEmployeesResult,
+  GetEmployeesItemDto,
 } from '@modules/employees/application/dtos/get-employees.dto';
 import {
   AnonymizeEmployeeParams,
@@ -10,6 +11,7 @@ import {
 import { CreateEmployeeRepositoryPort } from '@modules/employees/application/ports/outbound/create-employee-repository.port';
 import { FindEmployeeByIdPort } from '@modules/employees/application/ports/outbound/find-employee-by-id.port';
 import { FindEmployeesPort } from '@modules/employees/application/ports/outbound/find-employees.port';
+import { FindOwnEmployeePort } from '@modules/employees/application/ports/outbound/find-own-employee.port';
 import {
   UpdateEmployeeStatusParams,
   UpdateEmployeeStatusRepositoryPort,
@@ -18,6 +20,10 @@ import {
   UpdateMainEmployeeDataParams,
   UpdateMainEmployeeDataRepositoryPort,
 } from '@modules/employees/application/ports/outbound/update-main-employee-data-repository.port';
+import {
+  UpdateOwnEmployeeDataParams,
+  UpdateOwnEmployeeDataRepositoryPort,
+} from '@modules/employees/application/ports/outbound/update-own-employee-data-repository.port';
 import {
   UpdatePersonalEmployeeDataParams,
   UpdatePersonalEmployeeDataRepositoryPort,
@@ -51,6 +57,7 @@ export class EmployeeMongooseRepository
   implements
     FindEmployeeByEmailPort,
     FindEmployeeByIdPort,
+    FindOwnEmployeePort,
     CreateEmployeeRepositoryPort,
     FindEmployeesPort,
     UpdateEmployeeStatusRepositoryPort,
@@ -59,6 +66,7 @@ export class EmployeeMongooseRepository
     CountLoginCapableAdminsPort,
     AnonymizeEmployeeRepositoryPort,
     UpdateMainEmployeeDataRepositoryPort,
+    UpdateOwnEmployeeDataRepositoryPort,
     UpdatePersonalEmployeeDataRepositoryPort,
     UpdateProfessionalEmployeeDataRepositoryPort
 {
@@ -92,6 +100,17 @@ export class EmployeeMongooseRepository
     }
   }
 
+  async findOwnEmployee(id: string): Promise<GetEmployeesItemDto | null> {
+    try {
+      const employee = await this.employeeModel.findById(id).lean();
+      if (!employee) return null;
+
+      return mapEmployeeReadModel(employee as EmployeeDocument);
+    } catch {
+      return null;
+    }
+  }
+
   async updateStatus(params: UpdateEmployeeStatusParams): Promise<void> {
     await this.employeeModel.updateOne(
       { _id: params.id },
@@ -120,6 +139,19 @@ export class EmployeeMongooseRepository
     const result = await this.employeeModel.updateOne({ _id: id }, { $set });
     if (result.matchedCount === 0) {
       throw new Error('Employee personal data update matched 0 documents');
+    }
+  }
+
+  async updateOwnData(params: UpdateOwnEmployeeDataParams): Promise<void> {
+    const { id, ...fields } = params;
+    const $set: Record<string, string | number | null> =
+      this.buildUpdateFilterEntries(fields);
+    if ('nif' in $set && $set.nif !== null) {
+      $set.nif = Number($set.nif);
+    }
+    const result = await this.employeeModel.updateOne({ _id: id }, { $set });
+    if (result.matchedCount === 0) {
+      throw new Error('Employee own data update matched 0 documents');
     }
   }
 

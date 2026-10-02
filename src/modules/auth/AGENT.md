@@ -1,6 +1,6 @@
 # Auth Module — Agent Guide
 
-> Living **contract** of the auth hexagon (Login + Password Reset request/complete + Session Token middleware).
+> Living **contract** of the auth hexagon (Login + Password Reset request/complete + Session Token middleware + Reissue Session Token).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).  
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).  
@@ -44,6 +44,7 @@ After a meaningful change, update the relevant section(s) in place.
 | Request password reset (command) | Done | `POST /auth/password-reset` |
 | Complete password reset (command) | Done | `POST /auth/password-reset/complete` |
 | Session Token on employee/customer routes | Done | `authTokenMiddleware` (`sessionVersion` check after decode) |
+| Reissue Session Token (command) | Done | No route. `reissueOwnSessionToken` on `makeAuthModule` (`ReissueOwnSessionTokenAdapter`), injected into employees by `app.ts` |
 | Role gate (employees create/list) | Done | `requireRoles` (`makeRequireRoles`) |
 | Module HTTP ownership | Done | `infrastructure/inbound/http/auth.routes.ts` |
 | Composition root wiring | Done | `auth.module.ts` + `app.ts` |
@@ -54,7 +55,7 @@ Password Reset is **Done** (slices 0–5 shipped). It is not planned work.
 
 | Side | Location | Example |
 |------|----------|---------|
-| Command (write) | `application/usecases/` | `LoginUseCase`, `RequestPasswordResetUsecase`, `CompletePasswordResetUsecase` |
+| Command (write) | `application/usecases/` | `LoginUseCase`, `ReissueSessionTokenUseCase`, `RequestPasswordResetUsecase`, `CompletePasswordResetUsecase` |
 | Query (read) | — | none |
 
 Auth has no list/get query. Reads of Employee credentials go through the employee auth adapter (`AuthenticatableUser`), not through employees use cases.
@@ -87,11 +88,13 @@ src/modules/auth/
 │   ├── dtos/
 │   │   ├── login.dto.ts
 │   │   ├── login.dto.spec.ts
+│   │   ├── reissue-session-token.dto.ts
 │   │   ├── request-password-reset.dto.ts
 │   │   └── complete-password-reset.dto.ts
 │   ├── ports/
 │   │   ├── inbound/
 │   │   │   ├── login.port.ts
+│   │   │   ├── reissue-session-token.port.ts
 │   │   │   ├── request-password-reset.port.ts
 │   │   │   └── complete-password-reset.port.ts
 │   │   └── outbound/
@@ -109,6 +112,8 @@ src/modules/auth/
 │   └── usecases/
 │       ├── login.usecase.ts
 │       ├── login.usecase.spec.ts
+│       ├── reissue-session-token.usecase.ts
+│       ├── reissue-session-token.usecase.spec.ts
 │       ├── request-password-reset.usecase.ts
 │       ├── request-password-reset.usecase.spec.ts
 │       ├── complete-password-reset.usecase.ts
@@ -147,6 +152,8 @@ src/modules/auth/
         │   ├── hmac-reset-token-hasher.ts
         │   ├── hmac-reset-token-hasher.spec.ts
         │   └── crypto-raw-reset-token.generator.ts
+        ├── reissue-own-session-token.adapter.ts
+        ├── reissue-own-session-token.adapter.spec.ts
         └── token/
             ├── jwt-token.adapter.ts
             └── jwt-token.adapter.spec.ts
@@ -262,6 +269,35 @@ interface LoginResultDto {
 Gate is **`loginCapable`**, not a hardcoded `ACTIVE`. `VACATION` logs in. `INACTIVE` / `REMOVED` / unknown share the same `401`.
 
 The mapper (`mapEmployeeDocumentToAuthenticatable`) is the **only** place that knows `'ACTIVE' | 'VACATION'`. Domain and use cases do not import employees `Status`.
+
+---
+
+## Application: Reissue Session Token (command)
+
+Signs a new Session Token from the stored authenticatable after a successful Update Own Employee Data whose DTO included `name`. No HTTP route. No password check. Does not increment `sessionVersion` and does not create a Refresh Token.
+
+### Ports
+
+```ts
+interface ReissueSessionTokenPort {
+  execute(params: ReissueSessionTokenDto): Promise<LoginResultDto>;
+}
+
+type ReissueSessionTokenDto = {
+  actorId: string;
+};
+```
+
+Outbound: `FindAuthenticatableByIdPort`, `TokenProviderPort`. Not `CompareHashPort`. Not `UpdateEmployeeCredentialsPort`.
+
+### Use case flow (`ReissueSessionTokenUseCase`)
+
+1. Blank `actorId` → `AuthenticationError` (finder and `generateToken` are not called)
+2. `findAuthenticatableById` — miss or `!loginCapable` → `AuthenticationError` (`generateToken` is not called)
+3. `generateToken` with `{ id, name, email, role, status, sessionVersion }` copied from the loaded user (not from the incoming JWT). No `passwordHash`. No `loginCapable`
+4. Return `{ token }`
+
+`ReissueOwnSessionTokenAdapter` maps `AuthenticationError` to the employees failure injected as `reissueAuthenticationFailedError` (`makeActorAuthenticationFailedError`). Any other throw stays unexpected. The previous Session Token stays valid until it expires. Auth does not import the employees domain error.
 
 ---
 
@@ -479,7 +515,7 @@ Repository stores the hash it is given — it never calls the hasher.
 
 ## Wiring (`auth.module.ts`)
 
-Factory: `makeAuthModule({ connection, compareHash, encrypter, mailer, frontendPublicOrigin })`.
+Factory: `makeAuthModule({ connection, compareHash, encrypter, mailer, frontendPublicOrigin, reissueAuthenticationFailedError })`.
 
 `app.ts` passes the same `BcryptAdapter` as `compareHash` and `encrypter`, plus `ResendMailerAdapter` and `envs.frontendPublicOrigin`.
 
@@ -490,12 +526,13 @@ Composition order today:
 3. `connection.model('PasswordResetToken', PasswordResetTokenSchema)` + repository
 4. `HmacResetTokenHasher` + `CryptoRawResetTokenGenerator`
 5. `LoginUseCase(adapter, compareHash, jwt)`
-6. `RequestPasswordResetUsecase(adapter, repo, repo, hasher, generator, mailer, frontendPublicOrigin)`
-7. `CompletePasswordResetUsecase(repo, adapter, repo, adapter, encrypter, hasher)`
-8. Controllers + `makeAuthRoutes`
-9. `makeAuthTokenMiddleware(jwtTokenAdapter, employeeAuthAdapter)`
+6. `ReissueSessionTokenUseCase(adapter, jwt)` then `ReissueOwnSessionTokenAdapter(useCase, reissueAuthenticationFailedError)` — no controller; no route
+7. `RequestPasswordResetUsecase(adapter, repo, repo, hasher, generator, mailer, frontendPublicOrigin)`
+8. `CompletePasswordResetUsecase(repo, adapter, repo, adapter, encrypter, hasher)`
+9. Controllers + `makeAuthRoutes`
+10. `makeAuthTokenMiddleware(jwtTokenAdapter, employeeAuthAdapter)`
 
-Returns `{ authController, requestPasswordResetController, completePasswordResetController, login, requestPasswordReset, completePasswordReset, authTokenMiddleware, makeRequireRoles, router }`.
+Returns `{ authController, requestPasswordResetController, completePasswordResetController, login, reissueOwnSessionToken, requestPasswordReset, completePasswordReset, authTokenMiddleware, makeRequireRoles, router }`.
 
 **Rule:** when adding a use case, wire it in this file; do not construct repositories inside controllers or use cases.
 
@@ -579,6 +616,7 @@ Never shortcut by calling the repository from the controller. Never return a Res
 3. **Session after INACTIVE / REMOVED (lifecycle sibling)** — after `authTokenMiddleware` decodes the JWT and compares `sessionVersion`, also refuse a live status that is not login-capable (`INACTIVE` / `REMOVED`) with opaque `401`. Product: deactivated / removed must not keep using the API. **Do not implement in this feature.** Complete already kills tokens via `sessionVersion`. `VACATION` remains login-capable. Whether VACATION stays a full session at the middleware is part of that sibling, not this hexagon’s current contract.
 4. **Identity extraction (`users`)** — still deferred (option B). Credentials stay on Employee; auth reaches them through the adapter.
 5. **Complete weak-password HTTP** — use case throws `InvalidPasswordError` before token lookup (token stays usable). Controller maps only `PasswordResetedNotMatchError` and `InvalidOrExpiredTokenError` to `400`; an unmapped VO error is `500` today.
+6. **Reissue after Profile Card `name`** — **shipped** ([ADR 0001](../../../docs/adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md)). Auth signs a new Session Token from live claims with the same `sessionVersion`. This does not create a Refresh Token and does not increment `sessionVersion`. The previous token stays valid until it expires. Password Reset invalidation is unchanged. There is no public reissue route.
 
 Do not duplicate ADR essays; link [`docs/adr/password-reset/`](../../../docs/adr/password-reset/).
 
@@ -594,6 +632,8 @@ Do not duplicate ADR essays; link [`docs/adr/password-reset/`](../../../docs/adr
 | Reset Token write snapshot | `domain/models/password-reset-token.model.ts` |
 | Auth errors | `domain/errors/auth.errors.ts` |
 | Login orchestration | `application/usecases/login.usecase.ts` |
+| Reissue Session Token orchestration | `application/usecases/reissue-session-token.usecase.ts` |
+| Reissue ACL for employees | `infrastructure/outbound/reissue-own-session-token.adapter.ts` |
 | Request orchestration | `application/usecases/request-password-reset.usecase.ts` |
 | Complete orchestration | `application/usecases/complete-password-reset.usecase.ts` |
 | Login HTTP | `presentation/controllers/auth.controller.ts` |

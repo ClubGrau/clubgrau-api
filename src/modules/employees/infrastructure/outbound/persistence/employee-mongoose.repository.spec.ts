@@ -1,8 +1,12 @@
-import { EmployeeNotFoundError } from '@modules/employees/domain/errors/employee.errors';
+import {
+  ActorAuthenticationFailedError,
+  EmployeeNotFoundError,
+} from '@modules/employees/domain/errors/employee.errors';
 import { EmployeeModel } from '@modules/employees/domain/models/employee.model';
 import { makeChainableMock } from '../../../../../configs/database/mongoose/testables';
 import { EmployeeMongooseRepository } from './employee-mongoose.repository';
 import { EmployeeDocument, EmployeeMongooseModel } from './employee.schema';
+import { mapEmployeeReadModel } from './employee.mapper';
 import mongoose from 'mongoose';
 
 const employeeStatuses = {
@@ -855,6 +859,352 @@ describe('EmployeeMongooseRepository', () => {
         { _id: employeeId },
         expect.any(Object),
       );
+    });
+  });
+
+  describe('updateOwnData', () => {
+    const setOf = (updateOneSpy: jest.SpyInstance): Record<string, unknown> =>
+      (
+        updateOneSpy.mock.calls[0] as unknown as [
+          unknown,
+          { $set: Record<string, unknown> },
+        ]
+      )[1].$set;
+
+    it('should $set only phone when only phone is provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({
+        id: employeeId,
+        phone: '+351 912 345 678',
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { phone: '+351 912 345 678' } },
+      );
+      const setPayload = setOf(updateOneSpy);
+      expect(setPayload).not.toHaveProperty('name');
+      expect(setPayload).not.toHaveProperty('email');
+      expect(setPayload).not.toHaveProperty('username');
+      expect(setPayload).not.toHaveProperty('nif');
+      expect(setPayload).not.toHaveProperty('password');
+      expect(setPayload).not.toHaveProperty('status');
+    });
+
+    it('should include username: null in $set when clearing username', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({ id: employeeId, username: null });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { username: null } },
+      );
+    });
+
+    it('should $set username when a string is provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({ id: employeeId, username: 'joao' });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { username: 'joao' } },
+      );
+    });
+
+    it('should persist nif: null (not 0) when clearing nif', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({ id: employeeId, nif: null });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { nif: null } },
+      );
+      const setPayload = setOf(updateOneSpy);
+      expect(setPayload.nif).toBeNull();
+      expect(setPayload.nif).not.toBe(0);
+    });
+
+    it('should coerce a non-null nif string to Number in $set', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({ id: employeeId, nif: '123456789' });
+
+      const setPayload = setOf(updateOneSpy);
+      expect(setPayload.nif).toBe(123456789);
+      expect(typeof setPayload.nif).toBe('number');
+    });
+
+    it('should omit address from $set when address is not provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({
+        id: employeeId,
+        phone: '+351 912 345 678',
+      });
+
+      expect(setOf(updateOneSpy)).not.toHaveProperty('address');
+    });
+
+    it('should $set only the eight own-data keys when all are provided', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({
+        id: employeeId,
+        name: 'Jane Doe',
+        phone: '+351 912 345 678',
+        username: 'joao',
+        gender: 'male',
+        languages: 'pt',
+        emergencyContact: '351900000000',
+        nif: '123456789',
+        address: 'Lisboa',
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        {
+          $set: {
+            name: 'Jane Doe',
+            phone: '+351 912 345 678',
+            username: 'joao',
+            gender: 'male',
+            languages: 'pt',
+            emergencyContact: '351900000000',
+            nif: 123456789,
+            address: 'Lisboa',
+          },
+        },
+      );
+      const setPayload = setOf(updateOneSpy);
+      expect(Object.keys(setPayload).sort()).toEqual([
+        'address',
+        'emergencyContact',
+        'gender',
+        'languages',
+        'name',
+        'nif',
+        'phone',
+        'username',
+      ]);
+      expect(typeof setPayload.nif).toBe('number');
+      expect(setPayload).not.toHaveProperty('email');
+    });
+
+    it('should include gender: null and languages: null in $set when clearing both', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({
+        id: employeeId,
+        gender: null,
+        languages: null,
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        { $set: { gender: null, languages: null } },
+      );
+    });
+
+    it('should filter updateOne by { _id: id }', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(employeeModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 1 });
+
+      await sut.updateOwnData({
+        id: employeeId,
+        phone: '+351 912 345 678',
+      });
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: employeeId },
+        expect.any(Object),
+      );
+    });
+
+    it('should throw a generic Error when matchedCount is 0', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      jest.spyOn(employeeModelMock, 'updateOne').mockResolvedValueOnce({
+        matchedCount: 0,
+        modifiedCount: 0,
+      });
+
+      const error = await sut
+        .updateOwnData({ id: employeeId, phone: '+351 912 345 678' })
+        .catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(EmployeeNotFoundError);
+      expect(error).not.toBeInstanceOf(ActorAuthenticationFailedError);
+      expect((error as Error).message).toBe(
+        'Employee own data update matched 0 documents',
+      );
+    });
+
+    it('should resolve when matchedCount is 1 and modifiedCount is 0', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      jest.spyOn(employeeModelMock, 'updateOne').mockResolvedValueOnce({
+        matchedCount: 1,
+        modifiedCount: 0,
+      });
+
+      await expect(
+        sut.updateOwnData({ id: employeeId, phone: '+351 912 345 678' }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should not call updateMainData or updatePersonalData', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      jest.spyOn(employeeModelMock, 'updateOne').mockResolvedValueOnce({
+        matchedCount: 1,
+        modifiedCount: 1,
+      });
+      const updateMainDataSpy = jest.spyOn(sut, 'updateMainData');
+      const updatePersonalDataSpy = jest.spyOn(sut, 'updatePersonalData');
+
+      await sut.updateOwnData({
+        id: employeeId,
+        phone: '+351 912 345 678',
+      });
+
+      expect(updateMainDataSpy).not.toHaveBeenCalled();
+      expect(updatePersonalDataSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findOwnEmployee', () => {
+    const ownEmployeeDocument = (
+      overrides: Partial<EmployeeDocument> = {},
+    ): EmployeeDocument =>
+      ({
+        _id: new mongoose.Types.ObjectId(),
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        role: EmployeeModel.Role.ADMIN,
+        password: 'hashed_password',
+        phone: '351912345678',
+        nif: 123456789,
+        status: EmployeeModel.Status.ACTIVE,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        deactivateAt: null,
+        removedAt: null,
+        username: null,
+        gender: null,
+        address: null,
+        languages: null,
+        emergencyContact: null,
+        employmentId: null,
+        jobTitle: null,
+        ...overrides,
+      }) as EmployeeDocument;
+
+    it('should return null when no document is found and query by id only', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const employeeId = new mongoose.Types.ObjectId().toHexString();
+      const findByIdSpy = jest
+        .spyOn(employeeModelMock, 'findById')
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValueOnce(null),
+        });
+
+      const result = await sut.findOwnEmployee(employeeId);
+
+      expect(result).toBeNull();
+      expect(findByIdSpy).toHaveBeenCalledTimes(1);
+      expect(findByIdSpy).toHaveBeenCalledWith(employeeId);
+      expect(findByIdSpy.mock.calls[0]).toEqual([employeeId]);
+    });
+
+    it('should return mapEmployeeReadModel without password and with nif as string', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const document = ownEmployeeDocument();
+      jest.spyOn(employeeModelMock, 'findById').mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValueOnce(document),
+      });
+
+      const result = await sut.findOwnEmployee(String(document._id));
+
+      expect(result).toEqual(mapEmployeeReadModel(document));
+      expect(result).not.toBeNull();
+      expect('password' in (result as object)).toBe(false);
+      expect(typeof result?.nif).toBe('string');
+      expect(result?.nif).toBe('123456789');
+    });
+
+    it('should return an INACTIVE document without a status filter', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const document = ownEmployeeDocument({
+        status: EmployeeModel.Status.INACTIVE,
+      });
+      const findByIdSpy = jest
+        .spyOn(employeeModelMock, 'findById')
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValueOnce(document),
+        });
+
+      const result = await sut.findOwnEmployee(String(document._id));
+
+      expect(findByIdSpy).toHaveBeenCalledWith(String(document._id));
+      expect(result).toEqual(mapEmployeeReadModel(document));
+      expect(result?.status).toBe(EmployeeModel.Status.INACTIVE);
+    });
+
+    it('should return a REMOVED document without a status filter', async () => {
+      const { sut, employeeModelMock } = makeSut();
+      const document = ownEmployeeDocument({
+        status: EmployeeModel.Status.REMOVED,
+      });
+      const findByIdSpy = jest
+        .spyOn(employeeModelMock, 'findById')
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValueOnce(document),
+        });
+
+      const result = await sut.findOwnEmployee(String(document._id));
+
+      expect(findByIdSpy).toHaveBeenCalledWith(String(document._id));
+      expect(result).toEqual(mapEmployeeReadModel(document));
+      expect(result?.status).toBe(EmployeeModel.Status.REMOVED);
     });
   });
 

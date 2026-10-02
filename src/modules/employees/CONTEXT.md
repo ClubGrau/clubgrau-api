@@ -6,15 +6,27 @@ Identity and lifecycle of a collaborator on the Club Grau platform. This context
 
 **Edit Collaborator**:
 The product surface that corrects an existing collaborator's data in sections (main, personal, professional). It is not one write of the whole record and never includes password.
-_Avoid_: update employee, update profile, patch, save all fields at once
+_Avoid_: update employee, update profile, patch, save all fields at once, Profile Card
+
+**Profile Card**:
+The product surface where a login-capable collaborator views and corrects their own Main Employee Data except email, plus Personal Employee Data, in one save. The Front loads it on demand, not from the collaborators list.
+_Avoid_: Edit Collaborator, update profile as a command name, hydrating from list, changing email here
+
+**Get Own Employee**:
+The query that returns the Actor's collaborator read model (same shape as a list item, without password) so the Profile Card can hydrate. The Actor must be login-capable. There is no other Target.
+_Avoid_: get employee by id, list, putting personal fields in the Session Token
+
+**Update Own Employee Data**:
+The command that corrects the Actor's own name, phone, username, and Personal Employee Data in one sparse PATCH. Username and Personal Employee Data clear to null when present and blank. Name and phone do not. Email, password, status, role, job title, and employment id are not written. Any login-capable role may call it, only on self. A successful save that includes `name` reissues the Session Token (same `sessionVersion`); the Front replaces the stored token.
+_Avoid_: Update Own Personal Data, Update Main Employee Data, Edit Collaborator, requiring email, path :id, operator matrix, treating blank username as a missing required field, Refresh Token, `remember`
 
 **Main Employee Data**:
 The primary identity fields of a collaborator: full name, email, phone, and username.
 _Avoid_: profile, personal information, professional information
 
 **Update Main Employee Data**:
-The command that corrects only the Main Employee Data fields present in the request. Omitted fields stay as they are. EMPLOYEE acts on nobody. MANAGER may edit only EMPLOYEE. ADMIN may edit any role, including self. The Target must not be Removed. Status, password, role, and personal/professional fields are unchanged. Email occupancy is the same as Create, except the Target's current email is not a collision.
-_Avoid_: Edit Collaborator as this command's name, update employee, update profile, steal an INACTIVE email, require the whole section
+The command that corrects only the Main Employee Data fields present in the request. Omitted fields stay as they are. Username present and blank or null clears to null. Name, email, and phone present and blank or null are refused. EMPLOYEE acts on nobody. MANAGER may edit only EMPLOYEE. ADMIN may edit any role, including self. The Target must not be Removed. Status, password, role, and personal/professional fields are unchanged. Email occupancy is the same as Create, except the Target's current email is not a collision.
+_Avoid_: Edit Collaborator as this command's name, update employee, update profile, steal an INACTIVE email, require the whole section, treating blank username as a missing required field
 
 **Personal Employee Data**:
 The personal profile fields of a collaborator: gender, languages, emergency contact, NIF, and address. All are optional and clearable to null. None is a login key or business identity anchor.
@@ -65,7 +77,7 @@ Replacement of personal data with sentinels, keeping `_id`, setting terminal sta
 _Avoid_: hard delete, erase identity, GDPR erase of the id
 
 **Actor**:
-The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data, Update Personal Employee Data, and Job Title on Update Professional Employee Data allow ADMIN on any Target and MANAGER on EMPLOYEE only. Changing Role is ADMIN-only.
+The login-capable collaborator identified by the session, never by the request body, who executes a command on a Target. Who may act depends on the command: Remove is ADMIN-only; Update Main Employee Data, Update Personal Employee Data, and Job Title on Update Professional Employee Data allow ADMIN on any Target and MANAGER on EMPLOYEE only; Update Own Employee Data and Get Own Employee allow any login-capable role on self only. Changing Role is ADMIN-only.
 _Avoid_: Target password, forged actorId, Actor must be ACTIVE-only
 
 **Login-capable**:
@@ -73,8 +85,8 @@ Status from which a collaborator may authenticate and hold a full session: `ACTI
 _Avoid_: isActive, enabled, not deactivated, ACTIVE-only session
 
 **Target**:
-The existing collaborator whose record a command addresses. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data, Update Personal Employee Data, and Update Professional Employee Data allow `ACTIVE`, `VACATION`, and `INACTIVE`, and refuse Removed. Changing role or job title of an `INACTIVE` Target does not Reactivate them. Remove still requires `INACTIVE`.
-_Avoid_: victim, user, account
+The existing collaborator whose record a command addresses, distinct from the Actor. Role and status constrain what is allowed; they do not identify the Actor. Update Main Employee Data, Update Personal Employee Data, and Update Professional Employee Data allow `ACTIVE`, `VACATION`, and `INACTIVE`, and refuse Removed. Changing role or job title of an `INACTIVE` Target does not Reactivate them. Remove still requires `INACTIVE`. Update Own Employee Data and Get Own Employee do not address a Target: the only record is the Actor's, and a collaborator who is not login-capable is an Actor without a session, not a refused Target.
+_Avoid_: victim, user, account, self as a Target on the Profile Card
 
 **Removed**:
 Terminal state after Anonymize. Absent from the collaborators list. The `employeeId` remains so other contexts can still point at that identity.

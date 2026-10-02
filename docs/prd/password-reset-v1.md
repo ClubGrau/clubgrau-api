@@ -207,7 +207,7 @@ These scenarios were walked during the grilling session. They are the rationale,
 
 **Why persist a hashed token, not a JWT in the link.** A signed link cannot be revoked on use or on a later request. A row (hash + expiry + owner) can.
 
-**Why no auto-login.** The email link must not be enough to obtain a Session Token. Login remains the only issuer; the person proves they know the new password.
+**Why no auto-login.** The email link must not be enough to obtain a Session Token. On this flow the person proves they know the new password at Login. A later Profile Card reissue ([ADR 0001](../adr/update-own-employee-data/0001-reissue-session-token-on-name-change.md)) is a different issuer and does not apply to the email link.
 
 **Why kill sessions on complete, not on Deactivate.** Reset’s threat is a stolen password or JWT. Deactivate/Remove revocation stays a sibling so this PRD does not swallow lifecycle session policy.
 
