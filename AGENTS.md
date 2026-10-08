@@ -51,6 +51,7 @@ domain ↛ application, presentation, infrastructure
 6. Other modules must **not** import a hexagon’s internal `domain`. Cross-module communication: ports/events.
 7. Shared VOs (`Name`, `Email`, `Password`, `Nif`, `UniqueEntityId`, …) live in `@shared/domain`.
 8. **Read models ≠ write snapshots** — list/get responses use application DTOs; do not reuse a persistence snapshot (e.g. `toCreate`) as HTTP output.
+9. **One port per operation (ISP).** Each inbound/outbound port declares a single method and lives in its own `kebab-case.port.ts` file. Do not group methods in a generic `XRepositoryPort`. The adapter (repository) implements many ports; each use case / query injects only the ports it consumes. Canonical reference: [`src/modules/employees/application/ports/outbound/`](src/modules/employees/application/ports/outbound/) (`FindEmployeeByIdPort`, `UpdateEmployeeStatusRepositoryPort`, …) and `EmployeeMongooseRepository` implementing 14 ports.
 
 ### CQRS (organizational)
 
@@ -196,6 +197,7 @@ Never call the repository directly from the controller.
 | Use `@modules` / `@shared` aliases | Deep `../../../` imports across packages |
 | Keep controllers Express-free | `import 'express'` in `presentation/` |
 | Update the module AGENT.md on contract changes | Log every cosmetic rename in the docs |
+| One interface (one method) per file in `application/ports/` | Aggregator `*RepositoryPort` interfaces with multiple methods |
 
 ---
 
