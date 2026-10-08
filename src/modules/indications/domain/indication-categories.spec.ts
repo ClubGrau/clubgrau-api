@@ -2,6 +2,10 @@ import {
   InvalidUniqueEntityIdError,
   UniqueEntityId,
 } from '@shared/domain/value-object';
+import {
+  IndicationCategoryDoesNotHoldOriginsError,
+  IndicationCategoryUnknownError,
+} from './errors/indication.errors';
 import { IndicationCategories } from './indication-categories';
 
 describe('IndicationCategories', () => {
@@ -36,6 +40,27 @@ describe('IndicationCategories', () => {
   it('returns nothing for an unknown id', () => {
     expect(IndicationCategories.find('instagram')).toBeUndefined();
     expect(IndicationCategories.find('')).toBeUndefined();
+  });
+
+  describe('requireHoldingOrigins', () => {
+    it.each(['canal', 'campanha'] as const)(
+      'returns %s when the category holds origins',
+      (id) => {
+        expect(IndicationCategories.requireHoldingOrigins(id).id).toBe(id);
+      },
+    );
+
+    it('rejects an unknown id', () => {
+      expect(() =>
+        IndicationCategories.requireHoldingOrigins('unknown'),
+      ).toThrow(IndicationCategoryUnknownError);
+    });
+
+    it('rejects amigo', () => {
+      expect(() => IndicationCategories.requireHoldingOrigins('amigo')).toThrow(
+        IndicationCategoryDoesNotHoldOriginsError,
+      );
+    });
   });
 
   it('treats category ids as codes, not entity ids', () => {

@@ -1,10 +1,7 @@
 import { Entity } from '@shared/domain/entity/entity';
 import { UniqueEntityId } from '@shared/domain/value-object/id/unique-entity-id.vo';
 import { Name } from '@shared/domain/value-object';
-import type {
-  IndicationOriginInterval,
-  IndicationOriginSnapshot,
-} from '../models/indication-origin.model';
+import type { IndicationOriginInterval } from '../models/indication-origin.model';
 
 type OriginCategoryId = 'canal' | 'campanha';
 
@@ -38,8 +35,8 @@ export class IndicationOrigin extends Entity<IndicationOriginProps> {
     super(props, id);
   }
 
-  static nameKeyFrom(name: Name): string {
-    return name.value.toLowerCase();
+  static nameKeyFrom(name: string): string {
+    return IndicationOrigin.nameKeyFromName(Name.create(name));
   }
 
   static create(input: CreateIndicationOriginProps): IndicationOrigin {
@@ -49,7 +46,7 @@ export class IndicationOrigin extends Entity<IndicationOriginProps> {
     return new IndicationOrigin({
       categoryId: input.categoryId,
       name: inputName,
-      nameKey: IndicationOrigin.nameKeyFrom(inputName),
+      nameKey: IndicationOrigin.nameKeyFromName(inputName),
       position: input.position,
       createdAt,
       intervals: [{ from: createdAt, to: null }],
@@ -81,13 +78,14 @@ export class IndicationOrigin extends Entity<IndicationOriginProps> {
     );
   }
 
-  correctName(name: Name): boolean {
-    const nameKey = IndicationOrigin.nameKeyFrom(name);
+  correctName(name: string): boolean {
+    const nextName = Name.create(name);
+    const nameKey = IndicationOrigin.nameKeyFromName(nextName);
     if (nameKey === this.props.nameKey) {
       return false;
     }
 
-    this.props.name = name;
+    this.props.name = nextName;
     this.props.nameKey = nameKey;
     return true;
   }
@@ -143,16 +141,8 @@ export class IndicationOrigin extends Entity<IndicationOriginProps> {
     return this.props.intervals.at(-1)?.to === null;
   }
 
-  toPersistence(): IndicationOriginSnapshot {
-    return {
-      id: this.id,
-      categoryId: this.categoryId,
-      name: this.name.value,
-      nameKey: this.nameKey,
-      position: this.position,
-      createdAt: this.createdAt,
-      intervals: this.intervals,
-    };
+  private static nameKeyFromName(name: Name): string {
+    return name.value.toLowerCase();
   }
 
   private static assertStorableCategory(

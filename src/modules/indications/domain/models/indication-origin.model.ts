@@ -1,14 +1,9 @@
+import type { IndicationOrigin } from '../entities/IndicationOrigin';
+
 export type IndicationOriginInterval = {
   from: Date;
   to: Date | null;
 };
 
-export type IndicationOriginSnapshot = {
-  id: string;
-  categoryId: 'canal' | 'campanha';
-  name: string;
-  nameKey: string;
-  position: number;
-  createdAt: Date;
-  intervals: IndicationOriginInterval[];
-};
+/** Snapshot serializado da entidade (persistência / ports de saída). */
+export type IndicationOriginSnapshot = ReturnType<IndicationOrigin['toJSON']>;

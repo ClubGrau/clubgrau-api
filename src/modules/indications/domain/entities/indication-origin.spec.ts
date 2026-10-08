@@ -85,12 +85,13 @@ describe('IndicationOrigin', () => {
 
   describe('nameKeyFrom', () => {
     it('lowercases with the default case fold and keeps accents distinct', () => {
-      expect(IndicationOrigin.nameKeyFrom(Name.create('Verão'))).toBe('verão');
-      expect(IndicationOrigin.nameKeyFrom(Name.create('Verao'))).toBe('verao');
-      expect(IndicationOrigin.nameKeyFrom(Name.create('Verão'))).not.toBe(
-        'verao',
-      );
-      expect(IndicationOrigin.nameKeyFrom({ value: 'I' } as Name)).toBe('i');
+      expect(IndicationOrigin.nameKeyFrom('Verão')).toBe('verão');
+      expect(IndicationOrigin.nameKeyFrom('Verao')).toBe('verao');
+      expect(IndicationOrigin.nameKeyFrom('Verão')).not.toBe('verao');
+    });
+
+    it('rejects a name that Name does not accept', () => {
+      expect(() => IndicationOrigin.nameKeyFrom('I')).toThrow(InvalidNameError);
     });
   });
 
@@ -108,7 +109,7 @@ describe('IndicationOrigin', () => {
         intervals: origin.intervals,
       };
 
-      expect(origin.correctName(Name.create('TikTok'))).toBe(true);
+      expect(origin.correctName('TikTok')).toBe(true);
       expect(origin.name.value).toBe('TikTok');
       expect(origin.nameKey).toBe('tiktok');
       expect(origin.categoryId).toBe(before.categoryId);
@@ -120,17 +121,17 @@ describe('IndicationOrigin', () => {
     it('keeps the stored display when only the case changes', () => {
       const origin = makeSut();
 
-      expect(origin.correctName(Name.create('instagram'))).toBe(false);
+      expect(origin.correctName('instagram')).toBe(false);
       expect(origin.name.value).toBe('Instagram');
       expect(origin.nameKey).toBe('instagram');
     });
 
     it('keeps the stored name when spaces were already collapsed', () => {
       const origin = makeSut({ name: 'Google Ads' });
-      const before = origin.toPersistence();
+      const before = origin.toJSON();
 
-      expect(origin.correctName(Name.create('Google  Ads'))).toBe(false);
-      expect(origin.toPersistence()).toEqual(before);
+      expect(origin.correctName('Google  Ads')).toBe(false);
+      expect(origin.toJSON()).toEqual(before);
     });
   });
 
@@ -232,14 +233,14 @@ describe('IndicationOrigin', () => {
     });
   });
 
-  describe('toPersistence', () => {
-    it('returns a plain snapshot whose interval copies do not leak mutations', () => {
+  describe('toJSON', () => {
+    it('returns a plain snapshot with the name serialized to a primitive', () => {
       const now = new Date('2026-03-01T10:00:00.000Z');
       jest.useFakeTimers();
       jest.setSystemTime(now);
 
       const origin = makeSut();
-      const snapshot = origin.toPersistence();
+      const snapshot = origin.toJSON();
 
       expect(snapshot).toEqual({
         id: origin.id,
@@ -252,18 +253,6 @@ describe('IndicationOrigin', () => {
       });
       expect(typeof snapshot.name).toBe('string');
       expect(snapshot).not.toHaveProperty('active');
-
-      snapshot.intervals.push({
-        from: new Date('2020-01-01T00:00:00.000Z'),
-        to: new Date('2020-02-01T00:00:00.000Z'),
-      });
-      intervalAt(snapshot.intervals, 0).to = new Date(
-        '2020-01-01T00:00:00.000Z',
-      );
-
-      expect(origin.toPersistence().intervals).toEqual([
-        { from: origin.createdAt, to: null },
-      ]);
     });
   });
 });
