@@ -1,5 +1,6 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjcxMmMyOGQyMDVhN2JkNDg3MDYwYjVhNiIsIm5hbWUiOiJKb2huIERvZSIsImVtYWlsIjoiZ3JhdWJhcmJlcmNsdWJAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwic2Vzc2lvblZlcnNpb24iOjAsImlhdCI6MTc4OTE3MDY3OCwiZXhwIjoyOTk4NzcwNjc4fQ.UfhtfOdAd9RLqQSm0VSs8Xu2ztsLM4TBNHml53iiidw
 @employeeToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImM4ZDU2NzQ5YTY4ZDFhMDQ1OTA0N2UzZiIsIm5hbWUiOiJRQSBFbXBsb3llZSBPbmUiLCJlbWFpbCI6InFhLmUxLnAwQGV4YW1wbGUuY29tIiwicm9sZSI6IkVNUExPWUVFIiwic3RhdHVzIjoiQUNUSVZFIiwiaWF0IjoxNzg3OTYyNjYyLCJleHAiOjI5OTc1NjI2NjJ9.uH6n6cV3gFYJKuubA4B8IuZrzezKyOSEV_LkM9_7Aks
+@prodToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjcxMmMyOGQyMDVhN2JkNDg3MDYwYjVhNiIsIm5hbWUiOiJKb2huIERvZSIsImVtYWlsIjoiZ3JhdWJhcmJlcmNsdWJAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwic2Vzc2lvblZlcnNpb24iOjAsImlhdCI6MTc5MDczMzU5NiwiZXhwIjozMDAwMzMzNTk2fQ.Vy9r9FLt2UMKEMIqKX0twah3gS8QA9OfQNksmAlH194
 
 ### Create employee
 # Requer role ADMIN ou MANAGER (requireRoles). EMPLOYEE → 403.
@@ -32,6 +33,10 @@ Authorization: Bearer {{employeeToken}}
 # Requer role ADMIN ou MANAGER (requireRoles). EMPLOYEE → 403.
 GET http://localhost:3003/api/employees
 Authorization: Bearer {{token}}
+
+### List employees (production)
+GET https://clubgrau-api.onrender.com/api/employees
+Authorization: Bearer {{prodToken}}
 
 ### List employees (pagination)
 GET http://localhost:3003/api/employees?page=1&limit=20
@@ -220,6 +225,64 @@ Authorization: Bearer {{token}}
   "jobTitle": "Barbeiro",
   "role": "EMPLOYEE",
   "status": "ACTIVE"
+}
+
+### Get own employee (profile card)
+# Actor é o Bearer token (adaptRoute stampa actorId). Não há :id e não enviar actorId no body.
+# Sem requireRoles: EMPLOYEE, MANAGER e ADMIN login-capable leem a si mesmos.
+# Sucesso: 200 com o read model da listagem (sem password).
+GET http://localhost:3003/api/employee/me
+Authorization: Bearer {{token}}
+
+### Update own employee data (phone)
+# Actor é o Bearer token. Não há :id e não enviar id ou actorId no body.
+# Presença esparsa: só as chaves graváveis presentes são alteradas.
+# Chaves ignoradas (email, status, password, role, jobTitle, employmentId, id) não contam.
+# {} ou só email → 400. name ou phone em branco (null, "" ou só whitespace) → 400.
+# Sem name no body, o 200 é { data } — sem chave token.
+# Estas duas rotas não usam requireRoles.
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "phone": "+351 912 345 678"
+}
+
+### Update own employee data (clear username)
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "username": ""
+}
+
+### Update own employee data (clear nif)
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "nif": null
+}
+
+### Update own employee data (all eight fields)
+# O body inclui name: o 200 é { data, token }. O Front substitui o Session Token guardado.
+# sessionVersion não muda; o token anterior continua válido até expirar.
+PATCH http://localhost:3003/api/employee/me
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "João Silva",
+  "phone": "+351 912 345 678",
+  "username": "joao",
+  "gender": "male",
+  "languages": "Português",
+  "emergencyContact": "+351 912 345 678",
+  "nif": "123456789",
+  "address": "Rua do Grau, 10, Lisboa"
 }
 
 ### Remove employee (anonymize)
