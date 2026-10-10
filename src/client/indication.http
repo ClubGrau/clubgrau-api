@@ -1,0 +1,78 @@
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjcxMmMyOGQyMDVhN2JkNDg3MDYwYjVhNiIsIm5hbWUiOiJKb2huIERvZSIsImVtYWlsIjoiZ3JhdWJhcmJlcmNsdWJAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwic3RhdHVzIjoiQUNUSVZFIiwic2Vzc2lvblZlcnNpb24iOjAsImlhdCI6MTc4OTE3MDY3OCwiZXhwIjoyOTk4NzcwNjc4fQ.UfhtfOdAd9RLqQSm0VSs8Xu2ztsLM4TBNHml53iiidw
+@originId = 507f1f77bcf86cd799439011
+
+### Get indication catalog
+# Requer role ADMIN ou MANAGER. EMPLOYEE → 403. Sem token → 401.
+# O actor é o Bearer; nenhum body leva actorId.
+# Collection vazia: Canal, Campanha, Amigo, cada um com origins: [].
+GET http://localhost:3003/api/indication-catalog
+Authorization: Bearer {{token}}
+
+### Create channel origin
+# :id da resposta vai para {{originId}} nos requests seguintes.
+# Chaves desconhecidas (position, active) são ignoradas.
+POST http://localhost:3003/api/indication-origin
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "canal",
+  "name": "Facebook"
+}
+
+### Create campaign origin
+POST http://localhost:3003/api/indication-origin
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "campanha",
+  "name": "Verão"
+}
+
+### Correct origin name
+# :id é o path. Um id no body é ignorado (o path vence no adaptRoute).
+PATCH http://localhost:3003/api/indication-origin/{{originId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Instagram Ads"
+}
+
+### End origin
+# Sem body. O origin permanece no catálogo com active: false.
+POST http://localhost:3003/api/indication-origin/{{originId}}/end
+Authorization: Bearer {{token}}
+
+### Reopen origin
+# Sem body. Segundo reopen do mesmo origin → 200, sem novo interval.
+POST http://localhost:3003/api/indication-origin/{{originId}}/reopen
+Authorization: Bearer {{token}}
+
+### Create origin — Amigo (expect 400)
+# categoryId "amigo" não guarda origins. Sem write.
+# categoryId desconhecido também → 400.
+POST http://localhost:3003/api/indication-origin
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "amigo",
+  "name": "João"
+}
+
+### Create origin — name already reserved (expect 409)
+# Segundo create com o mesmo nome na mesma categoria, qualquer case → 409.
+# O mesmo nome na outra categoria → 201.
+POST http://localhost:3003/api/indication-origin
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "categoryId": "canal",
+  "name": "facebook"
+}
+
+### Get catalog — unauthenticated (expect 401)
+GET http://localhost:3003/api/indication-catalog
