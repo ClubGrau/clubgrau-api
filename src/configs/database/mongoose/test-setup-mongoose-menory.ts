@@ -2,9 +2,13 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 export const setupMongoMemoryServer = () => {
-  let mongo: MongoMemoryServer;
+  let mongo: MongoMemoryServer | undefined;
   beforeAll(async () => {
-    mongo = await MongoMemoryServer.create();
+    mongo = await MongoMemoryServer.create({
+      instance: {
+        launchTimeout: 60_000,
+      },
+    });
     const uri = mongo.getUri();
     await mongoose.connect(uri);
   });
@@ -20,6 +24,6 @@ export const setupMongoMemoryServer = () => {
 
   afterAll(async () => {
     await mongoose.disconnect();
-    await mongo.stop();
+    await mongo?.stop();
   });
 };

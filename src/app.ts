@@ -7,6 +7,7 @@ import {
   makeActorAuthenticationFailedError,
   makeEmployeesModule,
 } from '@modules/employees/employees.module';
+import { makeIndicationsModule } from '@modules/indications/indications.module';
 import { BcryptAdapter } from '@shared/infrastructure/adapters/bcrypt/bcrypt.adapter';
 import { ResendMailerAdapter } from '@shared/infrastructure/adapters/resend/resend-mailer.adapter';
 import middlewares from '@shared/infrastructure/adapters/http/middlewares';
@@ -45,8 +46,15 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     authTokenMiddleware: auth.authTokenMiddleware,
   });
 
+  const indications = makeIndicationsModule({
+    connection,
+    authTokenMiddleware: auth.authTokenMiddleware,
+    makeRequireRoles: auth.makeRequireRoles,
+  });
+
   app.use('/api', employees.router);
   app.use('/api', customers.router);
+  app.use('/api', indications.router);
   app.use('/auth', auth.router);
 
   return app;
