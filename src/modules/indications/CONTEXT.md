@@ -21,7 +21,7 @@ An origin in Campanha. None are born with the system.
 _Avoid_: Campanha Cristianinho, Campanha Verão, as product defaults
 
 **Friend**:
-The category Amigo. It has no origins. A later context records that one customer referred another; this catalog only keeps the category.
+The category Amigo. It has no origins. The Customers context records which customer referred another (its Referrer); this catalog only keeps the category.
 _Avoid_: a typed name in Amigo, Nova indicação into Amigo, a friend row in this version
 
 **End**:
@@ -31,6 +31,10 @@ _Avoid_: delete, exclude, hide from the catalog
 **Reopen**:
 The ended origin is offered again, same record. Reopening an origin that is already active changes nothing.
 _Avoid_: create again, undelete
+
+**Linkable origin**:
+An active origin of Canal or Campanha, offered to an operator who is registering a customer. Any authenticated collaborator may read the linkable origins; the full catalog stays with ADMIN and MANAGER. Amigo never appears, because it holds no origins.
+_Avoid_: catalog as a synonym, ended origin in the picker, category in this read
 
 **Correct the name**:
 The origin keeps its id and its category and receives a new name. The previous name is no longer reserved. The new name must still be free inside that category, including names held by ended origins. Correcting to the name the origin already has changes nothing.
