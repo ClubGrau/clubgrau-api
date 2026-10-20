@@ -26,6 +26,20 @@ describe('CreateCustomerDto', () => {
     expect(dto.phone).toBe('+351 912 345 678');
     expect(dto.nif).toBe(123456789);
   });
+
+  it('should accept an optional indication with categoryId', () => {
+    const dto: CreateCustomerDto = {
+      name: 'John Doe',
+      email: 'john@example.com',
+      indication: {
+        categoryId: 'canal',
+        originId: '507f1f77bcf86cd799439011',
+        referrerCustomerId: null,
+      },
+    };
+
+    expect(dto.indication?.categoryId).toBe('canal');
+  });
 });
 
 describe('CreateCustomerResultDto', () => {
