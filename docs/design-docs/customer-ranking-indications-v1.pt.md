@@ -558,6 +558,8 @@ Siga os passos de novo comando e nova query do [`AGENTS.md`](../../AGENTS.md). U
 
 `1` e `2` precisam de `0`. `3` precisa de `2`. `4` é independente de `0` a `3`, exceto que o adapter implementa a porta da `2`. `5` precisa de `2`, `3` e `4`.
 
+Contratos de implementação: [`docs/specs/customer-ranking-indications/`](../specs/customer-ranking-indications/README.md).
+
 ---
 
 ## 15. Notas da entrevista (grilling de backend)

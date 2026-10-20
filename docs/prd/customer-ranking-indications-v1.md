@@ -3,7 +3,7 @@
 **Product Requirements Document**
 **Date:** 15/10/2026 | **Status:** Draft, aligned in grilling session | **Version:** 1.0
 
-**Related:** [`indication-catalog-v1.md`](indication-catalog-v1.md) (catalog of origins), [`docs/specs/create-customer.md`](../specs/create-customer.md) (Create Customer Part 1)
+**Related:** [`indication-catalog-v1.md`](indication-catalog-v1.md) (catalog of origins), [`docs/specs/create-customer.md`](../specs/create-customer.md) (Create Customer Part 1), [`docs/specs/customer-ranking-indications/`](../specs/customer-ranking-indications/README.md) (implementation specs)
 **Glossary:** the catalog terms (Category, Origin, End, Reopen) live in [`src/modules/indications/CONTEXT.md`](../../src/modules/indications/CONTEXT.md). A `CONTEXT.md` for `customers` (Rank, Indication, Referrer) is created together with the design doc.
 
 This document specifies how a **customer is born** in the API: with a **rank** (always Bronze) and, optionally, with one **indication** (Canal, Campanha, or Amigo). It does **not** specify how a customer climbs to Silver or Gold, nor how customers are listed or read.

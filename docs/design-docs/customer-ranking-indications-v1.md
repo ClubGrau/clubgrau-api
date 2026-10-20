@@ -558,6 +558,8 @@ Follow [`AGENTS.md`](../../AGENTS.md) new-command and new-query steps. One slice
 
 `1` and `2` need `0`. `3` needs `2`. `4` is independent of `0` to `3`, except that the adapter implements the port from `2`. `5` needs `2`, `3`, and `4`.
 
+Implementation contracts: [`docs/specs/customer-ranking-indications/`](../specs/customer-ranking-indications/README.md).
+
 ---
 
 ## 15. Interview notes (backend grilling)

@@ -213,7 +213,7 @@ This API has no `404`.
 
 ### Implementation order
 
-Slices `0` to `3` of the design doc belong to this module, in this order: domain, persistence, application, HTTP. Slice `4` (linkable origins and the lookup adapter) belongs to `indications`. Slice `5` wires everything and moves the rows of this section into `Current contract`.
+Slices `0` to `3` of the design doc belong to this module, in this order: domain, persistence, application, HTTP. Slice `4` (linkable origins and the lookup adapter) belongs to `indications`. Slice `5` wires everything and moves the rows of this section into `Current contract`. Specs: [`docs/specs/customer-ranking-indications/`](../../../docs/specs/customer-ranking-indications/README.md).
 
 ---
 
