@@ -8,6 +8,8 @@ import {
   Nif,
   Phone,
 } from '@shared/domain/value-object';
+import { CustomerIndicationInvalidError } from '../errors/customer.errors';
+import { Indication } from '../value-objects/indication.vo';
 import { Customer } from './Customer';
 import type { ReconstituteCustomerProps } from './Customer';
 
@@ -18,15 +20,19 @@ const makeValidProps = () => ({
   email: 'john@example.com',
 });
 
+const ORIGIN_ID = '507f1f77bcf86cd799439011';
+
 const makeSnapshot = (
   overrides: Partial<ReconstituteCustomerProps> = {},
 ): ReconstituteCustomerProps => ({
-  id: '507f1f77bcf86cd799439011',
+  id: ORIGIN_ID,
   name: Name.create('Jane Doe'),
   email: Email.create('jane@example.com'),
   phone: null,
   nif: null,
   createdAt: new Date(),
+  rank: 'BRONZE',
+  indication: null,
   ...overrides,
 });
 
@@ -42,7 +48,40 @@ describe('Customer (entity)', () => {
       expect(json.email).toBe('john@example.com');
       expect(json.phone).toBeNull();
       expect(json.nif).toBeNull();
+      expect(json.rank).toBe('BRONZE');
+      expect(json.indication).toBeNull();
       expect(json.createdAt).toBeInstanceOf(Date);
+    });
+
+    it('should create with a valid origin indication and remain Bronze', () => {
+      const customer = Customer.create({
+        ...makeValidProps(),
+        indication: {
+          categoryId: 'canal',
+          originId: ORIGIN_ID,
+          referrerCustomerId: null,
+        },
+      });
+
+      expect(customer.toJSON().rank).toBe('BRONZE');
+      expect(customer.toJSON().indication).toEqual({
+        categoryId: 'canal',
+        originId: ORIGIN_ID,
+      });
+    });
+
+    it('should throw for an invalid indication and not return a customer', () => {
+      expect(() =>
+        Customer.create({
+          ...makeValidProps(),
+          indication: { categoryId: 'canal' },
+        }),
+      ).toThrow(CustomerIndicationInvalidError);
+    });
+
+    it('should not accept rank on create input', () => {
+      const customer = Customer.create(makeValidProps());
+      expect(customer.rank).toBe('BRONZE');
     });
 
     it('should return a fully plain object from toJSON()', () => {
@@ -123,6 +162,28 @@ describe('Customer (entity)', () => {
       expect(json.phone).toBe('351912345678');
       expect(json.nif).toBe('123456789');
       expect(json.createdAt).toBe(createdAt);
+    });
+
+    it('should round-trip rank and null indication', () => {
+      const customer = Customer.reconstitute(
+        makeSnapshot({ rank: 'SILVER', indication: null }),
+      );
+
+      expect(customer.toJSON().rank).toBe('SILVER');
+      expect(customer.toJSON().indication).toBeNull();
+    });
+
+    it('should round-trip a reconstituted indication', () => {
+      const indication = Indication.reconstitute({
+        categoryId: 'amigo',
+        referrerCustomerId: '507f1f77bcf86cd799439012',
+      });
+
+      const customer = Customer.reconstitute(
+        makeSnapshot({ indication, rank: 'GOLD' }),
+      );
+
+      expect(customer.toJSON().indication).toEqual(indication.toJSON());
     });
   });
 

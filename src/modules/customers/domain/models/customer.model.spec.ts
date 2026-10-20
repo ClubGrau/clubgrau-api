@@ -15,6 +15,8 @@ describe('CustomerModel.toCreate', () => {
     expect(toCreate.email).toBe('john@example.com');
     expect(toCreate.phone).toBeNull();
     expect(toCreate.nif).toBeNull();
+    expect(toCreate.rank).toBe('BRONZE');
+    expect(toCreate.indication).toBeNull();
     expect(toCreate.createdAt).toBeInstanceOf(Date);
   });
 });
