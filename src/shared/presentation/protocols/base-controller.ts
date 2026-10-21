@@ -4,11 +4,12 @@ export abstract class BaseController<Req, Res> {
   abstract handle(request: Req): Promise<HttpResponse<Res>>;
 
   protected validationRequiredFields(
-    request: Req,
+    request: object,
     requiredFields: string[],
   ): string | null {
+    const fields = request as Record<string, unknown>;
     for (const field of requiredFields) {
-      if (!request[field as keyof Req]) {
+      if (!fields[field]) {
         return field;
       }
     }

@@ -39,3 +39,96 @@ Content-Type: application/json
   "name": "No Auth",
   "email": "no.auth@example.com"
 }
+
+### Create customer — channel indication (expect 201)
+# Indicação de canal. Rank gravado é Bronze.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Ana Canal",
+  "email": "ana.canal@example.com",
+  "indication": {
+    "categoryId": "canal",
+    "originId": "507f1f77bcf86cd799439011"
+  }
+}
+
+### Create customer — friend indication (expect 201)
+# Indicação de amigo.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pedro Amigo",
+  "email": "pedro.amigo@example.com",
+  "indication": {
+    "categoryId": "amigo",
+    "referrerCustomerId": "507f1f77bcf86cd799439012"
+  }
+}
+
+### Create customer — walk-in (expect 201)
+# indication null: sem link.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Walk In",
+  "email": "walk.in@example.com",
+  "indication": null
+}
+
+### Create customer — rank ignored (expect 201)
+# "rank" no corpo é ignorado. Rank gravado é Bronze.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Rank Ignored",
+  "email": "rank.ignored@example.com",
+  "rank": "GOLD"
+}
+
+### Create customer — indication as string (expect 400)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bad Indication",
+  "email": "bad.indication@example.com",
+  "indication": "instagram"
+}
+
+### Create customer — indication without categoryId (expect 400)
+# Campo ausente: indication.categoryId. indication: {} tem o mesmo 400.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "No Category",
+  "email": "no.category@example.com",
+  "indication": {}
+}
+
+### Create customer — indication with originId and no categoryId (expect 400)
+# Campo ausente: indication.categoryId.
+# Categoria desconhecida, origem encerrada e referrer desconhecido → 400.
+# Email já usado → 409.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Origin Without Category",
+  "email": "origin.without.category@example.com",
+  "indication": {
+    "originId": "507f1f77bcf86cd799439011"
+  }
+}
