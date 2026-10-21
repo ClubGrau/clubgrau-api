@@ -76,3 +76,10 @@ Authorization: Bearer {{token}}
 
 ### Get catalog — unauthenticated (expect 401)
 GET http://localhost:3003/api/indication-catalog
+
+### Linkable origins
+# Qualquer colaborador autenticado, inclusive EMPLOYEE. Sem requireRoles.
+# Só origens ativas de Canal e Campanha, Canal primeiro. Sem ativos → origins: [].
+# Não devolve categorias, ended, active, nem position.
+GET http://localhost:3003/api/indication-linkable-origins
+Authorization: Bearer {{token}}

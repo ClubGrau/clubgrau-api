@@ -3,6 +3,7 @@ import { CorrectIndicationOriginNameController } from '@modules/indications/pres
 import { CreateIndicationOriginController } from '@modules/indications/presentation/controllers/create-indication-origin.controller';
 import { EndIndicationOriginController } from '@modules/indications/presentation/controllers/end-indication-origin.controller';
 import { GetIndicationCatalogController } from '@modules/indications/presentation/controllers/get-indication-catalog.controller';
+import { GetLinkableIndicationOriginsController } from '@modules/indications/presentation/controllers/get-linkable-indication-origins.controller';
 import { ReopenIndicationOriginController } from '@modules/indications/presentation/controllers/reopen-indication-origin.controller';
 import { adaptRoute } from '@shared/infrastructure/adapters/http/express-route.adapter';
 
@@ -12,6 +13,7 @@ export type IndicationRoutesDependencies = {
   correctIndicationOriginNameController: CorrectIndicationOriginNameController;
   endIndicationOriginController: EndIndicationOriginController;
   reopenIndicationOriginController: ReopenIndicationOriginController;
+  getLinkableIndicationOriginsController: GetLinkableIndicationOriginsController;
   authTokenMiddleware: RequestHandler;
   requireRoles: (...roles: string[]) => RequestHandler;
 };
@@ -22,6 +24,7 @@ export function makeIndicationRoutes({
   correctIndicationOriginNameController,
   endIndicationOriginController,
   reopenIndicationOriginController,
+  getLinkableIndicationOriginsController,
   authTokenMiddleware,
   requireRoles,
 }: IndicationRoutesDependencies): Router {
@@ -57,6 +60,11 @@ export function makeIndicationRoutes({
     authTokenMiddleware,
     requiredRole,
     adaptRoute(reopenIndicationOriginController),
+  );
+  router.get(
+    '/indication-linkable-origins',
+    authTokenMiddleware,
+    adaptRoute(getLinkableIndicationOriginsController),
   );
 
   return router;
