@@ -55,6 +55,32 @@ describe('Indication', () => {
       expect(indication.toJSON()).not.toHaveProperty('originId');
     });
 
+    it('builds canal when referrerCustomerId is omitted', () => {
+      const indication = Indication.create({
+        categoryId: 'canal',
+        originId: ORIGIN_ID,
+      });
+
+      expect(indication.toJSON()).toEqual({
+        categoryId: 'canal',
+        originId: ORIGIN_ID,
+      });
+      expect(indication.toJSON()).not.toHaveProperty('referrerCustomerId');
+    });
+
+    it('builds amigo when originId is omitted', () => {
+      const indication = Indication.create({
+        categoryId: 'amigo',
+        referrerCustomerId: REFERRER_ID,
+      });
+
+      expect(indication.toJSON()).toEqual({
+        categoryId: 'amigo',
+        referrerCustomerId: REFERRER_ID,
+      });
+      expect(indication.toJSON()).not.toHaveProperty('originId');
+    });
+
     it.each(['unknown', '', 'CANAL'])(
       'rejects invalid categoryId %s',
       (categoryId) => {

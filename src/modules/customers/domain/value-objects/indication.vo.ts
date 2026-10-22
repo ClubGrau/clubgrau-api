@@ -28,8 +28,8 @@ type IndicationProps = OriginIndicationProps | FriendIndicationProps;
 const VALID_CATEGORY_IDS = ['canal', 'campanha', 'amigo'] as const;
 type ValidCategoryId = (typeof VALID_CATEGORY_IDS)[number];
 
-function isAbsent(value: unknown): value is null {
-  return value === null;
+function isAbsent(value: unknown): value is null | undefined {
+  return value === null || value === undefined;
 }
 
 function isValidCategoryId(value: string): value is ValidCategoryId {
