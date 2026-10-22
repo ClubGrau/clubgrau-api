@@ -1,6 +1,7 @@
 import { Connection } from 'mongoose';
 import { RequestHandler, Router } from 'express';
 import { CreateCustomerPort } from '@modules/customers/application/ports/inbound/create-customer.port';
+import { FindIndicationOriginPort } from '@modules/customers/application/ports/outbound/find-indication-origin.port';
 import { CreateCustomerUsecase } from '@modules/customers/application/usecases/create-customer.usecase';
 import { CustomerPoliciesService } from '@modules/customers/domain/services/customer-policies.service';
 import { makeCustomerRoutes } from '@modules/customers/infrastructure/inbound/http/customer.routes';
@@ -17,11 +18,13 @@ export type CustomersModule = {
 type CustomersModuleDeps = {
   connection: Connection;
   authTokenMiddleware: RequestHandler;
+  findIndicationOrigin: FindIndicationOriginPort;
 };
 
 export function makeCustomersModule({
   connection,
   authTokenMiddleware,
+  findIndicationOrigin,
 }: CustomersModuleDeps): CustomersModule {
   const customerModel = connection.model('Customer', CustomerSchema);
   const customerRepository = new CustomerMongooseRepository(customerModel);
@@ -31,6 +34,8 @@ export function makeCustomersModule({
 
   const createCustomer: CreateCustomerPort = new CreateCustomerUsecase(
     customerPoliciesService,
+    findIndicationOrigin,
+    customerRepository,
     customerRepository,
   );
 
