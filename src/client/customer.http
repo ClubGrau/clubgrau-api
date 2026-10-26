@@ -1,5 +1,26 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg0NTE0NTM2LCJleHAiOjI5OTQxMTQ1MzZ9.Qy5lhio_PzW2PQRPL5W_00CnTMwuNrj8Ox1eQkVoy6A
 
+### List customers
+# Qualquer employee autenticado (authTokenMiddleware). Sem requireRoles.
+# Paginação offset: page (1-based, default 1), limit (default 20, max 100).
+# Filtros opcionais: rank (BRONZE|SILVER|GOLD), search (name/email/phone/nif).
+# 200 { data: { customers, page, limit, total, totalPages } }
+# indication.name = origem (canal/campanha) ou customer que indicou (amigo); null se o id não tiver linha.
+GET http://localhost:3003/api/customers
+Authorization: Bearer {{token}}
+
+### List customers (pagination)
+GET http://localhost:3003/api/customers?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### List customers (filters + pagination)
+GET http://localhost:3003/api/customers?rank=BRONZE&search=maria&page=2&limit=10
+Authorization: Bearer {{token}}
+
+### List customers (invalid rank — expect 400)
+GET http://localhost:3003/api/customers?rank=bronze
+Authorization: Bearer {{token}}
+
 ### Create customer (required fields only)
 POST http://localhost:3003/api/customer
 Content-Type: application/json

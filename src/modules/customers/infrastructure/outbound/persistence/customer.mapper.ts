@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { FindCustomersItem } from '@modules/customers/application/dtos/get-customers.dto';
 import { CustomerModel } from '@modules/customers/domain/models/customer.model';
 import { IndicationSnapshot } from '@modules/customers/domain/value-objects/indication.vo';
 import { CustomerDocument } from './customer.schema';
@@ -38,6 +39,22 @@ function mapIndicationToDocument(
   return {
     categoryId: indication.categoryId,
     originId: new mongoose.Types.ObjectId(indication.originId),
+  };
+}
+
+/** Maps a lean Mongoose document to the GetCustomers read row (ids only). */
+export function mapCustomerReadModel(
+  document: CustomerDocument,
+): FindCustomersItem {
+  return {
+    id: String(document._id),
+    name: document.name,
+    email: document.email,
+    phone: document.phone ?? null,
+    nif: document.nif != null ? String(document.nif) : null,
+    createdAt: document.createdAt ?? new Date(0),
+    rank: document.rank,
+    indication: mapIndicationFromDocument(document.indication),
   };
 }
 

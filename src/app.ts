@@ -51,6 +51,7 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     connection,
     authTokenMiddleware: auth.authTokenMiddleware,
     findIndicationOrigin: indications.findIndicationOrigin,
+    findIndicationOriginNamesByIds: indications.findIndicationOriginNamesByIds,
   });
 
   app.use('/api', employees.router);
