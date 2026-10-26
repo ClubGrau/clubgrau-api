@@ -133,6 +133,7 @@ Use aliases instead of `../../../` across packages (`tsconfig.json` / `jest.conf
 | `adaptRoute` (Express ↔ controller) | `@shared/infrastructure/adapters/http` |
 | BcryptAdapter | `@shared/infrastructure/adapters/bcrypt` (injected in `app.ts`) |
 | ResendMailerAdapter / InMemoryMailer | `@shared/infrastructure/adapters/resend` |
+| Mongoose ObjectId helpers | `@shared/infrastructure/adapters/mongoose` (`toObjectIds`) |
 
 ### Persistence
 

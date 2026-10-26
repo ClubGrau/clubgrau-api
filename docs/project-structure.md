@@ -242,6 +242,8 @@ grau-api/
 │   │           ├── bcrypt/
 │   │           │   ├── bcrypt.adapter.ts               # implements EncrypterPort
 │   │           │   └── bcrypt.adapter.spec.ts
+│   │           ├── mongoose/
+│   │           │   └── to-object-ids.ts                # string ids → ObjectId (skip malformed)
 │   │           └── resend/
 │   │               ├── resend-mailer.adapter.ts        # implements MailerPort
 │   │               ├── in-memory-mailer.ts             # spec fake
