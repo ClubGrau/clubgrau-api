@@ -399,4 +399,48 @@ describe('IndicationOriginMongooseRepository', () => {
       expect(rows[0]?.active).toBe(false);
     });
   });
+
+  describe('findOriginNamesByIds', () => {
+    it('returns id and name for the matching origins', async () => {
+      const { sut, modelMock } = makeSut();
+      const lean = jest
+        .fn()
+        .mockResolvedValueOnce([
+          { _id: sampleDocument._id, name: 'Instagram' },
+        ]);
+      const select = jest.fn().mockReturnValueOnce({ lean });
+      const findSpy = jest
+        .spyOn(modelMock, 'find')
+        .mockReturnValueOnce({ select } as ReturnType<typeof modelMock.find>);
+
+      const result = await sut.findOriginNamesByIds([originId]);
+
+      expect(findSpy).toHaveBeenCalledWith({
+        _id: { $in: [sampleDocument._id] },
+      });
+      expect(select).toHaveBeenCalledWith('_id name');
+      expect(result).toEqual([{ id: originId, name: 'Instagram' }]);
+    });
+
+    it('skips the query when every id is malformed', async () => {
+      const { sut, modelMock } = makeSut();
+      const findSpy = jest.spyOn(modelMock, 'find');
+
+      const result = await sut.findOriginNamesByIds(['not-an-id']);
+
+      expect(findSpy).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
+    });
+
+    it('returns an empty list when the query finds nothing', async () => {
+      const { sut, modelMock } = makeSut();
+      jest.spyOn(modelMock, 'find').mockReturnValueOnce({
+        select: jest.fn().mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValueOnce([]),
+        }),
+      } as ReturnType<typeof modelMock.find>);
+
+      await expect(sut.findOriginNamesByIds([originId])).resolves.toEqual([]);
+    });
+  });
 });

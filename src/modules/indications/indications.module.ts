@@ -1,5 +1,6 @@
 import { Connection } from 'mongoose';
 import { RequestHandler, Router } from 'express';
+import { FindIndicationOriginNamesByIdsPort } from '@modules/customers/application/ports/outbound/find-indication-origin-names-by-ids.port';
 import { FindIndicationOriginPort } from '@modules/customers/application/ports/outbound/find-indication-origin.port';
 import { CreateIndicationOriginPort } from '@modules/indications/application/ports/inbound/create-indication-origin.port';
 import { CorrectIndicationOriginNamePort } from '@modules/indications/application/ports/inbound/correct-indication-origin-name.port';
@@ -16,6 +17,7 @@ import { ReopenIndicationOriginUsecase } from '@modules/indications/application/
 import { IndicationOriginNamePolicy } from '@modules/indications/domain/services/indication-origin-name.policy';
 import { makeIndicationRoutes } from '@modules/indications/infrastructure/inbound/http/indication.routes';
 import { IndicationOriginLookupAdapter } from '@modules/indications/infrastructure/outbound/indication-origin-lookup.adapter';
+import { IndicationOriginNamesLookupAdapter } from '@modules/indications/infrastructure/outbound/indication-origin-names-lookup.adapter';
 import { IndicationOriginMongooseRepository } from '@modules/indications/infrastructure/outbound/persistence/indication-origin-mongoose.repository';
 import { IndicationOriginSchema } from '@modules/indications/infrastructure/outbound/persistence/indication-origin.schema';
 import { CorrectIndicationOriginNameController } from '@modules/indications/presentation/controllers/correct-indication-origin-name.controller';
@@ -39,6 +41,7 @@ export type IndicationsModule = {
   reopenIndicationOrigin: ReopenIndicationOriginPort;
   getLinkableIndicationOrigins: GetLinkableIndicationOriginsPort;
   findIndicationOrigin: FindIndicationOriginPort;
+  findIndicationOriginNamesByIds: FindIndicationOriginNamesByIdsPort;
   router: Router;
 };
 
@@ -91,6 +94,9 @@ export function makeIndicationsModule({
   const findIndicationOrigin = new IndicationOriginLookupAdapter(
     indicationOriginRepository,
   );
+  const findIndicationOriginNamesByIds = new IndicationOriginNamesLookupAdapter(
+    indicationOriginRepository,
+  );
 
   const createIndicationOriginController = new CreateIndicationOriginController(
     createIndicationOrigin,
@@ -134,6 +140,7 @@ export function makeIndicationsModule({
     reopenIndicationOrigin,
     getLinkableIndicationOrigins,
     findIndicationOrigin,
+    findIndicationOriginNamesByIds,
     router,
   };
 }

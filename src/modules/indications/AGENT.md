@@ -1,6 +1,6 @@
 # Indications Module — Agent Guide
 
-> Living **contract** of the indications hexagon (catalog query, linkable origins, the origin lookup for customers, and create, correct, end, and reopen an origin).
+> Living **contract** of the indications hexagon (catalog query, linkable origins, origin lookup and batch names for customers, and create, correct, end, and reopen an origin).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
@@ -43,6 +43,7 @@ After a meaningful change, update the relevant section(s) in place.
 | Get indication catalog (query)           | Done   | `GET /api/indication-catalog`                              |
 | Get linkable indication origins (query)  | Done   | `GET /api/indication-linkable-origins` — any authenticated employee, `authTokenMiddleware` only, no `requireRoles` |
 | Origin lookup for customers              | Done   | `IndicationOriginLookupAdapter` implements `FindIndicationOriginPort` |
+| Origin names for customer list           | Done   | `IndicationOriginNamesLookupAdapter` implements `FindIndicationOriginNamesByIdsPort` |
 | Create indication origin (command)       | Done   | `POST /api/indication-origin`                              |
 | Correct indication origin name (command) | Done   | `PATCH /api/indication-origin/:id`                         |
 | End indication origin (command)          | Done   | `POST /api/indication-origin/:id/end`                      |
@@ -125,6 +126,7 @@ src/modules/indications/
 │   │       ├── update-indication-origin-intervals-repository.port.ts
 │   │       ├── next-indication-origin-position.port.ts
 │   │       ├── find-indication-origin-by-id.port.ts
+│   │       ├── find-indication-origin-names-by-ids.port.ts
 │   │       └── list-indication-origins.port.ts
 │   ├── usecases/
 │   │   ├── create-indication-origin.usecase.ts
@@ -169,6 +171,8 @@ src/modules/indications/
     └── outbound/
         ├── indication-origin-lookup.adapter.ts
         ├── indication-origin-lookup.adapter.spec.ts
+        ├── indication-origin-names-lookup.adapter.ts
+        ├── indication-origin-names-lookup.adapter.spec.ts
         └── persistence/
             ├── indication-origin.schema.ts
             ├── indication-origin.mapper.ts
@@ -276,6 +280,8 @@ Uses the same `ListIndicationOriginsPort` as the catalog. Keeps rows with `activ
 
 `IndicationOriginLookupAdapter` implements `FindIndicationOriginPort` from `customers` (`findOrigin(id)` → `{ id, categoryId, active }` or `null`). It reads through this module's `FindIndicationOriginByIdPort` on the same repository. `makeIndicationsModule` returns that adapter as `findIndicationOrigin`. `app.ts` passes it into `makeCustomersModule`. Customers never imports this module's domain.
 
+`IndicationOriginNamesLookupAdapter` implements `FindIndicationOriginNamesByIdsPort` from `customers` (`findOriginNamesByIds(ids)` → `{ id, name }[]`). It reads through this module's own `FindIndicationOriginNamesByIdsPort` on the same repository (`_id` + `name` only; no reconstitution, no `active`). A missing or malformed id is omitted. `makeIndicationsModule` returns that adapter as `findIndicationOriginNamesByIds`. `app.ts` passes it into `makeCustomersModule` for `GET /api/customers`.
+
 ---
 
 ## Presentation & HTTP
@@ -353,7 +359,7 @@ Samples: `src/client/indication.http`. No sample body sends `actorId`.
 
 ### Repository
 
-`IndicationOriginMongooseRepository` is one instance shared by the policy, the four writes, `list` (catalog and linkable), and the lookup adapter. It implements:
+`IndicationOriginMongooseRepository` is one instance shared by the policy, the four writes, `list` (catalog and linkable), and both lookup adapters. It implements:
 
 - `InsertIndicationOriginRepositoryPort` → `insert` (duplicate key `11000` → `IndicationOriginNameTakenError`)
 - `UpdateIndicationOriginNameRepositoryPort` → `updateName` (`$set` of `name` and `nameKey`; 0 matches → `Error`; duplicate key → `IndicationOriginNameTakenError`)
@@ -361,6 +367,7 @@ Samples: `src/client/indication.http`. No sample body sends `actorId`.
 - `IndicationOriginNameAvailabilityPort` → `existsByNameKey`
 - `NextIndicationOriginPositionPort` → `nextPosition`
 - `FindIndicationOriginByIdPort` → `findById` (miss or invalid id → `null`)
+- `FindIndicationOriginNamesByIdsPort` → `findOriginNamesByIds` (select `_id` + `name`; malformed ids skipped; missing ids omitted)
 - `ListIndicationOriginsPort` → `list`
 
 There is no category repository.
@@ -385,12 +392,13 @@ Composition order:
 8. `GetIndicationCatalogQuery(repository)` — `ListIndicationOriginsPort`
 9. `GetLinkableIndicationOriginsQuery(repository)` — the same `ListIndicationOriginsPort`
 10. `IndicationOriginLookupAdapter(repository)` — `FindIndicationOriginByIdPort`; returned as `findIndicationOrigin`
-11. Six controllers, each with its inbound port
-12. `makeIndicationRoutes({ ..., getLinkableIndicationOriginsController, authTokenMiddleware, requireRoles: makeRequireRoles })`
+11. `IndicationOriginNamesLookupAdapter(repository)` — this module's `FindIndicationOriginNamesByIdsPort`; returned as `findIndicationOriginNamesByIds`
+12. Six controllers, each with its inbound port
+13. `makeIndicationRoutes({ ..., getLinkableIndicationOriginsController, authTokenMiddleware, requireRoles: makeRequireRoles })`
 
 The linkable route is mounted with `authTokenMiddleware` only. The catalog and the four commands still receive `requireRoles('ADMIN', 'MANAGER')`.
 
-Returns the six controllers, the six inbound ports, `findIndicationOrigin`, and `router`. No seed. Do not construct a second origin repository.
+Returns the six controllers, the six inbound ports, `findIndicationOrigin`, `findIndicationOriginNamesByIds`, and `router`. No seed. Do not construct a second origin repository.
 
 **Rule:** when adding a use case or query, wire it in this file; do not construct the repository inside a controller or a use case.
 
