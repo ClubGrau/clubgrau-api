@@ -1,4 +1,8 @@
 import { FindIndicationOriginByIdPort } from '@modules/indications/application/ports/outbound/find-indication-origin-by-id.port';
+import {
+  FindIndicationOriginNamesByIdsPort,
+  IndicationOriginNameReadModel,
+} from '@modules/indications/application/ports/outbound/find-indication-origin-names-by-ids.port';
 import { InsertIndicationOriginRepositoryPort } from '@modules/indications/application/ports/outbound/insert-indication-origin-repository.port';
 import { ListIndicationOriginsPort } from '@modules/indications/application/ports/outbound/list-indication-origins.port';
 import { NextIndicationOriginPositionPort } from '@modules/indications/application/ports/outbound/next-indication-origin-position.port';
@@ -16,6 +20,7 @@ import {
   IndicationOriginNameAvailabilityPort,
   IndicationOriginNameAvailabilityQuery,
 } from '@modules/indications/domain/ports/indication-origin-name-availability.port';
+import { toObjectIds } from '@shared/infrastructure/adapters/mongoose/to-object-ids';
 import {
   IndicationOriginDocument,
   IndicationOriginMongooseModel,
@@ -33,6 +38,7 @@ export class IndicationOriginMongooseRepository
     UpdateIndicationOriginIntervalsRepositoryPort,
     NextIndicationOriginPositionPort,
     FindIndicationOriginByIdPort,
+    FindIndicationOriginNamesByIdsPort,
     ListIndicationOriginsPort,
     IndicationOriginNameAvailabilityPort
 {
@@ -130,6 +136,27 @@ export class IndicationOriginMongooseRepository
     const docs = await this.indicationOriginModel.find({}).lean();
     return docs.map((doc) =>
       mapIndicationOriginCatalogRow(doc as IndicationOriginDocument),
+    );
+  }
+
+  async findOriginNamesByIds(
+    ids: string[],
+  ): Promise<IndicationOriginNameReadModel[]> {
+    const objectIds = toObjectIds(ids);
+    if (objectIds.length === 0) {
+      return [];
+    }
+
+    const docs = await this.indicationOriginModel
+      .find({ _id: { $in: objectIds } })
+      .select('_id name')
+      .lean();
+
+    return (docs as Pick<IndicationOriginDocument, '_id' | 'name'>[]).map(
+      (doc) => ({
+        id: String(doc._id),
+        name: doc.name,
+      }),
     );
   }
 

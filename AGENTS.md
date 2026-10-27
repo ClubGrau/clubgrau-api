@@ -133,10 +133,13 @@ Use aliases instead of `../../../` across packages (`tsconfig.json` / `jest.conf
 | `adaptRoute` (Express ↔ controller) | `@shared/infrastructure/adapters/http` |
 | BcryptAdapter | `@shared/infrastructure/adapters/bcrypt` (injected in `app.ts`) |
 | ResendMailerAdapter / InMemoryMailer | `@shared/infrastructure/adapters/resend` |
+| Mongoose ObjectId helpers | `@shared/infrastructure/adapters/mongoose` (`toObjectIds`) |
 
 ### Persistence
 
 When adding fields: **schema → mapper → entity props / DTOs**, keeping the domain free of Mongoose types.
+
+**Existence checks (boolean ports).** When a repository method only needs to know whether a document exists (e.g. `existsById` → `Promise<boolean>`), use Mongoose `Model.exists(filter)` — not `findById` + `lean`. `exists` returns `{ _id: ObjectId }` when a match is found and `null` when it is not; treat non-null as `true` and `null` as `false`. Wrap the call in `try/catch` when malformed ids must answer `false` without throwing. Do not load the full document for a boolean existence port.
 
 ---
 
@@ -200,6 +203,7 @@ Never call the repository directly from the controller.
 | Validate required fields with `validationRequiredFields` | Hand-roll presence checks in controllers |
 | Update the module AGENT.md on contract changes | Log every cosmetic rename in the docs |
 | One interface (one method) per file in `application/ports/` | Aggregator `*RepositoryPort` interfaces with multiple methods |
+| Use `Model.exists(filter)` for boolean existence checks | Use `findById` / `findOne` + `lean` when only checking existence |
 
 ---
 

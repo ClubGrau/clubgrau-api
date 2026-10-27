@@ -41,15 +41,17 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     reissueOwnSessionToken: auth.reissueOwnSessionToken,
   });
 
-  const customers = makeCustomersModule({
-    connection,
-    authTokenMiddleware: auth.authTokenMiddleware,
-  });
-
   const indications = makeIndicationsModule({
     connection,
     authTokenMiddleware: auth.authTokenMiddleware,
     makeRequireRoles: auth.makeRequireRoles,
+  });
+
+  const customers = makeCustomersModule({
+    connection,
+    authTokenMiddleware: auth.authTokenMiddleware,
+    findIndicationOrigin: indications.findIndicationOrigin,
+    findIndicationOriginNamesByIds: indications.findIndicationOriginNamesByIds,
   });
 
   app.use('/api', employees.router);

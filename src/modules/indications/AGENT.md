@@ -1,6 +1,6 @@
 # Indications Module — Agent Guide
 
-> Living **contract** of the indications hexagon (catalog query + create, correct, end, and reopen an origin).
+> Living **contract** of the indications hexagon (catalog query, linkable origins, origin lookup and batch names for customers, and create, correct, end, and reopen an origin).
 >
 > Global rules (architecture, naming, testing, playbooks): [`AGENTS.md`](../../../AGENTS.md).
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
@@ -41,13 +41,16 @@ After a meaningful change, update the relevant section(s) in place.
 | Capability                               | Status | Entry point                                                |
 | ---------------------------------------- | ------ | ---------------------------------------------------------- |
 | Get indication catalog (query)           | Done   | `GET /api/indication-catalog`                              |
+| Get linkable indication origins (query)  | Done   | `GET /api/indication-linkable-origins` — any authenticated employee, `authTokenMiddleware` only, no `requireRoles` |
+| Origin lookup for customers              | Done   | `IndicationOriginLookupAdapter` implements `FindIndicationOriginPort` |
+| Origin names for customer list           | Done   | `IndicationOriginNamesLookupAdapter` implements `FindIndicationOriginNamesByIdsPort` |
 | Create indication origin (command)       | Done   | `POST /api/indication-origin`                              |
 | Correct indication origin name (command) | Done   | `PATCH /api/indication-origin/:id`                         |
 | End indication origin (command)          | Done   | `POST /api/indication-origin/:id/end`                      |
 | Reopen indication origin (command)       | Done   | `POST /api/indication-origin/:id/reopen`                   |
 | Name reservation policy                  | Done   | `IndicationOriginNamePolicy.ensureAvailable`               |
 | Mongo persistence                        | Done   | `IndicationOriginMongooseRepository`                       |
-| Auth + role gate on every route          | Done   | `authTokenMiddleware` + `requireRoles('ADMIN', 'MANAGER')` |
+| Auth + role gate on the catalog and the four origin commands | Done | `authTokenMiddleware` + `requireRoles('ADMIN', 'MANAGER')` |
 | Module HTTP ownership                    | Done   | `infrastructure/inbound/http/indication.routes.ts`         |
 | Composition root wiring                  | Done   | `indications.module.ts` + `app.ts`                         |
 
@@ -58,7 +61,7 @@ Categories are fixed in code (`IndicationCategories`). There is no category coll
 | Side            | Location                | Example                                                                                                                              |
 | --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Command (write) | `application/usecases/` | `CreateIndicationOriginUsecase`, `CorrectIndicationOriginNameUsecase`, `EndIndicationOriginUsecase`, `ReopenIndicationOriginUsecase` |
-| Query (read)    | `application/queries/`  | `GetIndicationCatalogQuery`                                                                                                          |
+| Query (read)    | `application/queries/`  | `GetIndicationCatalogQuery`, `GetLinkableIndicationOriginsQuery`                                                                     |
 
 The catalog query does **not** call `IndicationOrigin.create`, the name policy, or any write port. It returns a read model. Origin objects on that model are `id`, `categoryId`, `name`, `active` only.
 
@@ -67,7 +70,7 @@ The catalog query does **not** call `IndicationOrigin.create`, the name policy, 
 Left for a later PRD. None of these are half-implemented here:
 
 - Board and a day count on `GET`
-- A field on Customer, rank, and the friend row
+- A friend entity (this module does not own one; the friend row on a customer belongs to `customers`)
 - Category create / rename / delete
 - Deleting or moving an origin
 - Seeding channels or campaigns
@@ -105,7 +108,8 @@ src/modules/indications/
 │   │   ├── correct-indication-origin-name.dto.ts
 │   │   ├── end-indication-origin.dto.ts
 │   │   ├── reopen-indication-origin.dto.ts
-│   │   └── get-indication-catalog.dto.ts
+│   │   ├── get-indication-catalog.dto.ts
+│   │   └── get-linkable-indication-origins.dto.ts
 │   ├── mappers/
 │   │   └── indication-origin-snapshot.mapper.ts
 │   ├── ports/
@@ -114,13 +118,15 @@ src/modules/indications/
 │   │   │   ├── correct-indication-origin-name.port.ts
 │   │   │   ├── end-indication-origin.port.ts
 │   │   │   ├── reopen-indication-origin.port.ts
-│   │   │   └── get-indication-catalog.port.ts
+│   │   │   ├── get-indication-catalog.port.ts
+│   │   │   └── get-linkable-indication-origins.port.ts
 │   │   └── outbound/
 │   │       ├── insert-indication-origin-repository.port.ts
 │   │       ├── update-indication-origin-name-repository.port.ts
 │   │       ├── update-indication-origin-intervals-repository.port.ts
 │   │       ├── next-indication-origin-position.port.ts
 │   │       ├── find-indication-origin-by-id.port.ts
+│   │       ├── find-indication-origin-names-by-ids.port.ts
 │   │       └── list-indication-origins.port.ts
 │   ├── usecases/
 │   │   ├── create-indication-origin.usecase.ts
@@ -133,7 +139,9 @@ src/modules/indications/
 │   │   └── reopen-indication-origin.usecase.spec.ts
 │   └── queries/
 │       ├── get-indication-catalog.query.ts
-│       └── get-indication-catalog.query.spec.ts
+│       ├── get-indication-catalog.query.spec.ts
+│       ├── get-linkable-indication-origins.query.ts
+│       └── get-linkable-indication-origins.query.spec.ts
 │
 ├── presentation/
 │   ├── http/
@@ -141,7 +149,8 @@ src/modules/indications/
 │   │   ├── correct-indication-origin-name.request.ts
 │   │   ├── end-indication-origin.request.ts
 │   │   ├── reopen-indication-origin.request.ts
-│   │   └── get-indication-catalog.request.ts
+│   │   ├── get-indication-catalog.request.ts
+│   │   └── get-linkable-indication-origins.request.ts
 │   └── controllers/
 │       ├── create-indication-origin.controller.ts
 │       ├── create-indication-origin.controller.spec.ts
@@ -152,16 +161,23 @@ src/modules/indications/
 │       ├── reopen-indication-origin.controller.ts
 │       ├── reopen-indication-origin.controller.spec.ts
 │       ├── get-indication-catalog.controller.ts
-│       └── get-indication-catalog.controller.spec.ts
+│       ├── get-indication-catalog.controller.spec.ts
+│       ├── get-linkable-indication-origins.controller.ts
+│       └── get-linkable-indication-origins.controller.spec.ts
 │
 └── infrastructure/
     ├── inbound/http/
     │   └── indication.routes.ts
-    └── outbound/persistence/
-        ├── indication-origin.schema.ts
-        ├── indication-origin.mapper.ts
-        ├── indication-origin-mongoose.repository.ts
-        └── indication-origin-mongoose.repository.spec.ts
+    └── outbound/
+        ├── indication-origin-lookup.adapter.ts
+        ├── indication-origin-lookup.adapter.spec.ts
+        ├── indication-origin-names-lookup.adapter.ts
+        ├── indication-origin-names-lookup.adapter.spec.ts
+        └── persistence/
+            ├── indication-origin.schema.ts
+            ├── indication-origin.mapper.ts
+            ├── indication-origin-mongoose.repository.ts
+            └── indication-origin-mongoose.repository.spec.ts
 ```
 
 ---
@@ -238,13 +254,13 @@ Port: `EndIndicationOriginPort`. DTO: `{ id }` → `{ id }`.
 2. `end()`; `false` → return `{ id }` with no write
 3. `updateIntervals` then return `{ id }`
 
-Does not change the name and does not throw `IndicationOriginNameTakenError`.
+Does not change the name and does not throw `IndicationOriginNameTakenError`. Ending an origin does not write a customer.
 
 ## Application: Reopen Indication Origin (command)
 
 Port: `ReopenIndicationOriginPort`. DTO: `{ id }` → `{ id }`.
 
-Same shape as end, calling `reopen()` instead of `end()`.
+Same shape as end, calling `reopen()` instead of `end()`. Reopening an origin does not write a customer.
 
 ## Application: Get Indication Catalog (query)
 
@@ -254,14 +270,32 @@ Each category from `IndicationCategories.list()` is returned in order. A categor
 
 The HTTP origin object drops `position`, intervals, and `nameKey`. The list port row still carries `position` so the query can sort.
 
+## Application: Get Linkable Indication Origins (query)
+
+Port: `GetLinkableIndicationOriginsPort`. `execute()` takes no arguments. Result: `{ origins }`.
+
+Uses the same `ListIndicationOriginsPort` as the catalog. Keeps rows with `active === true` in Canal, then Campanha, each sorted by `position` then `id`. Each item is `{ id, categoryId, name }`. Ended origins and Amigo are absent. Does not call `IndicationOrigin.create`, the name policy, or any write port.
+
+## Outbound: origin lookup for customers
+
+`IndicationOriginLookupAdapter` implements `FindIndicationOriginPort` from `customers` (`findOrigin(id)` → `{ id, categoryId, active }` or `null`). It reads through this module's `FindIndicationOriginByIdPort` on the same repository. `makeIndicationsModule` returns that adapter as `findIndicationOrigin`. `app.ts` passes it into `makeCustomersModule`. Customers never imports this module's domain.
+
+`IndicationOriginNamesLookupAdapter` implements `FindIndicationOriginNamesByIdsPort` from `customers` (`findOriginNamesByIds(ids)` → `{ id, name }[]`). It reads through this module's own `FindIndicationOriginNamesByIdsPort` on the same repository (`_id` + `name` only; no reconstitution, no `active`). A missing or malformed id is omitted. `makeIndicationsModule` returns that adapter as `findIndicationOriginNamesByIds`. `app.ts` passes it into `makeCustomersModule` for `GET /api/customers`.
+
 ---
 
 ## Presentation & HTTP
 
-Every route:
+The catalog read and the four origin commands:
 
 ```text
 authTokenMiddleware → requireRoles('ADMIN', 'MANAGER') → adaptRoute
+```
+
+The linkable read does **not** pass through `requireRoles`:
+
+```text
+authTokenMiddleware → adaptRoute
 ```
 
 `app.ts` mounts the router at `/api`. Paths inside the router have no `/api` prefix.
@@ -269,6 +303,7 @@ authTokenMiddleware → requireRoles('ADMIN', 'MANAGER') → adaptRoute
 | Method  | Path                                | Success                          |
 | ------- | ----------------------------------- | -------------------------------- |
 | `GET`   | `/api/indication-catalog`           | `200` `{ data: { categories } }` |
+| `GET`   | `/api/indication-linkable-origins`  | `200` `{ data: { origins } }`    |
 | `POST`  | `/api/indication-origin`            | `201` `{ data: { id } }`         |
 | `PATCH` | `/api/indication-origin/:id`        | `200` `{ data: { id } }`         |
 | `POST`  | `/api/indication-origin/:id/end`    | `200` `{ data: { id } }`         |
@@ -295,7 +330,8 @@ Reopen checks required `id` with `validationRequiredFields`. A falsy value is `M
 | Unknown origin id on correct, end, reopen                                     | `400` |
 | Name reserved in the category (create and correct only)                       | `409` |
 | No / invalid session                                                          | `401` |
-| `EMPLOYEE`                                                                    | `403` |
+| `EMPLOYEE` on the catalog or an origin command                               | `403` |
+| `EMPLOYEE` on `GET /api/indication-linkable-origins`                          | `200` |
 | Unexpected, including a 0-document `$set`                                     | `500` |
 
 | Error                                       | Create | Correct | End / reopen       | Catalog |
@@ -323,7 +359,7 @@ Samples: `src/client/indication.http`. No sample body sends `actorId`.
 
 ### Repository
 
-`IndicationOriginMongooseRepository` is one instance shared by the policy, the four writes, and `list`. It implements:
+`IndicationOriginMongooseRepository` is one instance shared by the policy, the four writes, `list` (catalog and linkable), and both lookup adapters. It implements:
 
 - `InsertIndicationOriginRepositoryPort` → `insert` (duplicate key `11000` → `IndicationOriginNameTakenError`)
 - `UpdateIndicationOriginNameRepositoryPort` → `updateName` (`$set` of `name` and `nameKey`; 0 matches → `Error`; duplicate key → `IndicationOriginNameTakenError`)
@@ -331,6 +367,7 @@ Samples: `src/client/indication.http`. No sample body sends `actorId`.
 - `IndicationOriginNameAvailabilityPort` → `existsByNameKey`
 - `NextIndicationOriginPositionPort` → `nextPosition`
 - `FindIndicationOriginByIdPort` → `findById` (miss or invalid id → `null`)
+- `FindIndicationOriginNamesByIdsPort` → `findOriginNamesByIds` (select `_id` + `name`; malformed ids skipped; missing ids omitted)
 - `ListIndicationOriginsPort` → `list`
 
 There is no category repository.
@@ -353,10 +390,15 @@ Composition order:
 6. `EndIndicationOriginUsecase(repository, repository)` — find by id and update intervals
 7. `ReopenIndicationOriginUsecase(repository, repository)`
 8. `GetIndicationCatalogQuery(repository)` — `ListIndicationOriginsPort`
-9. Five controllers, each with its inbound port
-10. `makeIndicationRoutes({ ..., authTokenMiddleware, requireRoles: makeRequireRoles })`
+9. `GetLinkableIndicationOriginsQuery(repository)` — the same `ListIndicationOriginsPort`
+10. `IndicationOriginLookupAdapter(repository)` — `FindIndicationOriginByIdPort`; returned as `findIndicationOrigin`
+11. `IndicationOriginNamesLookupAdapter(repository)` — this module's `FindIndicationOriginNamesByIdsPort`; returned as `findIndicationOriginNamesByIds`
+12. Six controllers, each with its inbound port
+13. `makeIndicationRoutes({ ..., getLinkableIndicationOriginsController, authTokenMiddleware, requireRoles: makeRequireRoles })`
 
-Returns the five controllers, the five inbound ports, and `router`. No seed.
+The linkable route is mounted with `authTokenMiddleware` only. The catalog and the four commands still receive `requireRoles('ADMIN', 'MANAGER')`.
+
+Returns the six controllers, the six inbound ports, `findIndicationOrigin`, `findIndicationOriginNamesByIds`, and `router`. No seed. Do not construct a second origin repository.
 
 **Rule:** when adding a use case or query, wire it in this file; do not construct the repository inside a controller or a use case.
 
@@ -364,10 +406,10 @@ Returns the five controllers, the five inbound ports, and `router`. No seed.
 
 ## Open decisions / known limitations
 
-1. **Board, customer indication, rank, friend row** — not this hexagon. A later PRD owns them. Amigo stays a category with `origins: []`.
+1. **Board and a friend entity** — not this hexagon. Amigo stays a category with `origins: []`. This module does not own a friend entity. Ending or reopening an origin does not write a customer. Rank and the indication stored on a customer belong to `customers`.
 2. **Category CRUD, delete, move** — an origin is corrected, ended, or reopened. It is not removed and it does not change category.
 3. **Seed** — a fresh process with an empty `origins` collection returns Canal, Campanha, and Amigo, each with `origins: []`. Boot inserts nothing.
 4. **Repeated end / reopen / same-name correct** — `200` and no write. Intervals stay as they were on a second end; a second reopen does not append another interval.
-5. **Authorization** — `requireRoles('ADMIN', 'MANAGER')` on every route. There is no domain policy that reloads the actor. `EMPLOYEE` → `403`. No session → `401`.
+5. **Authorization** — `requireRoles('ADMIN', 'MANAGER')` on the catalog read and the four origin commands. `GET /api/indication-linkable-origins` is `authTokenMiddleware` only: any authenticated employee, including `EMPLOYEE`. There is no domain policy that reloads the actor. `EMPLOYEE` on a gated route → `403`. No session → `401`.
 6. **Misses** — unknown origin id is `400` `IndicationOriginNotFoundError`. This API does not map a miss to `404`.
 7. **Name taken** — `409` on create and correct only. End and reopen do not map `IndicationOriginNameTakenError`.

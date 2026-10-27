@@ -1,5 +1,26 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg0NTE0NTM2LCJleHAiOjI5OTQxMTQ1MzZ9.Qy5lhio_PzW2PQRPL5W_00CnTMwuNrj8Ox1eQkVoy6A
 
+### List customers
+# Qualquer employee autenticado (authTokenMiddleware). Sem requireRoles.
+# Paginação offset: page (1-based, default 1), limit (default 20, max 100).
+# Filtros opcionais: rank (BRONZE|SILVER|GOLD), search (name/email/phone/nif).
+# 200 { data: { customers, page, limit, total, totalPages } }
+# indication.name = origem (canal/campanha) ou customer que indicou (amigo); null se o id não tiver linha.
+GET http://localhost:3003/api/customers
+Authorization: Bearer {{token}}
+
+### List customers (pagination)
+GET http://localhost:3003/api/customers?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### List customers (filters + pagination)
+GET http://localhost:3003/api/customers?rank=BRONZE&search=maria&page=2&limit=10
+Authorization: Bearer {{token}}
+
+### List customers (invalid rank — expect 400)
+GET http://localhost:3003/api/customers?rank=bronze
+Authorization: Bearer {{token}}
+
 ### Create customer (required fields only)
 POST http://localhost:3003/api/customer
 Content-Type: application/json
@@ -38,4 +59,97 @@ Content-Type: application/json
 {
   "name": "No Auth",
   "email": "no.auth@example.com"
+}
+
+### Create customer — channel indication (expect 201)
+# Indicação de canal. Rank gravado é Bronze.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Ana Canal",
+  "email": "ana.canal@example.com",
+  "indication": {
+    "categoryId": "canal",
+    "originId": "507f1f77bcf86cd799439011"
+  }
+}
+
+### Create customer — friend indication (expect 201)
+# Indicação de amigo.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pedro Amigo",
+  "email": "pedro.amigo@example.com",
+  "indication": {
+    "categoryId": "amigo",
+    "referrerCustomerId": "507f1f77bcf86cd799439012"
+  }
+}
+
+### Create customer — walk-in (expect 201)
+# indication null: sem link.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Walk In",
+  "email": "walk.in@example.com",
+  "indication": null
+}
+
+### Create customer — rank ignored (expect 201)
+# "rank" no corpo é ignorado. Rank gravado é Bronze.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Rank Ignored",
+  "email": "rank.ignored@example.com",
+  "rank": "GOLD"
+}
+
+### Create customer — indication as string (expect 400)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Bad Indication",
+  "email": "bad.indication@example.com",
+  "indication": "instagram"
+}
+
+### Create customer — indication without categoryId (expect 400)
+# Campo ausente: indication.categoryId. indication: {} tem o mesmo 400.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "No Category",
+  "email": "no.category@example.com",
+  "indication": {}
+}
+
+### Create customer — indication with originId and no categoryId (expect 400)
+# Campo ausente: indication.categoryId.
+# Categoria desconhecida, origem encerrada e referrer desconhecido → 400.
+# Email já usado → 409.
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Origin Without Category",
+  "email": "origin.without.category@example.com",
+  "indication": {
+    "originId": "507f1f77bcf86cd799439011"
+  }
 }
