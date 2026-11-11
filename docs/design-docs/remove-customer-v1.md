@@ -1,6 +1,6 @@
 # Design Doc: Remove Customer (v1)
 
-**Status:** Draft, shape agreed in grilling session
+**Status:** Approved
 **Date:** 11/11/2026
 **PRD:** [`docs/prd/remove-customer-v1.md`](../prd/remove-customer-v1.md) (v1.0)
 **Glossary:** [`src/modules/customers/CONTEXT.md`](../../src/modules/customers/CONTEXT.md) (Customer, Referrer, Remove, Removed customer)
