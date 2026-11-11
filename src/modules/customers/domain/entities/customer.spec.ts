@@ -8,7 +8,10 @@ import {
   Nif,
   Phone,
 } from '@shared/domain/value-object';
-import { CustomerIndicationInvalidError } from '../errors/customer.errors';
+import {
+  CustomerAlreadyRemovedError,
+  CustomerIndicationInvalidError,
+} from '../errors/customer.errors';
 import { Indication } from '../value-objects/indication.vo';
 import { Customer } from './Customer';
 import type { ReconstituteCustomerProps } from './Customer';
@@ -51,6 +54,9 @@ describe('Customer (entity)', () => {
       expect(json.rank).toBe('BRONZE');
       expect(json.indication).toBeNull();
       expect(json.createdAt).toBeInstanceOf(Date);
+      expect(customer.removedAt).toBeNull();
+      expect(customer.isRemoved).toBe(false);
+      expect(json.removedAt).toBeNull();
     });
 
     it('should create with a valid origin indication and remain Bronze', () => {
@@ -184,6 +190,92 @@ describe('Customer (entity)', () => {
       );
 
       expect(customer.toJSON().indication).toEqual(indication.toJSON());
+    });
+
+    it('should default removedAt to null when omitted from snapshot', () => {
+      const customer = Customer.reconstitute(makeSnapshot());
+      expect(customer.removedAt).toBeNull();
+      expect(customer.isRemoved).toBe(false);
+    });
+
+    it('should round-trip removedAt when present on snapshot', () => {
+      const removedAt = new Date('2025-06-01T12:00:00.000Z');
+      const customer = Customer.reconstitute(makeSnapshot({ removedAt }));
+      expect(customer.removedAt).toBe(removedAt);
+      expect(customer.isRemoved).toBe(true);
+      expect(customer.toJSON().removedAt).toBe(removedAt);
+    });
+  });
+
+  describe('remove', () => {
+    it('should anonymize PII and set removedAt while keeping identity fields', () => {
+      const createdAt = new Date('2024-01-01T00:00:00.000Z');
+      const indication = Indication.reconstitute({
+        categoryId: 'amigo',
+        referrerCustomerId: '507f1f77bcf86cd799439012',
+      });
+      const customer = Customer.reconstitute(
+        makeSnapshot({
+          id: '507f1f77bcf86cd799439011',
+          phone: Phone.create('+351 912 345 678'),
+          nif: Nif.create('123456789'),
+          createdAt,
+          indication,
+        }),
+      );
+      const originalName = customer.toJSON().name;
+      const originalId = customer.id;
+      const now = new Date('2025-03-15T10:00:00.000Z');
+
+      customer.remove(now);
+
+      const json = customer.toJSON();
+      expect(customer.id).toBe(originalId);
+      expect(json.name).toBe(originalName);
+      expect(json.email).toBe(`removed.${originalId}@anonymized.invalid`);
+      expect(json.phone).toBeNull();
+      expect(json.nif).toBeNull();
+      expect(json.removedAt).toBe(now);
+      expect(json.rank).toBe('BRONZE');
+      expect(json.indication).toEqual(indication.toJSON());
+      expect(json.createdAt).toBe(createdAt);
+      expect(customer.isRemoved).toBe(true);
+    });
+
+    it('should throw on a second remove and keep the first removedAt', () => {
+      const first = new Date('2025-01-01T00:00:00.000Z');
+      const second = new Date('2025-02-01T00:00:00.000Z');
+      const customer = Customer.create(makeValidProps());
+
+      customer.remove(first);
+      expect(() => customer.remove(second)).toThrow(
+        CustomerAlreadyRemovedError,
+      );
+      expect(customer.removedAt).toBe(first);
+    });
+
+    it('should throw when reconstituted already removed', () => {
+      const removedAt = new Date('2025-01-01T00:00:00.000Z');
+      const customer = Customer.reconstitute(
+        makeSnapshot({
+          removedAt,
+          email: Email.create(`removed.${ORIGIN_ID}@anonymized.invalid`),
+        }),
+      );
+
+      expect(() =>
+        customer.remove(new Date('2025-02-01T00:00:00.000Z')),
+      ).toThrow(CustomerAlreadyRemovedError);
+      expect(customer.removedAt).toBe(removedAt);
+    });
+
+    it('should use distinct email sentinels per customer id', () => {
+      const now = new Date('2025-03-15T10:00:00.000Z');
+      const a = Customer.create(makeValidProps());
+      const b = Customer.create(makeValidProps());
+      a.remove(now);
+      b.remove(now);
+      expect(a.toJSON().email).not.toBe(b.toJSON().email);
     });
   });
 

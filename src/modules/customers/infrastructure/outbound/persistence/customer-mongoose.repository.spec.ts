@@ -66,6 +66,7 @@ describe('CustomerMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         rank: 'BRONZE',
         indication: null,
+        removedAt: null,
       });
     });
 
@@ -124,6 +125,7 @@ describe('CustomerMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         rank: 'BRONZE',
         indication: null,
+        removedAt: null,
       };
       const createSpy = jest
         .spyOn(customerModelMock, 'create')
@@ -161,6 +163,7 @@ describe('CustomerMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         rank: 'BRONZE',
         indication: null,
+        removedAt: null,
       };
       const createSpy = jest
         .spyOn(customerModelMock, 'create')
@@ -197,6 +200,7 @@ describe('CustomerMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         rank: 'BRONZE',
         indication: { categoryId: 'canal', originId: ORIGIN_ID },
+        removedAt: null,
       };
       const createSpy = jest
         .spyOn(customerModelMock, 'create')
@@ -231,6 +235,7 @@ describe('CustomerMongooseRepository', () => {
           categoryId: 'amigo',
           referrerCustomerId: REFERRER_ID,
         },
+        removedAt: null,
       };
       const createSpy = jest
         .spyOn(customerModelMock, 'create')
@@ -262,6 +267,7 @@ describe('CustomerMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         rank: 'BRONZE',
         indication: null,
+        removedAt: null,
       };
 
       jest
@@ -284,6 +290,7 @@ describe('CustomerMongooseRepository', () => {
         createdAt: new Date('2024-01-01T00:00:00Z'),
         rank: 'BRONZE',
         indication: null,
+        removedAt: null,
       };
       const otherError = new Error('connection failed');
 
