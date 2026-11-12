@@ -21,11 +21,13 @@ import { PasswordResetTokenMongooseRepository } from '@modules/auth/infrastructu
 import { PasswordResetTokenSchema } from '@modules/auth/infrastructure/outbound/persistence/password-reset-token.schema';
 import { HmacResetTokenHasher } from '@modules/auth/infrastructure/outbound/crypto/hmac-reset-token-hasher';
 import { CryptoRawResetTokenGenerator } from '@modules/auth/infrastructure/outbound/crypto/crypto-raw-reset-token.generator';
+import { ActorPasswordVerifierAdapter } from '@modules/auth/infrastructure/outbound/actor-password-verifier.adapter';
 import { ReissueOwnSessionTokenAdapter } from '@modules/auth/infrastructure/outbound/reissue-own-session-token.adapter';
 import { JwtTokenAdapter } from '@modules/auth/infrastructure/outbound/token/jwt-token.adapter';
 import { AuthController } from '@modules/auth/presentation/controllers/auth.controller';
 import { CompletePasswordResetController } from '@modules/auth/presentation/controllers/complete-password-reset.controller';
 import { RequestPasswordResetController } from '@modules/auth/presentation/controllers/request-password-reset.controller';
+import { VerifyActorPasswordPort } from '@modules/customers/application/ports/outbound/verify-actor-password.port';
 import { ReissueOwnSessionTokenPort } from '@modules/employees/application/ports/outbound/reissue-own-session-token.port';
 import { EmployeeSchema } from '@modules/employees/infrastructure/outbound/persistence/employee.schema';
 import { CompareHashPort } from '@shared/application/ports/compare-hash.port';
@@ -38,6 +40,7 @@ export type AuthModule = {
   completePasswordResetController: CompletePasswordResetController;
   login: LoginPort;
   reissueOwnSessionToken: ReissueOwnSessionTokenPort;
+  verifyActorPassword: VerifyActorPasswordPort;
   requestPasswordReset: RequestPasswordResetPort;
   completePasswordReset: CompletePasswordResetPort;
   authTokenMiddleware: AuthTokenMiddleware;
@@ -92,6 +95,9 @@ export function makeAuthModule({
       reissueAuthenticationFailedError,
     );
 
+  const verifyActorPassword: VerifyActorPasswordPort =
+    new ActorPasswordVerifierAdapter(employeeAuthAdapter, compareHash);
+
   const requestPasswordReset: RequestPasswordResetPort =
     new RequestPasswordResetUsecase(
       employeeAuthAdapter,
@@ -131,6 +137,7 @@ export function makeAuthModule({
     completePasswordResetController,
     login,
     reissueOwnSessionToken,
+    verifyActorPassword,
     requestPasswordReset,
     completePasswordReset,
     authTokenMiddleware,
