@@ -394,7 +394,7 @@ describe('CreateCustomerUsecase', () => {
       expect(createCustomerRepositoryStub.create).not.toHaveBeenCalled();
     });
 
-    it('friend indication calls existsById and persists when referrer exists', async () => {
+    it('friend indication calls existsReferrableById and persists when referrer exists', async () => {
       const {
         sut,
         findIndicationOriginStub,

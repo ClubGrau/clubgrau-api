@@ -15,7 +15,12 @@ export interface GetCustomersDto extends PaginationInputDto {
  */
 export type GetCustomersIndicationDto =
   | { categoryId: 'canal' | 'campanha'; originId: string; name: string | null }
-  | { categoryId: 'amigo'; referrerCustomerId: string; name: string | null };
+  | {
+      categoryId: 'amigo';
+      referrerCustomerId: string;
+      name: string | null;
+      referrerRemoved: boolean;
+    };
 
 /** Read model de um customer na listagem. */
 export interface GetCustomersItemDto {
