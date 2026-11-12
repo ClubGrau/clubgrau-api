@@ -6,6 +6,7 @@
 > Structure diagrams / folder tree: [`docs/project-structure.md`](../../../docs/project-structure.md).
 > Ubiquitous language: [`CONTEXT.md`](./CONTEXT.md).
 > Shipped: rank and indication on create — [design](../../../docs/design-docs/customer-ranking-indications-v1.md), [PRD](../../../docs/prd/customer-ranking-indications-v1.md), [specs](../../../docs/specs/customer-ranking-indications/README.md). ADRs: [`docs/adr/customer-ranking-indications/`](../../../docs/adr/customer-ranking-indications/).
+> Shipped: remove customer (anonymize) — [PRD](../../../docs/prd/remove-customer-v1.md), [design](../../../docs/design-docs/remove-customer-v1.md), [specs](../../../docs/specs/remove-customer/README.md). ADRs: [`docs/adr/remove-customer/`](../../../docs/adr/remove-customer/).
 > Open follow-up: a rank-transition PRD (what moves a customer to Silver or Gold). Not started.
 
 ## Purpose of this document
@@ -29,7 +30,8 @@ Use this file to extend **this** module without breaking its current contracts: 
 | Capability | Status | Entry point |
 |------------|--------|-------------|
 | Create customer (command) | Done | `POST /api/customer` — stores `rank` (born `BRONZE`) and an optional indication |
-| List customers (query) | Done | `GET /api/customers` — offset pagination + `rank` / `search`; indication carries the origin or referrer name |
+| List customers (query) | Done | `GET /api/customers` — offset pagination + `rank` / `search`; indication carries the origin or referrer name; removed customers are excluded; friend indications expose `referrerRemoved` |
+| Remove customer (command) | Done | `POST /api/customer/remove` — `ADMIN` / `MANAGER` + actor password; soft-remove via `removedAt` |
 | Email availability policy | Done | `CustomerPoliciesService.ensureEmailIsAvailable`; a taken email is `409` |
 | Origin and referrer checks | Done | `FindIndicationOriginPort` (injected) and `ExistsReferrableCustomerByIdPort` |
 | Origin names for list | Done | `FindIndicationOriginNamesByIdsPort` (injected; implemented by `indications`) |
@@ -44,7 +46,7 @@ Left for a later PRD. None of these is half-implemented here:
 - A rank transition (Silver, Gold) and any endpoint that changes a rank
 - Customer get-by-id, summary by rank, "Indicou N", and the customer search a friend picker needs (list is shipped)
 - Changing or removing an indication after create
-- Update, deactivate, or delete a customer
+- Update or computed inactivity (owned by domain experts; not implemented here)
 - Customer login, password, or any auth subject
 
 ---
@@ -87,7 +89,8 @@ src/modules/customers/
 │   ├── ports/
 │   │   ├── inbound/
 │   │   │   ├── create-customer.port.ts
-│   │   │   └── get-customers.port.ts
+│   │   │   ├── get-customers.port.ts
+│   │   │   └── remove-customer.port.ts
 │   │   └── outbound/
 │   │       ├── create-customer-repository.port.ts
 │   │       ├── exists-referrable-customer-by-id.port.ts
@@ -96,10 +99,15 @@ src/modules/customers/
 │   │       ├── find-indication-origin.port.ts
 │   │       ├── find-indication-origin-names-by-ids.port.ts
 │   │       ├── find-customers.port.ts
-│   │       └── find-customer-names-by-ids.port.ts
+│   │       ├── find-customer-names-by-ids.port.ts
+│   │       └── verify-actor-password.port.ts
+│   ├── mappers/
+│   │   └── customer-snapshot.mapper.ts
 │   ├── usecases/
 │   │   ├── create-customer.usecase.ts
-│   │   └── create-customer.usecase.spec.ts
+│   │   ├── create-customer.usecase.spec.ts
+│   │   ├── remove-customer.usecase.ts
+│   │   └── remove-customer.usecase.spec.ts
 │   └── queries/
 │       ├── get-customers.query.ts
 │       └── get-customers.query.spec.ts
@@ -107,12 +115,15 @@ src/modules/customers/
 ├── presentation/
 │   ├── http/
 │   │   ├── create-customer.request.ts
-│   │   └── get-customers.request.ts
+│   │   ├── get-customers.request.ts
+│   │   └── remove-customer.request.ts
 │   └── controllers/
 │       ├── create-customer.controller.ts
 │       ├── create-customer.controller.spec.ts
 │       ├── get-customers.controller.ts
-│       └── get-customers.controller.spec.ts
+│       ├── get-customers.controller.spec.ts
+│       ├── remove-customer.controller.ts
+│       └── remove-customer.controller.spec.ts
 │
 └── infrastructure/
     ├── inbound/http/
@@ -130,7 +141,9 @@ src/modules/customers/
 
 ### Domain model
 
-`Customer` has `id`, `name` (`Name`), `email` (`Email`), `phone` (`Phone` or `null`), `nif` (`Nif` or `null`), `createdAt`, `rank`, and `indication` (`Indication` or `null`). It has no password, role, or active flag. `Customer.create` builds a new customer. `Customer.reconstitute` rebuilds one from persistence. Getters expose `rank` and `indication`. There is no `changeRank`.
+`Customer` has `id`, `name` (`Name`), `email` (`Email`), `phone` (`Phone` or `null`), `nif` (`Nif` or `null`), `createdAt`, `rank`, `indication` (`Indication` or `null`), and `removedAt` (`Date` or `null`). It has no password, role, or active flag. `Customer.create` builds a new customer. `Customer.reconstitute` rebuilds one from persistence. Getters expose `rank`, `indication`, `removedAt`, and `isRemoved`. There is no `changeRank`.
+
+`remove(now)` anonymizes an active customer: `email` becomes the sentinel `removed.{id}@anonymized.invalid` (freeing the original email), `phone` and `nif` are cleared, `removedAt` is set. **`name`, `rank`, `indication`, and `createdAt` stay** so friend links and history still read a human label. A second remove throws `CustomerAlreadyRemovedError`.
 
 `Rank` is the closed set `BRONZE`, `SILVER`, `GOLD`. A customer is **born `BRONZE`** (`INITIAL_RANK`). `Customer.create` takes no `rank`.
 
@@ -152,6 +165,9 @@ Ending an origin never changes a customer already linked to it.
 | `CustomerIndicationOriginCategoryMismatchError` | The origin belongs to the other category |
 | `CustomerIndicationOriginEndedError` | The origin is ended |
 | `CustomerReferrerNotFoundError` | The referrer customer id has no row |
+| `CustomerNotFoundError` | Remove: unknown `customerId` |
+| `CustomerAlreadyRemovedError` | Remove: customer already has `removedAt` |
+| `CustomerActorAuthenticationFailedError` | Remove: blank actor, wrong password, or non–login-capable actor |
 | `InvalidNameError`, `InvalidEmailError`, `InvalidPhoneFormatError`, `InvalidNifError`, `InvalidUniqueEntityIdError` (shared) | VO validation, including a malformed indication id |
 
 ### Application: Create Customer (command)
@@ -167,6 +183,17 @@ Port: `CreateCustomerPort`. DTO: `{ name, email, phone?, nif?, indication? }` �
 
 `ExistsReferrableCustomerByIdPort` is this module's repository (removed customers are not referrable). `FindIndicationOriginPort` is declared here and implemented in `indications` (`IndicationOriginLookupAdapter`). Do not read the `origins` collection from this module ([ADR 0001](../../../docs/adr/customer-ranking-indications/0001-customers-consult-origins-through-a-port-implemented-by-indications.md)). There is no Mongo transaction ([ADR 0003](../../../docs/adr/customer-ranking-indications/0003-no-transaction-on-create-customer.md)).
 
+### Application: Remove Customer (command)
+
+Port: `RemoveCustomerPort`. DTO: `{ actorId, customerId, actorPassword }` → `{ id }`. `actorId` comes from the Session Token (HTTP), not the body.
+
+1. Blank `actorId` → `CustomerActorAuthenticationFailedError`
+2. `VerifyActorPasswordPort.verify(actorId, actorPassword)` — `false` → same error ([ADR 0003](../../../docs/adr/remove-customer/0003-actor-password-is-verified-through-a-port-implemented-by-auth.md); implemented in `auth` as `ActorPasswordVerifierAdapter`)
+3. `FindCustomerByIdPort.findById(customerId)` — `null` → `CustomerNotFoundError`
+4. `CustomerSnapshotMapper.toEntity` → `customer.remove(now)` → `RemoveCustomerRepositoryPort.remove(snapshot)`
+5. `remove` returns `false` → `CustomerAlreadyRemovedError` (race)
+6. Return `{ id }`
+
 ### Application: Get Customers (query)
 
 Offset pagination lives in `@shared/application/pagination` (`normalizePagination`, `toPaginatedResult`). Module DTOs compose that contract. Defaults: `page=1`, `limit=20`, `max limit=100`.
@@ -179,7 +206,12 @@ interface GetCustomersDto extends PaginationInputDto {
 
 type GetCustomersIndicationDto =
   | { categoryId: 'canal' | 'campanha'; originId: string; name: string | null }
-  | { categoryId: 'amigo'; referrerCustomerId: string; name: string | null };
+  | {
+      categoryId: 'amigo';
+      referrerCustomerId: string;
+      name: string | null;
+      referrerRemoved: boolean;
+    };
 
 interface GetCustomersItemDto {
   id: string;
@@ -208,10 +240,10 @@ interface GetCustomersResultDto {
 3. `FindCustomersPort.findAll({ rank, search, skip, limit })` → `{ items, total }`
 4. Collect unique origin ids and unique referrer ids from the page
 5. In parallel: `FindIndicationOriginNamesByIdsPort.findOriginNamesByIds` (implemented by `indications`) and `FindCustomerNamesByIdsPort.findNamesByIds` (this module's repository). Empty id lists skip the call
-6. Merge `name` onto each indication. A stored id with no row → `name: null`. Walk-in → `indication: null`
+6. Merge `name` onto each indication. A stored id with no row → `name: null`. Friend rows also set `referrerRemoved` from `findNamesByIds`. Walk-in → `indication: null`
 7. `toPaginatedResult` → `{ customers, page, limit, total, totalPages }`
 
-`total` / `totalPages` always reflect the **filtered** set. No domain entity, no policies, no `populate` / `$lookup`.
+`total` / `totalPages` always reflect the **filtered** set (active customers only; `removedAt: null` in persistence). No domain entity, no policies, no `populate` / `$lookup`.
 
 ### Presentation and HTTP
 
@@ -225,6 +257,7 @@ authTokenMiddleware → adaptRoute
 |--------|------|---------|
 | `GET` | `/api/customers` | `200` `{ data: { customers, page, limit, total, totalPages } }` |
 | `POST` | `/api/customer` | `201` `{ data: { id } }` |
+| `POST` | `/api/customer/remove` | `200` `{ data: { id } }` — `authTokenMiddleware` + `requireRoles('ADMIN', 'MANAGER')` |
 
 `GetCustomersController` has no required fields. It normalizes the query string: `rank` via `isRank` (`BRONZE` \| `SILVER` \| `GOLD`), `search` (trim), `page`, `limit`. Invalid `rank` → `400` `InvalidParamError`. Blank `rank` / `search` are omitted. Success → `200` + `{ data: { customers, page, limit, total, totalPages } }`.
 
@@ -234,17 +267,24 @@ GET /api/customers?page=1&limit=20&rank=BRONZE&search=maria
 
 `CreateCustomerController` checks `name` and `email` with `validationRequiredFields` (a falsy value is `MissingParamError`, `400`). When `indication` is a plain object it also checks `categoryId`; a miss is `MissingParamError` with field `indication.categoryId` (`400`). It forwards `name`, `email`, `phone`, `nif`, and `indication`. A `rank` in the body is not forwarded.
 
+`RemoveCustomerController` checks `id` and `password` with `validationRequiredFields`. It forwards `actorId` from the token, body `id` as `customerId`, and `password` as `actorPassword`.
+
 | Situation | HTTP |
 |-----------|------|
 | List | `200` `{ data: { customers, page, limit, total, totalPages } }` |
 | Invalid `rank` on list | `400` |
 | Created, with or without indication | `201` `{ data: { id } }` |
+| Removed | `200` `{ data: { id } }` |
 | Missing `name`, `email`, or `indication.categoryId` | `400` |
+| Remove: missing `id` or `password` | `400` |
+| Remove: unknown `customerId` | `400` |
 | Invalid name, email, phone, nif | `400` |
 | Unknown category, incoherent shape, malformed id, indication that is not an object | `400` |
 | Unknown, wrong-category, or ended origin; unknown referrer | `400` |
 | Email already used | `409` |
-| No / invalid session | `401` |
+| Remove: already removed | `409` |
+| No / invalid session; remove: wrong actor password | `401` |
+| Remove: `EMPLOYEE` (or other role not allowed) | `403` |
 | Unexpected | `500` |
 
 This API has no `404`.
@@ -266,9 +306,9 @@ Samples: `src/client/customer.http`.
 
 ### Wiring (`customers.module.ts`)
 
-Factory: `makeCustomersModule({ connection, authTokenMiddleware, findIndicationOrigin, findIndicationOriginNamesByIds })`.
+Factory: `makeCustomersModule({ connection, authTokenMiddleware, makeRequireRoles, findIndicationOrigin, findIndicationOriginNamesByIds, verifyActorPassword })`.
 
-`app.ts` builds `makeIndicationsModule` first and passes `indications.findIndicationOrigin` and `indications.findIndicationOriginNamesByIds`.
+`app.ts` builds `makeAuthModule` first (`makeRequireRoles`, `verifyActorPassword`), then `makeIndicationsModule`, then customers with `indications.findIndicationOrigin`, `indications.findIndicationOriginNamesByIds`, and the auth exports above.
 
 1. `connection.model('Customer', CustomerSchema)`
 2. One `CustomerMongooseRepository`
@@ -277,9 +317,11 @@ Factory: `makeCustomersModule({ connection, authTokenMiddleware, findIndicationO
 5. `CreateCustomerController(createCustomer)`
 6. `GetCustomersQuery(repository, findIndicationOriginNamesByIds, repository)` — `FindCustomersPort` + `FindCustomerNamesByIdsPort`
 7. `GetCustomersController(getCustomers)`
-8. `makeCustomerRoutes({ createCustomerController, getCustomersController, authTokenMiddleware })`
+8. `RemoveCustomerUsecase(verifyActorPassword, repository, repository)` — `FindCustomerByIdPort` + `RemoveCustomerRepositoryPort`
+9. `RemoveCustomerController(removeCustomer)`
+10. `makeCustomerRoutes({ createCustomerController, getCustomersController, removeCustomerController, authTokenMiddleware, makeRequireRoles })`
 
-Returns `{ createCustomerController, getCustomersController, createCustomer, getCustomers, router }`.
+Returns `{ createCustomerController, getCustomersController, removeCustomerController, createCustomer, getCustomers, removeCustomer, router }`.
 
 **Rule:** when adding a use case or query, wire it in this file. Do not construct the repository inside a controller or a use case. Do not construct a second customer repository.
 
@@ -291,3 +333,5 @@ Returns `{ createCustomerController, getCustomersController, createCustomer, get
 2. **Customer read** — list is shipped (`GET /api/customers`, ADR 0005). Remaining: get-by-id, summary by rank, "Indicou N", and the customer search a friend picker needs. Until the picker exists, the API accepts Amigo but the frontend cannot pick a real friend. A stored indication id with no row shows `name: null`.
 3. **Correcting an indication after create** — not planned.
 4. **Email across modules** — customer and employee emails may overlap. No cross-collection uniqueness.
+5. **Sale name copy** — removed customers keep `name` on the document; a future sales module may duplicate the display name on each sale row ([ADR 0001](../../../docs/adr/remove-customer/0001-customer-remove-is-anonymization-keeping-the-name.md)).
+6. **GDPR name shortening** — product accepted keeping full `name` on remove; if compliance requires erasure later, shorten the label (e.g. initials) without changing `id` or referral links.
