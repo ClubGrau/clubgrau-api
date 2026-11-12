@@ -54,6 +54,13 @@ export interface NameByIdReadModel {
   name: string;
 }
 
+/** Nome de referrer na listagem, com flag de remoção. */
+export interface ReferrerNameReadModel {
+  id: string;
+  name: string;
+  removed: boolean;
+}
+
 /** Output da query GetCustomers (lista nomeada + meta de paginação). */
 export interface GetCustomersResultDto {
   customers: GetCustomersItemDto[];

@@ -1,14 +1,16 @@
-import { QueryFilter } from 'mongoose';
+import mongoose, { QueryFilter } from 'mongoose';
 import { CreateCustomerResultDto } from '@modules/customers/application/dtos/create-customer.dto';
 import {
   FindCustomersParams,
   FindCustomersResult,
-  NameByIdReadModel,
+  ReferrerNameReadModel,
 } from '@modules/customers/application/dtos/get-customers.dto';
 import { CreateCustomerRepositoryPort } from '@modules/customers/application/ports/outbound/create-customer-repository.port';
-import { ExistsCustomerByIdPort } from '@modules/customers/application/ports/outbound/exists-customer-by-id.port';
+import { ExistsReferrableCustomerByIdPort } from '@modules/customers/application/ports/outbound/exists-referrable-customer-by-id.port';
+import { FindCustomerByIdPort } from '@modules/customers/application/ports/outbound/find-customer-by-id.port';
 import { FindCustomerNamesByIdsPort } from '@modules/customers/application/ports/outbound/find-customer-names-by-ids.port';
 import { FindCustomersPort } from '@modules/customers/application/ports/outbound/find-customers.port';
+import { RemoveCustomerRepositoryPort } from '@modules/customers/application/ports/outbound/remove-customer-repository.port';
 import { CustomerAlreadyExistsError } from '@modules/customers/domain/errors/customer.errors';
 import { FindCustomerByEmailPort } from '@modules/customers/domain/ports/find-customer-by-email.port';
 import { CustomerModel } from '@modules/customers/domain/models/customer.model';
@@ -32,7 +34,9 @@ export class CustomerMongooseRepository
   implements
     FindCustomerByEmailPort,
     CreateCustomerRepositoryPort,
-    ExistsCustomerByIdPort,
+    ExistsReferrableCustomerByIdPort,
+    FindCustomerByIdPort,
+    RemoveCustomerRepositoryPort,
     FindCustomersPort,
     FindCustomerNamesByIdsPort
 {
@@ -55,6 +59,35 @@ export class CustomerMongooseRepository
     }
   }
 
+  async findById(id: string): Promise<CustomerModel.toCreate | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return null;
+    }
+
+    const customer = await this.customerModel.findOne({ _id: id }).lean();
+    if (!customer) {
+      return null;
+    }
+
+    return mapCustomerDocument(customer as CustomerDocument);
+  }
+
+  async remove(customer: CustomerModel.toCreate): Promise<boolean> {
+    const result = await this.customerModel.updateOne(
+      { _id: customer.id, removedAt: null },
+      {
+        $set: {
+          email: customer.email,
+          phone: null,
+          removedAt: customer.removedAt,
+        },
+        $unset: { nif: '' },
+      },
+    );
+
+    return result.matchedCount === 1;
+  }
+
   async findByEmail(email: string): Promise<CustomerModel.toCreate | null> {
     const customer = await this.customerModel.findOne({ email }).lean();
     if (!customer) return null;
@@ -62,9 +95,9 @@ export class CustomerMongooseRepository
     return mapCustomerDocument(customer as CustomerDocument);
   }
 
-  async existsById(id: string): Promise<boolean> {
+  async existsReferrableById(id: string): Promise<boolean> {
     try {
-      const doc = await this.customerModel.exists({ _id: id });
+      const doc = await this.customerModel.exists({ _id: id, removedAt: null });
       return doc != null;
     } catch {
       return false;
@@ -93,7 +126,7 @@ export class CustomerMongooseRepository
     };
   }
 
-  async findNamesByIds(ids: string[]): Promise<NameByIdReadModel[]> {
+  async findNamesByIds(ids: string[]): Promise<ReferrerNameReadModel[]> {
     const objectIds = toObjectIds(ids);
     if (objectIds.length === 0) {
       return [];
@@ -101,21 +134,24 @@ export class CustomerMongooseRepository
 
     const documents = await this.customerModel
       .find({ _id: { $in: objectIds } })
-      .select('_id name')
+      .select('_id name removedAt')
       .lean();
 
-    return (documents as Pick<CustomerDocument, '_id' | 'name'>[]).map(
-      (document) => ({
-        id: String(document._id),
-        name: document.name,
-      }),
-    );
+    return (
+      documents as Pick<CustomerDocument, '_id' | 'name' | 'removedAt'>[]
+    ).map((document) => ({
+      id: String(document._id),
+      name: document.name,
+      removed: document.removedAt != null,
+    }));
   }
 
   private buildFindFilter(
     params: FindCustomersParams,
   ): QueryFilter<CustomerSchemaType> {
-    const filter: QueryFilter<CustomerSchemaType> = {};
+    const filter: QueryFilter<CustomerSchemaType> = {
+      removedAt: null,
+    };
 
     if (params.rank) {
       filter.rank = params.rank;

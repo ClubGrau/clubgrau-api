@@ -31,7 +31,7 @@ Use this file to extend **this** module without breaking its current contracts: 
 | Create customer (command) | Done | `POST /api/customer` — stores `rank` (born `BRONZE`) and an optional indication |
 | List customers (query) | Done | `GET /api/customers` — offset pagination + `rank` / `search`; indication carries the origin or referrer name |
 | Email availability policy | Done | `CustomerPoliciesService.ensureEmailIsAvailable`; a taken email is `409` |
-| Origin and referrer checks | Done | `FindIndicationOriginPort` (injected) and `ExistsCustomerByIdPort` |
+| Origin and referrer checks | Done | `FindIndicationOriginPort` (injected) and `ExistsReferrableCustomerByIdPort` |
 | Origin names for list | Done | `FindIndicationOriginNamesByIdsPort` (injected; implemented by `indications`) |
 | Mongo persistence | Done | `CustomerMongooseRepository` |
 | Auth gate | Done | `authTokenMiddleware` on create and list (any authenticated employee, no `requireRoles`) |
@@ -90,7 +90,9 @@ src/modules/customers/
 │   │   │   └── get-customers.port.ts
 │   │   └── outbound/
 │   │       ├── create-customer-repository.port.ts
-│   │       ├── exists-customer-by-id.port.ts
+│   │       ├── exists-referrable-customer-by-id.port.ts
+│   │       ├── find-customer-by-id.port.ts
+│   │       ├── remove-customer-repository.port.ts
 │   │       ├── find-indication-origin.port.ts
 │   │       ├── find-indication-origin-names-by-ids.port.ts
 │   │       ├── find-customers.port.ts
@@ -159,11 +161,11 @@ Port: `CreateCustomerPort`. DTO: `{ name, email, phone?, nif?, indication? }` �
 1. `Customer.create(...)` then `.toJSON()` (VO validation and the indication shape happen here; rank is `BRONZE`)
 2. `CustomerPoliciesService.ensureEmailIsAvailable(email)`
 3. When the indication is an origin (`canal` or `campanha`): `FindIndicationOriginPort.findOrigin(originId)`, then `indication.ensureOriginIsLinkable(facts)`
-4. When the indication is a friend (`amigo`): `ExistsCustomerByIdPort.existsById(referrerCustomerId)`, then `indication.ensureReferrerExists(exists)`
+4. When the indication is a friend (`amigo`): `ExistsReferrableCustomerByIdPort.existsReferrableById(referrerCustomerId)`, then `indication.ensureReferrerExists(exists)`
 5. `CreateCustomerRepositoryPort.create(snapshot)`
 6. Return `{ id }`
 
-`ExistsCustomerByIdPort` is this module's repository. `FindIndicationOriginPort` is declared here and implemented in `indications` (`IndicationOriginLookupAdapter`). Do not read the `origins` collection from this module ([ADR 0001](../../../docs/adr/customer-ranking-indications/0001-customers-consult-origins-through-a-port-implemented-by-indications.md)). There is no Mongo transaction ([ADR 0003](../../../docs/adr/customer-ranking-indications/0003-no-transaction-on-create-customer.md)).
+`ExistsReferrableCustomerByIdPort` is this module's repository (removed customers are not referrable). `FindIndicationOriginPort` is declared here and implemented in `indications` (`IndicationOriginLookupAdapter`). Do not read the `origins` collection from this module ([ADR 0001](../../../docs/adr/customer-ranking-indications/0001-customers-consult-origins-through-a-port-implemented-by-indications.md)). There is no Mongo transaction ([ADR 0003](../../../docs/adr/customer-ranking-indications/0003-no-transaction-on-create-customer.md)).
 
 ### Application: Get Customers (query)
 
@@ -252,11 +254,13 @@ Samples: `src/client/customer.http`.
 ### Persistence
 
 - Model name: `Customer`
-- Fields: `name`, `email` (unique index), `phone`, `nif`, `createdAt`, `rank` (enum `BRONZE` \| `SILVER` \| `GOLD`, required), embedded `indication` (`categoryId`, `originId`, `referrerCustomerId`)
+- Fields: `name`, `email` (unique index), `phone`, `nif`, `createdAt`, `rank` (enum `BRONZE` \| `SILVER` \| `GOLD`, required), embedded `indication` (`categoryId`, `originId`, `referrerCustomerId`), `removedAt` (`Date`, default `null`)
 - Indication ids are plain `ObjectId`, with **no** Mongoose `ref`. Do not use `populate()` or `$lookup` into `origins`.
-- `CustomerMongooseRepository` implements `CreateCustomerRepositoryPort` (`create`), `FindCustomerByEmailPort` (`findByEmail`), `ExistsCustomerByIdPort` (`existsById` via `Model.exists`), `FindCustomersPort` (`findAll`), and `FindCustomerNamesByIdsPort` (`findNamesByIds`)
-- `findAll` sorts by `{ createdAt: -1, _id: -1 }` for stable pages. Optional `search` builds a case-insensitive `$or` over `name`, `email`, `phone`, and `nif` (`$expr` + `$toString` because `nif` is stored as Number). Regex metacharacters in `search` are escaped. `countDocuments` uses the same filter
-- `findNamesByIds` selects `_id` and `name` only. Malformed ids are skipped. A missing id is omitted from the result (the query maps it to `name: null`)
+- `CustomerMongooseRepository` implements `CreateCustomerRepositoryPort` (`create`), `FindCustomerByEmailPort` (`findByEmail`), `FindCustomerByIdPort` (`findById`), `RemoveCustomerRepositoryPort` (`remove` via guarded `updateOne`), `ExistsReferrableCustomerByIdPort` (`existsReferrableById` via `Model.exists` with `removedAt: null`), `FindCustomersPort` (`findAll`), and `FindCustomerNamesByIdsPort` (`findNamesByIds`)
+- `findById` returns the write snapshot for active and removed customers; malformed ids yield `null`
+- `remove` sets sentinel `email`, clears `phone` and `nif`, sets `removedAt`, and leaves `name`, `rank`, `indication`, and `createdAt` unchanged
+- `findAll` always filters `removedAt: null`. It sorts by `{ createdAt: -1, _id: -1 }` for stable pages. Optional `search` builds a case-insensitive `$or` over `name`, `email`, `phone`, and `nif` (`$expr` + `$toString` because `nif` is stored as Number). Regex metacharacters in `search` are escaped. `countDocuments` uses the same filter
+- `findNamesByIds` selects `_id`, `name`, and `removedAt`. Malformed ids are skipped. Removed rows are included with `removed: true`. A missing id is omitted from the result (the query maps it to `name: null`)
 - Duplicate key `11000` on email becomes `CustomerAlreadyExistsError`
 - The mapper keeps Mongoose types out of the domain. `nif` is stored as a number and read back as a string. `mapCustomerDocument` → write snapshot. `mapCustomerReadModel` → `FindCustomersItem` (indication ids only; names are composed in the query)
 
@@ -269,7 +273,7 @@ Factory: `makeCustomersModule({ connection, authTokenMiddleware, findIndicationO
 1. `connection.model('Customer', CustomerSchema)`
 2. One `CustomerMongooseRepository`
 3. `CustomerPoliciesService(repository)` — same instance, `FindCustomerByEmailPort`
-4. `CreateCustomerUsecase(policies, findIndicationOrigin, repository, repository)` — `ExistsCustomerByIdPort` and `CreateCustomerRepositoryPort`
+4. `CreateCustomerUsecase(policies, findIndicationOrigin, repository, repository)` — `ExistsReferrableCustomerByIdPort` and `CreateCustomerRepositoryPort`
 5. `CreateCustomerController(createCustomer)`
 6. `GetCustomersQuery(repository, findIndicationOriginNamesByIds, repository)` — `FindCustomersPort` + `FindCustomerNamesByIdsPort`
 7. `GetCustomersController(getCustomers)`

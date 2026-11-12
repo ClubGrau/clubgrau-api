@@ -25,6 +25,7 @@ export const CustomerSchema = new mongoose.Schema({
     required: true,
   },
   indication: { type: IndicationSubSchema },
+  removedAt: { type: Date, default: null },
 });
 
 /** Campos inferidos do Schema (sem `_id` — é o que `connection.model` tipa). */

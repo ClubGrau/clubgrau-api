@@ -6,14 +6,14 @@ import {
 } from '../dtos/create-customer.dto';
 import { CreateCustomerPort } from '../ports/inbound/create-customer.port';
 import { CreateCustomerRepositoryPort } from '../ports/outbound/create-customer-repository.port';
-import { ExistsCustomerByIdPort } from '../ports/outbound/exists-customer-by-id.port';
+import { ExistsReferrableCustomerByIdPort } from '../ports/outbound/exists-referrable-customer-by-id.port';
 import { FindIndicationOriginPort } from '../ports/outbound/find-indication-origin.port';
 
 export class CreateCustomerUsecase implements CreateCustomerPort {
   constructor(
     private readonly customerPoliciesService: CustomerPoliciesService,
     private readonly findIndicationOrigin: FindIndicationOriginPort,
-    private readonly existsCustomerById: ExistsCustomerByIdPort,
+    private readonly existsReferrableCustomerById: ExistsReferrableCustomerByIdPort,
     private readonly createCustomerRepository: CreateCustomerRepositoryPort,
   ) {}
 
@@ -34,9 +34,10 @@ export class CreateCustomerUsecase implements CreateCustomerPort {
     if (indication !== null) {
       const link = indication.toJSON();
       if (link.categoryId === 'amigo') {
-        const exists = await this.existsCustomerById.existsById(
-          link.referrerCustomerId,
-        );
+        const exists =
+          await this.existsReferrableCustomerById.existsReferrableById(
+            link.referrerCustomerId,
+          );
         indication.ensureReferrerExists(exists);
       } else {
         const facts = await this.findIndicationOrigin.findOrigin(link.originId);

@@ -71,7 +71,7 @@ export function mapCustomerDocument(
     createdAt: document.createdAt ?? new Date(0),
     rank: document.rank,
     indication: mapIndicationFromDocument(document.indication),
-    removedAt: null,
+    removedAt: document.removedAt ?? null,
   };
 }
 
@@ -79,7 +79,7 @@ export function mapCustomerDocument(
 export function mapToCreateDocument(
   customer: CustomerModel.toCreate,
 ): CustomerDocument {
-  const { id, nif, indication, removedAt: _removedAt, ...rest } = customer;
+  const { id, nif, indication, ...rest } = customer;
 
   const document: Record<string, unknown> = {
     ...rest,
