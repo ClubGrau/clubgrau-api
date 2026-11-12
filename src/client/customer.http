@@ -1,5 +1,78 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg0NTE0NTM2LCJleHAiOjI5OTQxMTQ1MzZ9.Qy5lhio_PzW2PQRPL5W_00CnTMwuNrj8Ox1eQkVoy6A
 
+### Remove customer (ok)
+# ADMIN ou MANAGER (makeRequireRoles). Actor vem do Bearer (adaptRoute → actorId).
+# password é a senha do actor (step-up), não do customer.
+# 200 { data: { id } }
+POST http://localhost:3003/api/customer/remove
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "507f1f77bcf86cd799439011",
+  "password": "P@ssword123"
+}
+
+### Remove customer — missing password (expect 400)
+POST http://localhost:3003/api/customer/remove
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "507f1f77bcf86cd799439011"
+}
+
+### Remove customer — wrong password (expect 401)
+POST http://localhost:3003/api/customer/remove
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "507f1f77bcf86cd799439011",
+  "password": "wrong-password"
+}
+
+### Remove customer — unknown id (expect 400)
+POST http://localhost:3003/api/customer/remove
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "507f1f77bcf86cd799439099",
+  "password": "P@ssword123"
+}
+
+### Remove customer — twice (expect 409 on second call)
+POST http://localhost:3003/api/customer/remove
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "507f1f77bcf86cd799439011",
+  "password": "P@ssword123"
+}
+
+### Create customer — friend indication with removed referrer (expect 400)
+POST http://localhost:3003/api/customer
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "After Removal Referrer",
+  "email": "after.removal.referrer@example.com",
+  "indication": {
+    "categoryId": "amigo",
+    "referrerCustomerId": "507f1f77bcf86cd799439011"
+  }
+}
+
+### List customers after removal
+# Customer removido não aparece na listagem.
+GET http://localhost:3003/api/customers
+Authorization: Bearer {{token}}
+
+# 403 se o token não for ADMIN nem MANAGER (requireRoles, antes do controller).
+
 ### List customers
 # Qualquer employee autenticado (authTokenMiddleware). Sem requireRoles.
 # Paginação offset: page (1-based, default 1), limit (default 20, max 100).
