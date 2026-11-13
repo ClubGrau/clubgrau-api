@@ -1,5 +1,57 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImQzZjZmNDQyMjEzNWQyZTA3ZTZkZGEzMyIsIm5hbWUiOiJVc3VhcmlvIGRvIEdyYXUiLCJlbWFpbCI6InVzdWFyaW9fdGVzdGVncmF1QGV4YW1wbGUuY29tIiwicm9sZSI6Ik1BTkFHRVIiLCJpc0FjdGl2ZSI6dHJ1ZSwiaWF0IjoxNzg0NTE0NTM2LCJleHAiOjI5OTQxMTQ1MzZ9.Qy5lhio_PzW2PQRPL5W_00CnTMwuNrj8Ox1eQkVoy6A
 
+### Update customer — partial update (ok)
+# Qualquer employee autenticado (authTokenMiddleware). Sem requireRoles.
+# Target é :id na URL. Envie apenas os campos alterados (name, email, phone, nif).
+# rank e indication são ignorados caso enviados.
+# 200 { data: { id } }
+PATCH http://localhost:3003/api/customer/507f1f77bcf86cd799439011
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Maria Santos"
+}
+
+### Update customer — full registration data in one submission (ok)
+PATCH http://localhost:3003/api/customer/507f1f77bcf86cd799439011
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Maria Santos",
+  "email": "maria.santos@example.com",
+  "phone": "+351 912 345 678",
+  "nif": 200000004
+}
+
+### Update customer — clear optional phone and nif (ok)
+PATCH http://localhost:3003/api/customer/507f1f77bcf86cd799439011
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "phone": null,
+  "nif": null
+}
+
+### Update customer — empty body (expect 400)
+PATCH http://localhost:3003/api/customer/507f1f77bcf86cd799439011
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{}
+
+### Update customer — required field empty (expect 400)
+# name e email são obrigatórios no cadastro; quando enviados no PATCH, não podem ser vazios nem null.
+PATCH http://localhost:3003/api/customer/507f1f77bcf86cd799439011
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
 ### Remove customer (ok)
 # ADMIN ou MANAGER (makeRequireRoles). Actor vem do Bearer (adaptRoute → actorId).
 # password é a senha do actor (step-up), não do customer.

@@ -2,11 +2,13 @@ import { RequestHandler, Router } from 'express';
 import { CreateCustomerController } from '@modules/customers/presentation/controllers/create-customer.controller';
 import { GetCustomersController } from '@modules/customers/presentation/controllers/get-customers.controller';
 import { RemoveCustomerController } from '@modules/customers/presentation/controllers/remove-customer.controller';
+import { UpdateCustomerController } from '@modules/customers/presentation/controllers/update-customer.controller';
 import { adaptRoute } from '@shared/infrastructure/adapters/http/express-route.adapter';
 
 export type CustomerRoutesDependencies = {
   createCustomerController: CreateCustomerController;
   getCustomersController: GetCustomersController;
+  updateCustomerController: UpdateCustomerController;
   removeCustomerController: RemoveCustomerController;
   authTokenMiddleware: RequestHandler;
   makeRequireRoles: (...roles: string[]) => RequestHandler;
@@ -15,6 +17,7 @@ export type CustomerRoutesDependencies = {
 export function makeCustomerRoutes({
   createCustomerController,
   getCustomersController,
+  updateCustomerController,
   removeCustomerController,
   authTokenMiddleware,
   makeRequireRoles,
@@ -30,6 +33,11 @@ export function makeCustomerRoutes({
     '/customer',
     authTokenMiddleware,
     adaptRoute(createCustomerController),
+  );
+  router.patch(
+    '/customer/:id',
+    authTokenMiddleware,
+    adaptRoute(updateCustomerController),
   );
   router.post(
     '/customer/remove',
