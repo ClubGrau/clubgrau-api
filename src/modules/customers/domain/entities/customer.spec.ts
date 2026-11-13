@@ -309,6 +309,30 @@ describe('Customer (entity)', () => {
       customer.assignNif(null);
       expect(customer.toJSON().nif).toBeNull();
     });
+
+    it('should expose the current email VO via getter', () => {
+      const customer = Customer.create(makeValidProps());
+
+      expect(customer.email.value).toBe('john@example.com');
+    });
+
+    it('should throw CustomerAlreadyRemovedError on any mutation after remove', () => {
+      const customer = Customer.create(makeValidProps());
+      customer.remove(new Date('2025-01-01T00:00:00.000Z'));
+
+      expect(() => customer.changeName(Name.create('New Name'))).toThrow(
+        CustomerAlreadyRemovedError,
+      );
+      expect(() =>
+        customer.changeEmail(Email.create('new@example.com')),
+      ).toThrow(CustomerAlreadyRemovedError);
+      expect(() =>
+        customer.assignPhone(Phone.create('+351 912 345 678')),
+      ).toThrow(CustomerAlreadyRemovedError);
+      expect(() => customer.assignNif(Nif.create('123456789'))).toThrow(
+        CustomerAlreadyRemovedError,
+      );
+    });
   });
 
   describe('identity', () => {

@@ -53,3 +53,9 @@ export class CustomerActorAuthenticationFailedError extends DomainError {
     super('Authentication failed');
   }
 }
+
+export class EmptyCustomerUpdateDataError extends DomainError {
+  constructor() {
+    super('At least one customer field is required');
+  }
+}

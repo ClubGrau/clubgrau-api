@@ -84,23 +84,39 @@ export class Customer extends Entity<CustomerProps> {
     return this.props.rank;
   }
 
+  get email(): Email {
+    return this.props.email;
+  }
+
   get indication(): Indication | null {
     return this.props.indication;
   }
 
   changeName(name: Name): void {
+    if (this.isRemoved) {
+      throw new CustomerAlreadyRemovedError();
+    }
     this.props.name = name;
   }
 
   changeEmail(email: Email): void {
+    if (this.isRemoved) {
+      throw new CustomerAlreadyRemovedError();
+    }
     this.props.email = email;
   }
 
   assignPhone(phone: Phone | null): void {
+    if (this.isRemoved) {
+      throw new CustomerAlreadyRemovedError();
+    }
     this.props.phone = phone;
   }
 
   assignNif(nif: Nif | null): void {
+    if (this.isRemoved) {
+      throw new CustomerAlreadyRemovedError();
+    }
     this.props.nif = nif;
   }
 
