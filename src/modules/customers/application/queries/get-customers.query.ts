@@ -8,7 +8,7 @@ import {
   GetCustomersIndicationDto,
   GetCustomersItemDto,
   GetCustomersResultDto,
-  NameByIdReadModel,
+  ReferrerNameReadModel,
 } from '../dtos/get-customers.dto';
 import { GetCustomersPort } from '../ports/inbound/get-customers.port';
 import { FindCustomerNamesByIdsPort } from '../ports/outbound/find-customer-names-by-ids.port';
@@ -16,6 +16,7 @@ import { FindCustomersPort } from '../ports/outbound/find-customers.port';
 import { FindIndicationOriginNamesByIdsPort } from '../ports/outbound/find-indication-origin-names-by-ids.port';
 
 type NamesById = Map<string, string>;
+type ReferrersById = Map<string, { name: string; removed: boolean }>;
 
 export class GetCustomersQuery implements GetCustomersPort {
   constructor(
@@ -36,12 +37,8 @@ export class GetCustomersQuery implements GetCustomersPort {
     });
 
     const [originNames, referrerNames] = await Promise.all([
-      this.loadNames(this.collectOriginIds(items), (ids) =>
-        this.findOriginNames.findOriginNamesByIds(ids),
-      ),
-      this.loadNames(this.collectReferrerIds(items), (ids) =>
-        this.findCustomerNames.findNamesByIds(ids),
-      ),
+      this.loadOriginNames(this.collectOriginIds(items)),
+      this.loadReferrers(this.collectReferrerIds(items)),
     ]);
 
     const customers = items.map((item) =>
@@ -84,22 +81,31 @@ export class GetCustomersQuery implements GetCustomersPort {
     return [...ids];
   }
 
-  private async loadNames(
-    ids: string[],
-    load: (ids: string[]) => Promise<NameByIdReadModel[]>,
-  ): Promise<NamesById> {
+  private async loadOriginNames(ids: string[]): Promise<NamesById> {
     if (ids.length === 0) {
       return new Map();
     }
 
-    const rows = await load(ids);
+    const rows = await this.findOriginNames.findOriginNamesByIds(ids);
     return new Map(rows.map(({ id, name }) => [id, name]));
+  }
+
+  private async loadReferrers(ids: string[]): Promise<ReferrersById> {
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const rows: ReferrerNameReadModel[] =
+      await this.findCustomerNames.findNamesByIds(ids);
+    return new Map(
+      rows.map(({ id, name, removed }) => [id, { name, removed }]),
+    );
   }
 
   private toItem(
     item: FindCustomersItem,
     originNames: NamesById,
-    referrerNames: NamesById,
+    referrerNames: ReferrersById,
   ): GetCustomersItemDto {
     return {
       ...item,
@@ -114,17 +120,19 @@ export class GetCustomersQuery implements GetCustomersPort {
   private toIndication(
     indication: FindCustomersItem['indication'],
     originNames: NamesById,
-    referrerNames: NamesById,
+    referrerNames: ReferrersById,
   ): GetCustomersIndicationDto | null {
     if (indication === null) {
       return null;
     }
 
     if (indication.categoryId === 'amigo') {
+      const entry = referrerNames.get(indication.referrerCustomerId);
       return {
         categoryId: 'amigo',
         referrerCustomerId: indication.referrerCustomerId,
-        name: referrerNames.get(indication.referrerCustomerId) ?? null,
+        name: entry?.name ?? null,
+        referrerRemoved: entry?.removed ?? false,
       };
     }
 

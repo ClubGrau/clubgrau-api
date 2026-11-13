@@ -50,8 +50,10 @@ export function makeApp({ connection }: MakeAppDeps): Express {
   const customers = makeCustomersModule({
     connection,
     authTokenMiddleware: auth.authTokenMiddleware,
+    makeRequireRoles: auth.makeRequireRoles,
     findIndicationOrigin: indications.findIndicationOrigin,
     findIndicationOriginNamesByIds: indications.findIndicationOriginNamesByIds,
+    verifyActorPassword: auth.verifyActorPassword,
   });
 
   app.use('/api', employees.router);

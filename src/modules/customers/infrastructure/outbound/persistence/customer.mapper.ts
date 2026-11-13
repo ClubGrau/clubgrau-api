@@ -71,6 +71,7 @@ export function mapCustomerDocument(
     createdAt: document.createdAt ?? new Date(0),
     rank: document.rank,
     indication: mapIndicationFromDocument(document.indication),
+    removedAt: document.removedAt ?? null,
   };
 }
 

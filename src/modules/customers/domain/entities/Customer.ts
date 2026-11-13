@@ -1,6 +1,7 @@
 import { Entity } from '@shared/domain/entity/entity';
 import { UniqueEntityId } from '@shared/domain/value-object/id/unique-entity-id.vo';
 import { Email, Name, Nif, Phone } from '@shared/domain/value-object';
+import { CustomerAlreadyRemovedError } from '../errors/customer.errors';
 import { INITIAL_RANK, type Rank } from '../rank';
 import { Indication } from '../value-objects/indication.vo';
 
@@ -12,6 +13,7 @@ interface CustomerProps {
   createdAt: Date;
   rank: Rank;
   indication: Indication | null;
+  removedAt: Date | null;
 }
 
 /** Input required to create a brand new customer. */
@@ -37,6 +39,7 @@ export interface ReconstituteCustomerProps {
   createdAt: Date;
   rank: Rank;
   indication: Indication | null;
+  removedAt?: Date | null;
 }
 
 export class Customer extends Entity<CustomerProps> {
@@ -57,6 +60,7 @@ export class Customer extends Entity<CustomerProps> {
       createdAt: new Date(),
       rank: INITIAL_RANK,
       indication,
+      removedAt: null,
     });
   }
 
@@ -70,6 +74,7 @@ export class Customer extends Entity<CustomerProps> {
         createdAt: input.createdAt,
         rank: input.rank,
         indication: input.indication,
+        removedAt: input.removedAt ?? null,
       },
       new UniqueEntityId(input.id),
     );
@@ -97,5 +102,23 @@ export class Customer extends Entity<CustomerProps> {
 
   assignNif(nif: Nif | null): void {
     this.props.nif = nif;
+  }
+
+  get removedAt(): Date | null {
+    return this.props.removedAt;
+  }
+
+  get isRemoved(): boolean {
+    return this.props.removedAt !== null;
+  }
+
+  remove(now: Date): void {
+    if (this.isRemoved) {
+      throw new CustomerAlreadyRemovedError();
+    }
+    this.props.email = Email.create(`removed.${this.id}@anonymized.invalid`);
+    this.props.phone = null;
+    this.props.nif = null;
+    this.props.removedAt = now;
   }
 }

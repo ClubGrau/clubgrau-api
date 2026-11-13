@@ -18,7 +18,7 @@ import {
 import { FindCustomerByEmailPort } from '@modules/customers/domain/ports/find-customer-by-email.port';
 import { CreateCustomerDto } from '../dtos/create-customer.dto';
 import { CreateCustomerRepositoryPort } from '../ports/outbound/create-customer-repository.port';
-import { ExistsCustomerByIdPort } from '../ports/outbound/exists-customer-by-id.port';
+import { ExistsReferrableCustomerByIdPort } from '../ports/outbound/exists-referrable-customer-by-id.port';
 import { FindIndicationOriginPort } from '../ports/outbound/find-indication-origin.port';
 
 const ORIGIN_ID = '507f1f77bcf86cd799439011';
@@ -31,9 +31,9 @@ const makeStubs = () => ({
   findIndicationOriginStub: {
     findOrigin: jest.fn().mockResolvedValue(null),
   } satisfies FindIndicationOriginPort,
-  existsCustomerByIdStub: {
-    existsById: jest.fn().mockResolvedValue(false),
-  } satisfies ExistsCustomerByIdPort,
+  existsReferrableCustomerByIdStub: {
+    existsReferrableById: jest.fn().mockResolvedValue(false),
+  } satisfies ExistsReferrableCustomerByIdPort,
   createCustomerRepositoryStub: {
     create: jest.fn().mockResolvedValue({ id: 'valid_customer_id' }),
   } satisfies CreateCustomerRepositoryPort,
@@ -43,20 +43,20 @@ const makeSut = (): SutTypes => {
   const {
     customerPoliciesServiceStub,
     findIndicationOriginStub,
-    existsCustomerByIdStub,
+    existsReferrableCustomerByIdStub,
     createCustomerRepositoryStub,
   } = makeStubs();
   const sut = new CreateCustomerUsecase(
     customerPoliciesServiceStub,
     findIndicationOriginStub,
-    existsCustomerByIdStub,
+    existsReferrableCustomerByIdStub,
     createCustomerRepositoryStub,
   );
   return {
     sut,
     customerPoliciesServiceStub,
     findIndicationOriginStub,
-    existsCustomerByIdStub,
+    existsReferrableCustomerByIdStub,
     createCustomerRepositoryStub,
   };
 };
@@ -73,7 +73,7 @@ type SutTypes = {
   sut: CreateCustomerUsecase;
   customerPoliciesServiceStub: CustomerPoliciesService;
   findIndicationOriginStub: FindIndicationOriginPort;
-  existsCustomerByIdStub: ExistsCustomerByIdPort;
+  existsReferrableCustomerByIdStub: ExistsReferrableCustomerByIdPort;
   createCustomerRepositoryStub: CreateCustomerRepositoryPort;
 };
 
@@ -113,7 +113,7 @@ describe('CreateCustomerUsecase', () => {
       sut,
       customerPoliciesServiceStub,
       findIndicationOriginStub,
-      existsCustomerByIdStub,
+      existsReferrableCustomerByIdStub,
       createCustomerRepositoryStub,
     } = makeSut();
     jest
@@ -124,7 +124,9 @@ describe('CreateCustomerUsecase', () => {
 
     await expect(execute).rejects.toBeInstanceOf(CustomerAlreadyExistsError);
     expect(findIndicationOriginStub.findOrigin).not.toHaveBeenCalled();
-    expect(existsCustomerByIdStub.existsById).not.toHaveBeenCalled();
+    expect(
+      existsReferrableCustomerByIdStub.existsReferrableById,
+    ).not.toHaveBeenCalled();
     expect(createCustomerRepositoryStub.create).not.toHaveBeenCalled();
   });
 
@@ -248,7 +250,7 @@ describe('CreateCustomerUsecase', () => {
       const {
         sut,
         findIndicationOriginStub,
-        existsCustomerByIdStub,
+        existsReferrableCustomerByIdStub,
         createCustomerRepositoryStub,
       } = makeSut();
 
@@ -256,7 +258,9 @@ describe('CreateCustomerUsecase', () => {
       await sut.execute(makeValidParams({ indication: null }));
 
       expect(findIndicationOriginStub.findOrigin).not.toHaveBeenCalled();
-      expect(existsCustomerByIdStub.existsById).not.toHaveBeenCalled();
+      expect(
+        existsReferrableCustomerByIdStub.existsReferrableById,
+      ).not.toHaveBeenCalled();
       expect(createCustomerRepositoryStub.create).toHaveBeenCalledTimes(2);
       expect(createCustomerRepositoryStub.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -270,7 +274,7 @@ describe('CreateCustomerUsecase', () => {
       const {
         sut,
         findIndicationOriginStub,
-        existsCustomerByIdStub,
+        existsReferrableCustomerByIdStub,
         createCustomerRepositoryStub,
       } = makeSut();
       jest.spyOn(findIndicationOriginStub, 'findOrigin').mockResolvedValueOnce({
@@ -292,7 +296,9 @@ describe('CreateCustomerUsecase', () => {
       expect(findIndicationOriginStub.findOrigin).toHaveBeenCalledWith(
         ORIGIN_ID,
       );
-      expect(existsCustomerByIdStub.existsById).not.toHaveBeenCalled();
+      expect(
+        existsReferrableCustomerByIdStub.existsReferrableById,
+      ).not.toHaveBeenCalled();
       expect(createCustomerRepositoryStub.create).toHaveBeenCalledWith(
         expect.objectContaining({
           rank: 'BRONZE',
@@ -388,15 +394,15 @@ describe('CreateCustomerUsecase', () => {
       expect(createCustomerRepositoryStub.create).not.toHaveBeenCalled();
     });
 
-    it('friend indication calls existsById and persists when referrer exists', async () => {
+    it('friend indication calls existsReferrableById and persists when referrer exists', async () => {
       const {
         sut,
         findIndicationOriginStub,
-        existsCustomerByIdStub,
+        existsReferrableCustomerByIdStub,
         createCustomerRepositoryStub,
       } = makeSut();
       jest
-        .spyOn(existsCustomerByIdStub, 'existsById')
+        .spyOn(existsReferrableCustomerByIdStub, 'existsReferrableById')
         .mockResolvedValueOnce(true);
 
       await sut.execute(
@@ -409,9 +415,9 @@ describe('CreateCustomerUsecase', () => {
         }),
       );
 
-      expect(existsCustomerByIdStub.existsById).toHaveBeenCalledWith(
-        REFERRER_ID,
-      );
+      expect(
+        existsReferrableCustomerByIdStub.existsReferrableById,
+      ).toHaveBeenCalledWith(REFERRER_ID);
       expect(findIndicationOriginStub.findOrigin).not.toHaveBeenCalled();
       expect(createCustomerRepositoryStub.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -445,7 +451,7 @@ describe('CreateCustomerUsecase', () => {
       const {
         sut,
         findIndicationOriginStub,
-        existsCustomerByIdStub,
+        existsReferrableCustomerByIdStub,
         createCustomerRepositoryStub,
       } = makeSut();
 
@@ -474,7 +480,9 @@ describe('CreateCustomerUsecase', () => {
       ).rejects.toBeInstanceOf(CustomerIndicationInvalidError);
 
       expect(findIndicationOriginStub.findOrigin).not.toHaveBeenCalled();
-      expect(existsCustomerByIdStub.existsById).not.toHaveBeenCalled();
+      expect(
+        existsReferrableCustomerByIdStub.existsReferrableById,
+      ).not.toHaveBeenCalled();
       expect(createCustomerRepositoryStub.create).not.toHaveBeenCalled();
     });
 

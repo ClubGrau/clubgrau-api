@@ -196,7 +196,7 @@ describe('GetCustomersQuery', () => {
       { id: ORIGIN_ID, name: 'Instagram' },
     ]);
     findCustomerNamesStub.findNamesByIds.mockResolvedValueOnce([
-      { id: REFERRER_ID, name: 'João Amigo' },
+      { id: REFERRER_ID, name: 'João Amigo', removed: false },
     ]);
 
     const result = await sut.execute({});
@@ -207,9 +207,13 @@ describe('GetCustomersQuery', () => {
         categoryId: 'amigo',
         referrerCustomerId: REFERRER_ID,
         name: 'João Amigo',
+        referrerRemoved: false,
       },
       null,
     ]);
+    expect(result.customers[0]?.indication).not.toHaveProperty(
+      'referrerRemoved',
+    );
   });
 
   it('should return name null when a stored id has no row', async () => {
@@ -240,10 +244,58 @@ describe('GetCustomersQuery', () => {
       originId: ORIGIN_ID,
       name: null,
     });
+    expect(result.customers[0]?.indication).not.toHaveProperty(
+      'referrerRemoved',
+    );
     expect(result.customers[1]?.indication).toEqual({
       categoryId: 'amigo',
       referrerCustomerId: REFERRER_ID,
       name: null,
+      referrerRemoved: false,
+    });
+  });
+
+  it('should set referrerRemoved on Friend indications from referrer rows', async () => {
+    const { sut, findCustomersStub, findCustomerNamesStub } = makeSut();
+    findCustomersStub.findAll.mockResolvedValueOnce(
+      makeFindResult({
+        items: [
+          makeCustomerItem({
+            id: 'friend-removed',
+            indication: {
+              categoryId: 'amigo',
+              referrerCustomerId: REFERRER_ID,
+            },
+          }),
+          makeCustomerItem({
+            id: 'friend-active',
+            indication: {
+              categoryId: 'amigo',
+              referrerCustomerId: OTHER_ORIGIN_ID,
+            },
+          }),
+        ],
+        total: 2,
+      }),
+    );
+    findCustomerNamesStub.findNamesByIds.mockResolvedValueOnce([
+      { id: REFERRER_ID, name: 'Referrer Removido', removed: true },
+      { id: OTHER_ORIGIN_ID, name: 'Referrer Ativo', removed: false },
+    ]);
+
+    const result = await sut.execute({});
+
+    expect(result.customers[0]?.indication).toEqual({
+      categoryId: 'amigo',
+      referrerCustomerId: REFERRER_ID,
+      name: 'Referrer Removido',
+      referrerRemoved: true,
+    });
+    expect(result.customers[1]?.indication).toEqual({
+      categoryId: 'amigo',
+      referrerCustomerId: OTHER_ORIGIN_ID,
+      name: 'Referrer Ativo',
+      referrerRemoved: false,
     });
   });
 

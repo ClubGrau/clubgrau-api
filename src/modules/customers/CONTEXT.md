@@ -27,3 +27,15 @@ _Avoid_: "no origin" category, an indication with a blank origin
 **Referrer**:
 The existing customer who referred another. A Friend indication points at the Referrer by identity, never by a typed name. One customer may be the Referrer of many.
 _Avoid_: friend name, referral text, free-text friend
+
+**Remove**:
+Taking a customer out of the customer base when they ask for their data to be erased. The customer keeps its identity and name; its contact data and NIF are erased. Remove is terminal: there is no restore.
+_Avoid_: delete, hard delete, purge, deactivate
+
+**Removed customer**:
+A customer that has been removed, known by the moment of removal (`removedAt`). It is out of the customer base (not listed, cannot be chosen as a Referrer) but stays in the history: indications that point at it still show its name, flagged as removed. A person who returns is registered as a new customer and inherits nothing.
+_Avoid_: deleted customer, anonymous customer, inactive customer
+
+**Inactive** (reserved):
+Not a stored state. Inactivity will be computed from the date of the customer's last paid order, by rules the domain experts will define. It never means removed.
+_Avoid_: using "inactive" for a removed customer, a manual inactive flag

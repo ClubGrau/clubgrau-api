@@ -15,7 +15,12 @@ export interface GetCustomersDto extends PaginationInputDto {
  */
 export type GetCustomersIndicationDto =
   | { categoryId: 'canal' | 'campanha'; originId: string; name: string | null }
-  | { categoryId: 'amigo'; referrerCustomerId: string; name: string | null };
+  | {
+      categoryId: 'amigo';
+      referrerCustomerId: string;
+      name: string | null;
+      referrerRemoved: boolean;
+    };
 
 /** Read model de um customer na listagem. */
 export interface GetCustomersItemDto {
@@ -52,6 +57,13 @@ export interface FindCustomersResult {
 export interface NameByIdReadModel {
   id: string;
   name: string;
+}
+
+/** Nome de referrer na listagem, com flag de remoção. */
+export interface ReferrerNameReadModel {
+  id: string;
+  name: string;
+  removed: boolean;
 }
 
 /** Output da query GetCustomers (lista nomeada + meta de paginação). */

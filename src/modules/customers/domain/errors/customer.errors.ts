@@ -35,3 +35,21 @@ export class CustomerReferrerNotFoundError extends DomainError {
     super('Referrer customer was not found');
   }
 }
+
+export class CustomerNotFoundError extends DomainError {
+  constructor() {
+    super('Customer was not found');
+  }
+}
+
+export class CustomerAlreadyRemovedError extends DomainError {
+  constructor() {
+    super('Customer is already removed');
+  }
+}
+
+export class CustomerActorAuthenticationFailedError extends DomainError {
+  constructor() {
+    super('Authentication failed');
+  }
+}
