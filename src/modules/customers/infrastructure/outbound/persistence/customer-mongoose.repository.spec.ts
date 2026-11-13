@@ -525,6 +525,104 @@ describe('CustomerMongooseRepository', () => {
       await expect(sut.findNamesByIds([REFERRER_ID])).resolves.toEqual([]);
     });
   });
+
+  describe('update', () => {
+    it('should update only provided fields guarded by removedAt null and convert nif string to number', async () => {
+      const { sut, customerModelMock } = makeSut();
+      const id = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(customerModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1 });
+
+      const result = await sut.update({
+        id,
+        name: 'Maria Santos',
+        nif: '200000004',
+      });
+
+      expect(result).toBe(true);
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: id, removedAt: null },
+        {
+          $set: {
+            name: 'Maria Santos',
+            nif: 200000004,
+          },
+        },
+      );
+    });
+
+    it('should persist null for cleared phone and nif', async () => {
+      const { sut, customerModelMock } = makeSut();
+      const id = new mongoose.Types.ObjectId().toHexString();
+      const updateOneSpy = jest
+        .spyOn(customerModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 1 });
+
+      await expect(
+        sut.update({
+          id,
+          phone: null,
+          nif: null,
+        }),
+      ).resolves.toBe(true);
+
+      expect(updateOneSpy).toHaveBeenCalledWith(
+        { _id: id, removedAt: null },
+        {
+          $set: {
+            phone: null,
+            nif: null,
+          },
+        },
+      );
+    });
+
+    it('should return false without calling updateOne when id is malformed', async () => {
+      const { sut, customerModelMock } = makeSut();
+      const updateOneSpy = jest.spyOn(customerModelMock, 'updateOne');
+
+      await expect(
+        sut.update({ id: 'not-a-valid-id', name: 'Maria Santos' }),
+      ).resolves.toBe(false);
+      expect(updateOneSpy).not.toHaveBeenCalled();
+    });
+
+    it('should return false when updateOne matches 0 documents', async () => {
+      const { sut, customerModelMock } = makeSut();
+      const id = new mongoose.Types.ObjectId().toHexString();
+      jest
+        .spyOn(customerModelMock, 'updateOne')
+        .mockResolvedValueOnce({ matchedCount: 0 });
+
+      await expect(sut.update({ id, name: 'Maria Santos' })).resolves.toBe(
+        false,
+      );
+    });
+
+    it('should throw CustomerAlreadyExistsError when updateOne rejects with code 11000', async () => {
+      const { sut, customerModelMock } = makeSut();
+      const id = new mongoose.Types.ObjectId().toHexString();
+      jest
+        .spyOn(customerModelMock, 'updateOne')
+        .mockRejectedValueOnce({ code: 11000 });
+
+      await expect(
+        sut.update({ id, email: 'taken@example.com' }),
+      ).rejects.toThrow(CustomerAlreadyExistsError);
+    });
+
+    it('should propagate unexpected errors from updateOne', async () => {
+      const { sut, customerModelMock } = makeSut();
+      const id = new mongoose.Types.ObjectId().toHexString();
+      const dbError = new Error('DB failure');
+      jest.spyOn(customerModelMock, 'updateOne').mockRejectedValueOnce(dbError);
+
+      await expect(sut.update({ id, name: 'Maria Santos' })).rejects.toBe(
+        dbError,
+      );
+    });
+  });
 });
 
 describe('CustomerMongooseRepository (integration)', () => {
@@ -754,5 +852,72 @@ describe('CustomerMongooseRepository (integration)', () => {
         { id: removedId, name: 'Removed Referrer', removed: true },
       ]),
     );
+  });
+
+  describe('update', () => {
+    it('partially updates provided fields and keeps rank, indication, createdAt and omitted fields intact', async () => {
+      const snapshot = snapshotFromCreate({
+        name: 'Original Name',
+        email: `update-partial-${new mongoose.Types.ObjectId().toHexString()}@example.com`,
+      });
+      const { id } = await sut.create(snapshot);
+
+      await expect(
+        sut.update({
+          id,
+          name: 'Updated Name',
+          nif: '200000004',
+        }),
+      ).resolves.toBe(true);
+
+      const updated = await sut.findById(id);
+      expect(updated).toEqual({
+        ...snapshot,
+        id,
+        name: 'Updated Name',
+        nif: '200000004',
+      });
+
+      await expect(
+        sut.update({
+          id,
+          phone: null,
+          nif: null,
+        }),
+      ).resolves.toBe(true);
+
+      const cleared = await sut.findById(id);
+      expect(cleared?.phone).toBeNull();
+      expect(cleared?.nif).toBeNull();
+      expect(cleared?.name).toBe('Updated Name');
+    });
+
+    it('returns false and does not overwrite a removed customer', async () => {
+      const snapshot = snapshotFromCreate();
+      const { id } = await sut.create(snapshot);
+      const stored = (await sut.findById(id))!;
+      const removedSnapshot = reconstituteAndRemove(
+        stored,
+        new Date('2025-06-06T12:00:00.000Z'),
+      );
+      await sut.remove(removedSnapshot);
+
+      await expect(sut.update({ id, name: 'Should Not Apply' })).resolves.toBe(
+        false,
+      );
+
+      const afterAttempt = await sut.findById(id);
+      expect(afterAttempt?.name).toBe(stored.name);
+    });
+
+    it('throws CustomerAlreadyExistsError when updating email to an occupied one', async () => {
+      const takenEmail = `taken-${new mongoose.Types.ObjectId().toHexString()}@example.com`;
+      await sut.create(snapshotFromCreate({ email: takenEmail }));
+      const { id } = await sut.create(snapshotFromCreate());
+
+      await expect(sut.update({ id, email: takenEmail })).rejects.toThrow(
+        CustomerAlreadyExistsError,
+      );
+    });
   });
 });

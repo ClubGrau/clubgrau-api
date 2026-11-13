@@ -11,6 +11,10 @@ import { FindCustomerByIdPort } from '@modules/customers/application/ports/outbo
 import { FindCustomerNamesByIdsPort } from '@modules/customers/application/ports/outbound/find-customer-names-by-ids.port';
 import { FindCustomersPort } from '@modules/customers/application/ports/outbound/find-customers.port';
 import { RemoveCustomerRepositoryPort } from '@modules/customers/application/ports/outbound/remove-customer-repository.port';
+import {
+  UpdateCustomerParams,
+  UpdateCustomerRepositoryPort,
+} from '@modules/customers/application/ports/outbound/update-customer-repository.port';
 import { CustomerAlreadyExistsError } from '@modules/customers/domain/errors/customer.errors';
 import { FindCustomerByEmailPort } from '@modules/customers/domain/ports/find-customer-by-email.port';
 import { CustomerModel } from '@modules/customers/domain/models/customer.model';
@@ -36,6 +40,7 @@ export class CustomerMongooseRepository
     CreateCustomerRepositoryPort,
     ExistsReferrableCustomerByIdPort,
     FindCustomerByIdPort,
+    UpdateCustomerRepositoryPort,
     RemoveCustomerRepositoryPort,
     FindCustomersPort,
     FindCustomerNamesByIdsPort
@@ -70,6 +75,35 @@ export class CustomerMongooseRepository
     }
 
     return mapCustomerDocument(customer as CustomerDocument);
+  }
+
+  async update(params: UpdateCustomerParams): Promise<boolean> {
+    if (!mongoose.Types.ObjectId.isValid(params.id)) {
+      return false;
+    }
+
+    const { id, ...fields } = params;
+    const $set: Record<string, string | number | null> = Object.fromEntries(
+      Object.entries(fields).filter(([, value]) => value !== undefined),
+    );
+
+    if ('nif' in $set && $set.nif !== null) {
+      $set.nif = Number($set.nif);
+    }
+
+    try {
+      const result = await this.customerModel.updateOne(
+        { _id: id, removedAt: null },
+        { $set },
+      );
+
+      return result.matchedCount === 1;
+    } catch (err) {
+      if (this.isDuplicateKey(err)) {
+        throw new CustomerAlreadyExistsError();
+      }
+      throw err;
+    }
   }
 
   async remove(customer: CustomerModel.toCreate): Promise<boolean> {
