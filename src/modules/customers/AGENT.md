@@ -31,12 +31,13 @@ Use this file to extend **this** module without breaking its current contracts: 
 |------------|--------|-------------|
 | Create customer (command) | Done | `POST /api/customer` — stores `rank` (born `BRONZE`) and an optional indication |
 | List customers (query) | Done | `GET /api/customers` — offset pagination + `rank` / `search`; indication carries the origin or referrer name; removed customers are excluded; friend indications expose `referrerRemoved` |
+| Update customer (command) | Done | `PATCH /api/customer/:id` — single-step sparse patch of `name`, `email`, `phone`, and `nif` |
 | Remove customer (command) | Done | `POST /api/customer/remove` — `ADMIN` / `MANAGER` + actor password; soft-remove via `removedAt` |
 | Email availability policy | Done | `CustomerPoliciesService.ensureEmailIsAvailable`; a taken email is `409` |
 | Origin and referrer checks | Done | `FindIndicationOriginPort` (injected) and `ExistsReferrableCustomerByIdPort` |
 | Origin names for list | Done | `FindIndicationOriginNamesByIdsPort` (injected; implemented by `indications`) |
 | Mongo persistence | Done | `CustomerMongooseRepository` |
-| Auth gate | Done | `authTokenMiddleware` on create and list (any authenticated employee, no `requireRoles`) |
+| Auth gate | Done | `authTokenMiddleware` on create, list, and update (any authenticated employee, no `requireRoles`); `requireRoles('ADMIN', 'MANAGER')` on remove |
 | Composition root wiring | Done | `customers.module.ts` receives `findIndicationOrigin` + `findIndicationOriginNamesByIds`; `app.ts` builds indications first |
 
 ### Future work
@@ -46,7 +47,7 @@ Left for a later PRD. None of these is half-implemented here:
 - A rank transition (Silver, Gold) and any endpoint that changes a rank
 - Customer get-by-id, summary by rank, "Indicou N", and the customer search a friend picker needs (list is shipped)
 - Changing or removing an indication after create
-- Update or computed inactivity (owned by domain experts; not implemented here)
+- Computed inactivity (owned by domain experts; not implemented here)
 - Customer login, password, or any auth subject
 
 ---
@@ -72,6 +73,8 @@ src/modules/customers/
 │   ├── errors/
 │   │   └── customer.errors.ts
 │   ├── services/
+│   │   ├── customer-patch.service.ts
+│   │   ├── customer-patch.service.spec.ts
 │   │   ├── customer-policies.service.ts
 │   │   └── customer-policies.service.spec.ts
 │   ├── value-objects/
@@ -85,29 +88,39 @@ src/modules/customers/
 │   │   ├── create-customer.dto.ts
 │   │   ├── create-customer.dto.spec.ts
 │   │   ├── get-customers.dto.ts
-│   │   └── get-customers.dto.spec.ts
+│   │   ├── get-customers.dto.spec.ts
+│   │   ├── remove-customer.dto.ts
+│   │   ├── update-customer.dto.ts
+│   │   └── update-customer.dto.spec.ts
+│   ├── services/
+│   │   └── customer-update-changes.resolver.ts
 │   ├── ports/
 │   │   ├── inbound/
 │   │   │   ├── create-customer.port.ts
 │   │   │   ├── get-customers.port.ts
-│   │   │   └── remove-customer.port.ts
+│   │   │   ├── remove-customer.port.ts
+│   │   │   └── update-customer.port.ts
 │   │   └── outbound/
 │   │       ├── create-customer-repository.port.ts
 │   │       ├── exists-referrable-customer-by-id.port.ts
 │   │       ├── find-customer-by-id.port.ts
 │   │       ├── remove-customer-repository.port.ts
+│   │       ├── update-customer-repository.port.ts
 │   │       ├── find-indication-origin.port.ts
 │   │       ├── find-indication-origin-names-by-ids.port.ts
 │   │       ├── find-customers.port.ts
 │   │       ├── find-customer-names-by-ids.port.ts
 │   │       └── verify-actor-password.port.ts
 │   ├── mappers/
-│   │   └── customer-snapshot.mapper.ts
+│   │   ├── customer-snapshot.mapper.ts
+│   │   └── customer-snapshot.mapper.spec.ts
 │   ├── usecases/
 │   │   ├── create-customer.usecase.ts
 │   │   ├── create-customer.usecase.spec.ts
 │   │   ├── remove-customer.usecase.ts
-│   │   └── remove-customer.usecase.spec.ts
+│   │   ├── remove-customer.usecase.spec.ts
+│   │   ├── update-customer.usecase.ts
+│   │   └── update-customer.usecase.spec.ts
 │   └── queries/
 │       ├── get-customers.query.ts
 │       └── get-customers.query.spec.ts
@@ -116,14 +129,17 @@ src/modules/customers/
 │   ├── http/
 │   │   ├── create-customer.request.ts
 │   │   ├── get-customers.request.ts
-│   │   └── remove-customer.request.ts
+│   │   ├── remove-customer.request.ts
+│   │   └── update-customer.request.ts
 │   └── controllers/
 │       ├── create-customer.controller.ts
 │       ├── create-customer.controller.spec.ts
 │       ├── get-customers.controller.ts
 │       ├── get-customers.controller.spec.ts
 │       ├── remove-customer.controller.ts
-│       └── remove-customer.controller.spec.ts
+│       ├── remove-customer.controller.spec.ts
+│       ├── update-customer.controller.ts
+│       └── update-customer.controller.spec.ts
 │
 └── infrastructure/
     ├── inbound/http/
@@ -141,7 +157,9 @@ src/modules/customers/
 
 ### Domain model
 
-`Customer` has `id`, `name` (`Name`), `email` (`Email`), `phone` (`Phone` or `null`), `nif` (`Nif` or `null`), `createdAt`, `rank`, `indication` (`Indication` or `null`), and `removedAt` (`Date` or `null`). It has no password, role, or active flag. `Customer.create` builds a new customer. `Customer.reconstitute` rebuilds one from persistence. Getters expose `rank`, `indication`, `removedAt`, and `isRemoved`. There is no `changeRank`.
+`Customer` has `id`, `name` (`Name`), `email` (`Email`), `phone` (`Phone` or `null`), `nif` (`Nif` or `null`), `createdAt`, `rank`, `indication` (`Indication` or `null`), and `removedAt` (`Date` or `null`). It has no password, role, or active flag. `Customer.create` builds a new customer. `Customer.reconstitute` rebuilds one from persistence. Getters expose `email`, `rank`, `indication`, `removedAt`, and `isRemoved`. Mutators `changeName`, `changeEmail`, `assignPhone`, and `assignNif` update registration fields and refuse any mutation once `isRemoved` (`CustomerAlreadyRemovedError`). There is no `changeRank` or `changeIndication`.
+
+`CustomerPatchService` applies a single-step sparse patch (`name`, `email`, `phone`, `nif`) on a reconstituted `Customer`. It refuses removed customers (`CustomerAlreadyRemovedError`), validates all present VOs before checking occupancy or mutating the entity, and calls `CustomerPoliciesService.ensureEmailIsAvailable` only when the normalized `email` differs from `customer.email.value`.
 
 `remove(now)` anonymizes an active customer: `email` becomes the sentinel `removed.{id}@anonymized.invalid` (freeing the original email), `phone` and `nif` are cleared, `removedAt` is set. **`name`, `rank`, `indication`, and `createdAt` stay** so friend links and history still read a human label. A second remove throws `CustomerAlreadyRemovedError`.
 
@@ -165,9 +183,10 @@ Ending an origin never changes a customer already linked to it.
 | `CustomerIndicationOriginCategoryMismatchError` | The origin belongs to the other category |
 | `CustomerIndicationOriginEndedError` | The origin is ended |
 | `CustomerReferrerNotFoundError` | The referrer customer id has no row |
-| `CustomerNotFoundError` | Remove: unknown `customerId` |
-| `CustomerAlreadyRemovedError` | Remove: customer already has `removedAt` |
+| `CustomerNotFoundError` | Update / Remove: unknown or malformed `id` |
+| `CustomerAlreadyRemovedError` | Update / Remove: customer already has `removedAt` |
 | `CustomerActorAuthenticationFailedError` | Remove: blank actor, wrong password, or non–login-capable actor |
+| `EmptyCustomerUpdateDataError` | Update: use case called with no updatable customer fields |
 | `InvalidNameError`, `InvalidEmailError`, `InvalidPhoneFormatError`, `InvalidNifError`, `InvalidUniqueEntityIdError` (shared) | VO validation, including a malformed indication id |
 
 ### Application: Create Customer (command)
@@ -182,6 +201,16 @@ Port: `CreateCustomerPort`. DTO: `{ name, email, phone?, nif?, indication? }` �
 6. Return `{ id }`
 
 `ExistsReferrableCustomerByIdPort` is this module's repository (removed customers are not referrable). `FindIndicationOriginPort` is declared here and implemented in `indications` (`IndicationOriginLookupAdapter`). Do not read the `origins` collection from this module ([ADR 0001](../../../docs/adr/customer-ranking-indications/0001-customers-consult-origins-through-a-port-implemented-by-indications.md)). There is no Mongo transaction ([ADR 0003](../../../docs/adr/customer-ranking-indications/0003-no-transaction-on-create-customer.md)).
+
+### Application: Update Customer (command)
+
+Port: `UpdateCustomerPort`. DTO: `{ id, name?, email?, phone?, nif? }` → `{ id }`. Unlike employees (multi-step patches), customer registration fields are updated in a single submission; only present keys are changed. `nif` on the DTO is `string | null`. `rank` and `indication` are not fields of this command.
+
+1. `resolveCustomerUpdateChanges` — no updatable key → `EmptyCustomerUpdateDataError`
+2. `FindCustomerByIdPort.findById(id)` — `null` → `CustomerNotFoundError`
+3. `CustomerSnapshotMapper.toEntity` → `CustomerPatchService.apply(customer, changes)` (refuses removed customer, validates VOs, checks `ensureEmailIsAvailable` only when normalized email changes)
+4. `UpdateCustomerRepositoryPort.update({ id, ...patch })` — guarded `$set` of present keys only (`removedAt: null`); `false` → `CustomerAlreadyRemovedError` (concurrent remove)
+5. Return `{ id }`
 
 ### Application: Remove Customer (command)
 
@@ -257,6 +286,7 @@ authTokenMiddleware → adaptRoute
 |--------|------|---------|
 | `GET` | `/api/customers` | `200` `{ data: { customers, page, limit, total, totalPages } }` |
 | `POST` | `/api/customer` | `201` `{ data: { id } }` |
+| `PATCH` | `/api/customer/:id` | `200` `{ data: { id } }` |
 | `POST` | `/api/customer/remove` | `200` `{ data: { id } }` — `authTokenMiddleware` + `requireRoles('ADMIN', 'MANAGER')` |
 
 `GetCustomersController` has no required fields. It normalizes the query string: `rank` via `isRank` (`BRONZE` \| `SILVER` \| `GOLD`), `search` (trim), `page`, `limit`. Invalid `rank` → `400` `InvalidParamError`. Blank `rank` / `search` are omitted. Success → `200` + `{ data: { customers, page, limit, total, totalPages } }`.
@@ -267,6 +297,8 @@ GET /api/customers?page=1&limit=20&rank=BRONZE&search=maria
 
 `CreateCustomerController` checks `name` and `email` with `validationRequiredFields` (a falsy value is `MissingParamError`, `400`). When `indication` is a plain object it also checks `categoryId`; a miss is `MissingParamError` with field `indication.categoryId` (`400`). It forwards `name`, `email`, `phone`, `nif`, and `indication`. A `rank` in the body is not forwarded.
 
+`UpdateCustomerController` checks `:id` with `validationRequiredFields` (`MissingParamError('id')`, `400`). It inspects sparse presence among `name`, `email`, `phone`, and `nif` (`'field' in request`): none present (empty body or only ignored keys such as `rank` / `indication`) → `400` `MissingParamError('no customer fields')`. Required registration fields (`name`, `email`), when present, cannot be blank or `null` (`400` `InvalidParamError`). Optional fields (`phone`, `nif`) accept `null` or blank strings as `null` (clear); `nif` sent as a finite number (including `0`) is coerced with `String(value)`. Success → `200` `{ data: { id } }`.
+
 `RemoveCustomerController` checks `id` and `password` with `validationRequiredFields`. It forwards `actorId` from the token, body `id` as `customerId`, and `password` as `actorPassword`.
 
 | Situation | HTTP |
@@ -274,15 +306,17 @@ GET /api/customers?page=1&limit=20&rank=BRONZE&search=maria
 | List | `200` `{ data: { customers, page, limit, total, totalPages } }` |
 | Invalid `rank` on list | `400` |
 | Created, with or without indication | `201` `{ data: { id } }` |
+| Updated | `200` `{ data: { id } }` |
 | Removed | `200` `{ data: { id } }` |
 | Missing `name`, `email`, or `indication.categoryId` | `400` |
+| Update: missing `id`, no customer fields, or blank/`null` `name`/`email` | `400` |
 | Remove: missing `id` or `password` | `400` |
-| Remove: unknown `customerId` | `400` |
+| Update / Remove: unknown or malformed `id` | `400` |
 | Invalid name, email, phone, nif | `400` |
 | Unknown category, incoherent shape, malformed id, indication that is not an object | `400` |
 | Unknown, wrong-category, or ended origin; unknown referrer | `400` |
-| Email already used | `409` |
-| Remove: already removed | `409` |
+| Email already used (create or update) | `409` |
+| Update / Remove: already removed | `409` |
 | No / invalid session; remove: wrong actor password | `401` |
 | Remove: `EMPLOYEE` (or other role not allowed) | `403` |
 | Unexpected | `500` |
@@ -296,8 +330,9 @@ Samples: `src/client/customer.http`.
 - Model name: `Customer`
 - Fields: `name`, `email` (unique index), `phone`, `nif`, `createdAt`, `rank` (enum `BRONZE` \| `SILVER` \| `GOLD`, required), embedded `indication` (`categoryId`, `originId`, `referrerCustomerId`), `removedAt` (`Date`, default `null`)
 - Indication ids are plain `ObjectId`, with **no** Mongoose `ref`. Do not use `populate()` or `$lookup` into `origins`.
-- `CustomerMongooseRepository` implements `CreateCustomerRepositoryPort` (`create`), `FindCustomerByEmailPort` (`findByEmail`), `FindCustomerByIdPort` (`findById`), `RemoveCustomerRepositoryPort` (`remove` via guarded `updateOne`), `ExistsReferrableCustomerByIdPort` (`existsReferrableById` via `Model.exists` with `removedAt: null`), `FindCustomersPort` (`findAll`), and `FindCustomerNamesByIdsPort` (`findNamesByIds`)
+- `CustomerMongooseRepository` implements `CreateCustomerRepositoryPort` (`create`), `FindCustomerByEmailPort` (`findByEmail`), `FindCustomerByIdPort` (`findById`), `UpdateCustomerRepositoryPort` (`update` via guarded `updateOne`), `RemoveCustomerRepositoryPort` (`remove` via guarded `updateOne`), `ExistsReferrableCustomerByIdPort` (`existsReferrableById` via `Model.exists` with `removedAt: null`), `FindCustomersPort` (`findAll`), and `FindCustomerNamesByIdsPort` (`findNamesByIds`)
 - `findById` returns the write snapshot for active and removed customers; malformed ids yield `null`
+- `update` runs `updateOne({ _id: id, removedAt: null }, { $set })` with only the present fields (`nif` string → `Number`, `null` clears), returns `false` on malformed/missing/removed ids, and maps duplicate key `11000` on `email` to `CustomerAlreadyExistsError`
 - `remove` sets sentinel `email`, clears `phone` and `nif`, sets `removedAt`, and leaves `name`, `rank`, `indication`, and `createdAt` unchanged
 - `findAll` always filters `removedAt: null`. It sorts by `{ createdAt: -1, _id: -1 }` for stable pages. Optional `search` builds a case-insensitive `$or` over `name`, `email`, `phone`, and `nif` (`$expr` + `$toString` because `nif` is stored as Number). Regex metacharacters in `search` are escaped. `countDocuments` uses the same filter
 - `findNamesByIds` selects `_id`, `name`, and `removedAt`. Malformed ids are skipped. Removed rows are included with `removed: true`. A missing id is omitted from the result (the query maps it to `name: null`)
@@ -313,15 +348,18 @@ Factory: `makeCustomersModule({ connection, authTokenMiddleware, makeRequireRole
 1. `connection.model('Customer', CustomerSchema)`
 2. One `CustomerMongooseRepository`
 3. `CustomerPoliciesService(repository)` — same instance, `FindCustomerByEmailPort`
-4. `CreateCustomerUsecase(policies, findIndicationOrigin, repository, repository)` — `ExistsReferrableCustomerByIdPort` and `CreateCustomerRepositoryPort`
-5. `CreateCustomerController(createCustomer)`
-6. `GetCustomersQuery(repository, findIndicationOriginNamesByIds, repository)` — `FindCustomersPort` + `FindCustomerNamesByIdsPort`
-7. `GetCustomersController(getCustomers)`
-8. `RemoveCustomerUsecase(verifyActorPassword, repository, repository)` — `FindCustomerByIdPort` + `RemoveCustomerRepositoryPort`
-9. `RemoveCustomerController(removeCustomer)`
-10. `makeCustomerRoutes({ createCustomerController, getCustomersController, removeCustomerController, authTokenMiddleware, makeRequireRoles })`
+4. `CustomerPatchService(policies)` — reuses `CustomerPoliciesService`
+5. `CreateCustomerUsecase(policies, findIndicationOrigin, repository, repository)` — `ExistsReferrableCustomerByIdPort` and `CreateCustomerRepositoryPort`
+6. `CreateCustomerController(createCustomer)`
+7. `GetCustomersQuery(repository, findIndicationOriginNamesByIds, repository)` — `FindCustomersPort` + `FindCustomerNamesByIdsPort`
+8. `GetCustomersController(getCustomers)`
+9. `UpdateCustomerUsecase(patchService, repository, repository)` — `FindCustomerByIdPort` + `UpdateCustomerRepositoryPort`
+10. `UpdateCustomerController(updateCustomer)`
+11. `RemoveCustomerUsecase(verifyActorPassword, repository, repository)` — `FindCustomerByIdPort` + `RemoveCustomerRepositoryPort`
+12. `RemoveCustomerController(removeCustomer)`
+13. `makeCustomerRoutes({ createCustomerController, getCustomersController, updateCustomerController, removeCustomerController, authTokenMiddleware, makeRequireRoles })`
 
-Returns `{ createCustomerController, getCustomersController, removeCustomerController, createCustomer, getCustomers, removeCustomer, router }`.
+Returns `{ createCustomerController, getCustomersController, updateCustomerController, removeCustomerController, createCustomer, getCustomers, updateCustomer, removeCustomer, router }`.
 
 **Rule:** when adding a use case or query, wire it in this file. Do not construct the repository inside a controller or a use case. Do not construct a second customer repository.
 
