@@ -7,7 +7,9 @@ import {
   makeActorAuthenticationFailedError,
   makeEmployeesModule,
 } from '@modules/employees/employees.module';
+import { makeHealthModule } from '@modules/health/health.module';
 import { makeIndicationsModule } from '@modules/indications/indications.module';
+import { StartLivenessKeepAlivePort } from '@modules/health/application/ports/inbound/start-liveness-keep-alive.port';
 import { BcryptAdapter } from '@shared/infrastructure/adapters/bcrypt/bcrypt.adapter';
 import { ResendMailerAdapter } from '@shared/infrastructure/adapters/resend/resend-mailer.adapter';
 import middlewares from '@shared/infrastructure/adapters/http/middlewares';
@@ -16,12 +18,22 @@ export type MakeAppDeps = {
   connection: Connection;
 };
 
-export function makeApp({ connection }: MakeAppDeps): Express {
+export type AppComposition = {
+  app: Express;
+  keepAlive: StartLivenessKeepAlivePort;
+};
+
+export function makeApp({ connection }: MakeAppDeps): AppComposition {
   const app = express();
   middlewares(app);
 
   const bcryptAdapter = new BcryptAdapter();
   const mailerAdapter = new ResendMailerAdapter();
+
+  const health = makeHealthModule({
+    keepAliveEnabled: envs.keepAliveEnabled,
+    appPublicUrl: envs.appPublicUrl,
+  });
 
   const auth = makeAuthModule({
     connection,
@@ -56,10 +68,11 @@ export function makeApp({ connection }: MakeAppDeps): Express {
     verifyActorPassword: auth.verifyActorPassword,
   });
 
+  app.use(health.router);
   app.use('/api', employees.router);
   app.use('/api', customers.router);
   app.use('/api', indications.router);
   app.use('/auth', auth.router);
 
-  return app;
+  return { app, keepAlive: health.keepAlive };
 }
