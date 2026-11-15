@@ -7,4 +7,8 @@ export default {
   resendFrom: process.env.RESEND_FROM, // TODO - add default email vcalue from config
   passwordResetPepper: process.env.PASSWORD_RESET_PEPPER,
   frontendPublicOrigin: process.env.FRONTEND_PUBLIC_ORIGIN,
+  /** Public base URL of this API (e.g. https://api.example.com). Used by keep-alive ping. */
+  appPublicUrl: process.env.APP_PUBLIC_URL,
+  /** When true, schedules GET /health/liveness every 14 minutes to avoid host hibernation. */
+  keepAliveEnabled: process.env.KEEP_ALIVE_ENABLED === 'true',
 };

@@ -12,14 +12,16 @@ async function bootstrap(): Promise<void> {
   }
 
   const connection = await connectDatabase({ uri });
-  const app = makeApp({ connection });
+  const { app, keepAlive } = makeApp({ connection });
 
   const port = envs.port;
   const server = app.listen(port, () => {
     console.log(`Server listening on http://localhost:${port}`);
+    keepAlive.start();
   });
 
   const shutdown = async (): Promise<void> => {
+    keepAlive.stop();
     server.close();
     await disconnectDatabase(connection);
     process.exit(0);

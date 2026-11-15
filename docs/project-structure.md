@@ -107,6 +107,8 @@ flowchart TB
   REPO --> MAPPER
 ```
 
+Also: `modules/health` exposes `GET /health/liveness` and an optional keep-alive cron (`node-cron` + HTTP self-ping) started from `main.ts` after `listen`. Contract: [`src/modules/health/AGENT.md`](../src/modules/health/AGENT.md).
+
 ### Request flow (Create Employee)
 
 ```mermaid

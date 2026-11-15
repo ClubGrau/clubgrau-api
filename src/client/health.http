@@ -1,0 +1,2 @@
+### Liveness (keep-alive / probe)
+GET http://localhost:3003/health/liveness
