@@ -214,4 +214,5 @@ Never call the repository directly from the controller.
 | Visual structure / diagrams | [`docs/project-structure.md`](docs/project-structure.md) |
 | Module template | [`src/modules/employees`](src/modules/employees) |
 | Employees contract | [`src/modules/employees/AGENT.md`](src/modules/employees/AGENT.md) |
+| Health / liveness | [`src/modules/health/AGENT.md`](src/modules/health/AGENT.md) |
 | Composition root | `src/app.ts`, `src/main.ts` |
